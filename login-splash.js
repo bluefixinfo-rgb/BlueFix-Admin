@@ -54,7 +54,9 @@
 
   function greeting() {
     var h = new Date().getHours();
-    return h < 11 ? "Guten Morgen" : h < 17 ? "Guten Tag" : "Guten Abend";
+    if (h >= 5 && h < 11) return "Guten Morgen";   // 05:00 – 10:59
+    if (h >= 11 && h < 17) return "Guten Mittag";  // 11:00 – 16:59
+    return "Guten Abend";                          // 17:00 – 04:59
   }
 
   var active = null;
