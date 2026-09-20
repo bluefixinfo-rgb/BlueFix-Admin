@@ -980,7 +980,16 @@ input,select,textarea{font-family:var(--sans);}
       </select>
     </div>
     <div class="field">
-      <label>Sendungsnummer (Tracking)</label>
+      <label>Versanddienst</label>
+      <select id="ordCarrier">
+        <option value="">– bitte wählen –</option>
+        <option value="dhl">DHL</option>
+        <option value="post">Schweizer Post</option>
+        <option value="asendia">Asendia</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Sendungsnummer (nur die Nummer)</label>
       <input type="text" id="ordTracking" placeholder="z.B. 98765432CH">
     </div>
     <div class="field">
@@ -2015,6 +2024,7 @@ function openTeamOrderModal(order){
   document.getElementById('ordDringend').value = order && order.dringend ? 'dringend' : 'normal';
   document.getElementById('ordStatus').value = order ? order.status : 'nicht';
   document.getElementById('ordTracking').value = order ? (order.tracking || '') : '';
+  document.getElementById('ordCarrier').value = order ? (order.carrier || '') : '';
   document.getElementById('ordLink').value = order ? (order.link || '') : '';
   document.getElementById('ordAssigned').value = order ? order.assigned : (currentUser() === 'jerome' ? 'Jerome' : 'Thierry');
   document.querySelector('#teamOrderModal h3').textContent = order ? 'Team Auftrag bearbeiten' : 'Team Auftrag';
@@ -2028,6 +2038,7 @@ document.getElementById('teamOrdSave').addEventListener('click', () => {
   const nachname = document.getElementById('ordNachname').value.trim();
   const modell = document.getElementById('ordModell').value.trim();
   if (!vorname || !nachname || !modell) { alert('Bitte Vorname, Nachname und Modell ausfüllen.'); return; }
+  if (document.getElementById('ordTracking').value.trim() && !document.getElementById('ordCarrier').value) { alert('Bitte den Versanddienst (DHL, Schweizer Post oder Asendia) auswählen.'); return; }
   const orders = load(ORDERS_KEY, []);
   const felder = {
     vorname, nachname, modell,
@@ -2036,6 +2047,7 @@ document.getElementById('teamOrdSave').addEventListener('click', () => {
     dringend: document.getElementById('ordDringend').value === 'dringend',
     status: document.getElementById('ordStatus').value,
     tracking: document.getElementById('ordTracking').value.trim(),
+    carrier: document.getElementById('ordCarrier').value,
     link: document.getElementById('ordLink').value.trim(),
     assigned: document.getElementById('ordAssigned').value
   };
@@ -2639,14 +2651,21 @@ function generateWarrantyPDF(o){
   const pdfUrl=doc.output('bloburl');
   showFilePreview(pdfUrl, 'Garantie-Schein · '+(o.id||''), 'application/pdf');
 }
-// Sendungsnummer oder eingefügter Link -> immer direkt anklickbar
-function trackingHtml(t){
+// Sendungsnummer -> Link je nach Versanddienst (ein eingefügter Link wird unverändert verwendet)
+const CARRIERS = {
+  dhl:     { name: 'DHL',            url: nr => 'https://www.dhl.com/de-de/home/tracking.html?tracking-id=' + encodeURIComponent(nr) },
+  post:    { name: 'Schweizer Post', url: nr => 'https://service.post.ch/ekp-web/ui/list?formattedParcelCodes=' + encodeURIComponent(nr) },
+  asendia: { name: 'Asendia',        url: nr => 'https://track.asendia.com/track/' + encodeURIComponent(nr) }
+};
+function trackingHtml(t, carrier){
   t = String(t || '').trim();
+  const c = CARRIERS[carrier];
+  const nr = t.replace(/\s+/g, '');
   let href;
   if (/^https?:\/\//i.test(t)) href = t;
-  else if (/^[\w-]+(\.[\w-]+)+\/\S*/.test(t)) href = 'https://' + t;   // Link ohne https://
-  else href = 'https://parcelsapp.com/de/tracking/' + encodeURIComponent(t.replace(/\s+/g, '')); // reine Nummer: Sendungsverfolgung für alle Anbieter
-  return '<a href="' + esc(href) + '" target="_blank" rel="noopener" class="link-glow">' + esc(t) + ' ↗</a>';
+  else if (/^[\w-]+(\.[\w-]+)+\/\S*/.test(t)) href = 'https://' + t;
+  else href = c ? c.url(nr) : 'https://parcelsapp.com/de/tracking/' + encodeURIComponent(nr); // ältere Aufträge ohne Versanddienst
+  return (c ? esc(c.name) + ' · ' : '') + '<a href="' + esc(href) + '" target="_blank" rel="noopener" class="link-glow">' + esc(t) + ' ↗</a>';
 }
 function renderOrders(){
   renderDashboard();
@@ -2675,7 +2694,7 @@ function renderOrders(){
       <div><div class="k">Angelegt</div><div class="v">${fmtTime(o.createdAt)}</div></div>
       ${o.updatedAt?`<div><div class="k">Zuletzt aktualisiert</div><div class="v">${fmtTime(o.updatedAt)}</div></div>`:''}
       ${isCustomer?`<div><div class="k">IMEI</div><div class="v">${esc(o.imei)}</div></div><div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis||0).toFixed(2)}</div></div><div><div class="k">Garantie</div><div class="v">${esc(o.garantie||'—')}</div></div>`:''}
-      ${o.tracking?`<div><div class="k">Sendungsnr.</div><div class="v" style="word-break:break-all;">${trackingHtml(o.tracking)}</div></div>`:''}
+      ${o.tracking?`<div><div class="k">Sendungsnr.</div><div class="v" style="word-break:break-all;">${trackingHtml(o.tracking, o.carrier)}</div></div>`:''}
       ${o.link?`<div><div class="k">Bestellt bei</div><div class="v"><a href="${esc(o.link)}" target="_blank" rel="noopener" class="link-glow">Link öffnen ↗</a></div></div>`:''}
       ${o.notizen?`<div style="grid-column:1/-1;"><div class="k">Notizen</div><div class="v">${linkify(o.notizen)}</div></div>`:''}
     </div>
