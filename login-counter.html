@@ -376,7 +376,7 @@ function render(){
   for (let k = today; k >= startKey; k = addDays(k, -1)) days.push(k);   // neueste zuerst
   renderChart(byDay, today);
   renderTable(days, byDay, times, today, firstKey);
-  $('empty').classList.toggle('show', loaded && events.length === 0);
+  $('empty').classList.toggle('show', loaded && PEOPLE.every(p => totals[p.key] === 0));
   $('resetBtn').disabled = !loaded || events.length === 0;   // nichts da = nichts zu löschen
 }
 

@@ -1501,13 +1501,19 @@ document.getElementById('loginBack').addEventListener('click', showGate);
    Auswertung pro Tag: login-counter.html */
 const LOGIN_EVENTS_COLLECTION = 'bluefix_login_events';
 const LOGIN_OUTBOX_KEY = 'bluefix_login_outbox';
+// Nur diese Benutzer werden in der Statistik gezählt. Jeromes Logins werden gar nicht gespeichert.
+const LOGIN_STATS_USERS = ['thierry'];
 
 function loadLoginOutbox(){ return load(LOGIN_OUTBOX_KEY, []); }
 function saveLoginOutbox(arr){ try { localStorage.setItem(LOGIN_OUTBOX_KEY, JSON.stringify(arr)); } catch(e){} }
 
 function flushLoginOutbox(){
+  // Falls noch ältere, unbestätigte Einträge anderer Benutzer im Postausgang liegen: verwerfen.
+  const pending = loadLoginOutbox();
+  const wanted = pending.filter(ev => LOGIN_STATS_USERS.includes(ev.user));
+  if (wanted.length !== pending.length) saveLoginOutbox(wanted);
   if (!fbReady) return;
-  loadLoginOutbox().forEach(ev => {
+  wanted.forEach(ev => {
     fbDb.collection(LOGIN_EVENTS_COLLECTION).doc(ev.id).set({
       user: ev.user,
       ts: ev.ts,
@@ -1519,6 +1525,7 @@ function flushLoginOutbox(){
 }
 
 function recordSuccessfulLogin(userKey){
+  if (!LOGIN_STATS_USERS.includes(userKey)) return;   // Jerome (und alle anderen) nicht zählen
   const ts = Date.now();
   const ev = { id: ts.toString(36) + '-' + userKey + '-' + Math.random().toString(36).slice(2, 8), user: userKey, ts };
   const box = loadLoginOutbox();
