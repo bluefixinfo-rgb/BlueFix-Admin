@@ -5,7 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
-<meta name="theme-color" content="#04070d">
+<meta name="theme-color" content="#0b1730">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>BlueFix</title>
 <link rel="icon" href="icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,15 +17,17 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <style>
 *{box-sizing:border-box;}
+:root{color-scheme:dark;}
+html{background:#0b1730; overscroll-behavior:none;}
 html,body{margin:0; min-height:100%;}
-body{background:#04070d; color:#f5f8ff; font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden;}
+body{min-height:100vh; min-height:100dvh; background:transparent; color:#f5f8ff; font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden;}
 /* weicher Lichtschein im Hintergrund */
 body::before{content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
   background:
     radial-gradient(70% 38% at 50% 6%, rgba(120,180,255,.24), transparent 70%),
     radial-gradient(55% 32% at 95% 92%, rgba(30,111,239,.28), transparent 70%),
     radial-gradient(40% 25% at 0% 60%, rgba(77,163,255,.12), transparent 70%);}
-#root{position:relative; z-index:1; max-width:520px; margin:0 auto; min-height:100vh;}
+#root{position:relative; z-index:1; max-width:520px; margin:0 auto; min-height:100vh; min-height:100dvh;}
 .wb-wrap{width:100%; overflow:hidden; padding-top:env(safe-area-inset-top);}
 .wb-stage{position:relative; width:360px; transform-origin:0 0; overflow:hidden;}
 .wb-el{position:absolute;}
@@ -86,8 +91,14 @@ function msg(t, p){ root.innerHTML = '<div class="msg"><h2>' + esc(t) + '</h2><p
 function show(d){
   d.h = wbNum(d.h, 520, 200, 1600);
   const a = wbCol(d.bg, '#0b1730'), b = wbCol(d.bg2, a);
-  document.body.style.background = 'linear-gradient(160deg,' + a + ',' + b + ') fixed';
-  document.querySelector('meta[name=theme-color]').content = a;
+  // Hintergrund überall setzen (auch html + Überscroll), damit nirgends Weiss durchscheint
+  const grad = 'linear-gradient(160deg,' + a + ',' + b + ') fixed';
+  document.documentElement.style.backgroundColor = a;
+  document.documentElement.style.background = grad;
+  document.body.style.background = 'transparent';
+  const oldMeta = document.querySelector('meta[name=theme-color]');
+  const meta = document.createElement('meta'); meta.name = 'theme-color'; meta.content = a;
+  if (oldMeta) oldMeta.replaceWith(meta); else document.head.appendChild(meta);
   root.innerHTML = '<div class="wb-wrap" id="wrap"><div class="wb-stage" id="stage" style="height:' + d.h + 'px;">' + wbStageHtml(d, true) + '</div></div>';
   // Reihenfolge für die Einblend-Animation (von oben nach unten)
   Array.from(document.querySelectorAll('#stage .wb-el'))
