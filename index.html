@@ -1255,21 +1255,30 @@ function bodyFor(key, remoteArr, otherName){
   return otherName + ' hat etwas Neues erstellt.';
 }
 
+let syncUnsubs = [];
 function startFirebaseSync(){
   if (!fbReady) return;
+  // Bei erneutem Login alte Listener beenden, damit sich keine Listener stapeln.
+  syncUnsubs.forEach(u => u());
+  syncUnsubs = [];
   SYNC_KEYS.forEach(key => {
-    fbDb.collection('bluefix_sync').doc(key).onSnapshot(doc => {
+    // FIX: Der erste vom Server bestätigte Stand ist nur das "Aufholen" beim Login,
+    // keine neue Aktion des anderen -> dafür keine Benachrichtigung.
+    let initialSyncDone = false;
+    const unsub = fbDb.collection('bluefix_sync').doc(key).onSnapshot(doc => {
       if (!doc.exists) return;
       const remote = doc.data();
       // Eigene, gerade selbst geschriebene Änderung ignorieren
       if (doc.metadata.hasPendingWrites) return;
+      const wasInitial = !initialSyncDone;
+      if (!doc.metadata.fromCache) initialSyncDone = true;
       const localArr = load(key, []);
       const remoteArr = remote.data || [];
       const localStr = JSON.stringify(localArr);
       const remoteStr = JSON.stringify(remoteArr);
       if (localStr === remoteStr) return;
 
-      const isNewFromOther = remoteArr.length > localArr.length && remote.updatedBy && remote.updatedBy !== currentUser();
+      const isNewFromOther = !wasInitial && remoteArr.length > localArr.length && remote.updatedBy && remote.updatedBy !== currentUser();
       localStorage.setItem(key, JSON.stringify(remoteArr));
 
       if (key === MSG_KEY) renderChat();
@@ -1285,6 +1294,7 @@ function startFirebaseSync(){
         notifyOther(titleFor(key, otherName), bodyFor(key, remoteArr, otherName));
       }
     }, err => console.warn('Firestore-Sync-Fehler (' + key + '):', err));
+    syncUnsubs.push(unsub);
   });
 }
 
@@ -1351,9 +1361,18 @@ function clearAllChatMessages(){
   }
 }
 
+let chatUnsub = null;
 function startChatCollectionSync(){
   if (!fbReady) return;
-  fbDb.collection(MSG_COLLECTION).orderBy('ts', 'asc').onSnapshot(snapshot => {
+  // Bei erneutem Login den alten Listener beenden, damit sich keine Listener stapeln.
+  if (chatUnsub) { chatUnsub(); chatUnsub = null; }
+  // FIX: Der erste vom Server bestätigte Snapshot enthält ALLE bereits vorhandenen Nachrichten
+  // als "added". Das war keine neue Nachricht, deshalb darf dafür keine Benachrichtigung kommen
+  // (sonst bekam Thierry bei jedem Login "Jerome hat im Chat geschrieben"). Neue Nachrichten
+  // während die App offen ist lösen weiterhin normal aus, und echte Push-Nachrichten (OneSignal)
+  // werden beim Senden ohnehin separat verschickt.
+  let initialChatSyncDone = false;
+  chatUnsub = fbDb.collection(MSG_COLLECTION).orderBy('ts', 'asc').onSnapshot(snapshot => {
     // Schutz gegen Datenverlust: Wenn dieses Ergebnis nur aus dem lokalen
     // Zwischenspeicher kommt (noch keine bestätigte Serverantwort) UND leer ist,
     // aber wir bereits Nachrichten kennen, dann NICHT überschreiben. Genau das
@@ -1362,12 +1381,15 @@ function startChatCollectionSync(){
       return;
     }
     let newestFromOther = null;
-    snapshot.docChanges().forEach(change => {
-      if (change.type === 'added' && !change.doc.metadata.hasPendingWrites) {
-        const m = change.doc.data();
-        if (m.from !== currentUser()) newestFromOther = m;
-      }
-    });
+    if (initialChatSyncDone && !snapshot.metadata.fromCache) {
+      snapshot.docChanges().forEach(change => {
+        if (change.type === 'added' && !change.doc.metadata.hasPendingWrites) {
+          const m = change.doc.data();
+          if (m.from !== currentUser()) newestFromOther = m;
+        }
+      });
+    }
+    if (!snapshot.metadata.fromCache) initialChatSyncDone = true;
     const arr = [];
     snapshot.forEach(doc => arr.push(doc.data()));
     arr.sort((a, b) => a.ts - b.ts);
