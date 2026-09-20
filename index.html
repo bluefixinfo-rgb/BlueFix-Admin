@@ -977,6 +977,7 @@ input,select,textarea{font-family:var(--sans);}
 
     <div class="wb-card">
       <button class="btn btn-primary" type="button" id="wbSendAll">📣 SMS senden</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="wbSendGroup" style="margin-top:10px;display:none;">👥 Alle in einer Gruppen-SMS</button>
       <div class="wb-row" style="margin-top:10px;">
         <button class="btn btn-ghost btn-sm" type="button" data-wb-preview>👁 Vorschau</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbPublishBtn">💾 Werbe-Seite speichern</button>
@@ -3605,6 +3606,7 @@ function wbRenderRecipients(){
   const open = list.filter(x => !sent[x.num]).length, b = wbEl('wbSendAll');
   b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 SMS senden (' + open + ' offen)' : '✅ Alle gesendet';
   b.disabled = !open; b.style.opacity = open ? '' : '.6';
+  const g = wbEl('wbSendGroup'); if (g) { g.style.display = open > 1 ? '' : 'none'; g.textContent = '👥 Alle ' + open + ' in einer Gruppen-SMS'; }
 }
 wbEl('wbMode').value = wbModeGet();
 wbEl('wbMode').addEventListener('change', e => {
@@ -3711,6 +3713,27 @@ async function wbSend(num){
   window.location.href = 'sms:+' + t.num + '?&body=' + encodeURIComponent((txt ? txt + '\n\n' : '') + url);
 }
 wbEl('wbSendAll').addEventListener('click', () => wbSend());
+/* Ein Tippen: alle offenen Empfänger auf einmal in einer Gruppen-SMS (Kunden sehen dann die Nummern der anderen!) */
+function wbGroupSmsUrl(list, txt, url){
+  return 'sms:' + list.map(x => '+' + x.num).join(',') + '?&body=' + encodeURIComponent((txt ? txt + '\n\n' : '') + url);
+}
+async function wbSendGroup(){
+  const list = wbRecipients().list.filter(x => !wb.sent[x.num]);
+  if (!list.length) { wbSay('Keine offenen Empfänger.'); return; }
+  if (wbIsDirty()) {
+    wbSay('⏳ Werbe-Seite wird gespeichert …');
+    try { const url = await wbPublish(); wbSay(wbLink(url) + '<br>Tippe jetzt nochmals auf «Alle in einer Gruppen-SMS».'); } catch (e) { wbSay('⚠️ ' + esc(e.message || 'Speichern fehlgeschlagen.')); }
+    return;
+  }
+  showConfirm('Alle ' + list.length + ' Kunden bekommen EINE gemeinsame Nachricht. Dabei sehen alle Kunden die Nummern der anderen, und Antworten gehen an alle. «{vorname}» wird nicht ersetzt.', () => {
+    const url = new URL('werbung.html?t=' + wb.token, location.href).href;
+    const txt = (wb.sms || '').replace(/\{vorname\}/gi, '').replace(/\s+([,.!?])/g, '$1').trim();
+    const now = Date.now(); list.forEach(x => { wb.sent[x.num] = now; }); wbSave(); wbRenderRecipients();
+    try { logActivity('📣', 'eine Gruppen-Werbe-SMS an ' + list.length + ' Kunden vorbereitet'); } catch (e) {}
+    window.location.href = wbGroupSmsUrl(list, txt, url);
+  }, { title: 'An alle in einer SMS?', ok: 'Trotzdem senden' });
+}
+wbEl('wbSendGroup').addEventListener('click', wbSendGroup);
 wbEl('wbRecList').addEventListener('click', e => { const b = e.target.closest('[data-wb-send]'); if (b) wbSend(b.dataset.wbSend); });
 wbEl('wbPublishBtn').addEventListener('click', wbPublishClick);
 wbEl('wbNew').addEventListener('click', () => showConfirm('Der Link der letzten Aktion zeigt weiter das alte Design. Die «gesendet»-Markierungen werden zurückgesetzt.', () => {
