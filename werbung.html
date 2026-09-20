@@ -15,15 +15,34 @@
 <style>
 *{box-sizing:border-box;}
 html,body{margin:0; min-height:100%;}
-body{background:#04070d; color:#f5f8ff; font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased;}
-#root{max-width:520px; margin:0 auto; min-height:100vh;}
+body{background:#04070d; color:#f5f8ff; font-family:'Inter',system-ui,sans-serif; -webkit-font-smoothing:antialiased; overflow-x:hidden;}
+/* weicher Lichtschein im Hintergrund */
+body::before{content:""; position:fixed; inset:0; pointer-events:none; z-index:0;
+  background:
+    radial-gradient(70% 38% at 50% 6%, rgba(120,180,255,.24), transparent 70%),
+    radial-gradient(55% 32% at 95% 92%, rgba(30,111,239,.28), transparent 70%),
+    radial-gradient(40% 25% at 0% 60%, rgba(77,163,255,.12), transparent 70%);}
+#root{position:relative; z-index:1; max-width:520px; margin:0 auto; min-height:100vh;}
 .wb-wrap{width:100%; overflow:hidden; padding-top:env(safe-area-inset-top);}
 .wb-stage{position:relative; width:360px; transform-origin:0 0; overflow:hidden;}
 .wb-el{position:absolute;}
-.wb-tx{line-height:1.25; white-space:pre-wrap; overflow-wrap:anywhere;}
+.wb-tx{line-height:1.25; white-space:pre-wrap; overflow-wrap:anywhere; text-shadow:0 2px 18px rgba(0,0,0,.25);}
 .wb-tx a{color:inherit; text-decoration:underline;}
-.wb-btn{display:block; text-align:center; padding:14px 12px; border-radius:14px; font:600 17px/1.2 'Inter',sans-serif; text-decoration:none; box-shadow:0 8px 20px -8px rgba(0,0,0,.6); -webkit-tap-highlight-color:transparent;}
-a.wb-btn:active{transform:scale(.98);}
+.wb-btn{display:block; text-align:center; padding:14px 12px; border-radius:14px; font:600 17px/1.2 'Inter',sans-serif; text-decoration:none; box-shadow:0 8px 20px -8px rgba(0,0,0,.6); -webkit-tap-highlight-color:transparent; transition:transform .15s ease, filter .15s ease;}
+a.wb-btn{animation:wbPulse 2.8s ease-in-out 1.4s infinite;}
+a.wb-btn:hover{filter:brightness(1.08);}
+a.wb-btn:active{transform:scale(.97);}
+/* Elemente blenden nacheinander weich ein */
+.wb-el{opacity:0; animation:wbIn .7s cubic-bezier(.2,.7,.2,1) forwards; animation-delay:calc(var(--i,0) * 110ms);}
+@keyframes wbIn{from{opacity:0; transform:translateY(16px);} to{opacity:1; transform:none;}}
+@keyframes wbPulse{
+  0%,100%{box-shadow:0 8px 20px -8px rgba(0,0,0,.6), 0 0 0 0 rgba(255,255,255,.35);}
+  60%{box-shadow:0 8px 20px -8px rgba(0,0,0,.6), 0 0 0 12px rgba(255,255,255,0);}
+}
+@media (prefers-reduced-motion:reduce){
+  .wb-el{opacity:1; animation:none;}
+  a.wb-btn{animation:none;}
+}
 .msg{padding:60px 24px; text-align:center; color:#8a99b8;}
 .msg h2{color:#f5f8ff; font-family:'Space Grotesk',sans-serif; margin:0 0 6px;}
 </style>
@@ -70,6 +89,10 @@ function show(d){
   document.body.style.background = 'linear-gradient(160deg,' + a + ',' + b + ') fixed';
   document.querySelector('meta[name=theme-color]').content = a;
   root.innerHTML = '<div class="wb-wrap" id="wrap"><div class="wb-stage" id="stage" style="height:' + d.h + 'px;">' + wbStageHtml(d, true) + '</div></div>';
+  // Reihenfolge für die Einblend-Animation (von oben nach unten)
+  Array.from(document.querySelectorAll('#stage .wb-el'))
+    .sort((x, y) => (parseFloat(x.style.top) || 0) - (parseFloat(y.style.top) || 0))
+    .forEach((n, i) => n.style.setProperty('--i', i));
   const fit = () => {
     const w = document.getElementById('wrap').clientWidth || 360, k = w / 360;
     document.getElementById('stage').style.transform = 'scale(' + k + ')';

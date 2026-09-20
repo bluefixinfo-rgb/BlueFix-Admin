@@ -719,6 +719,29 @@ input,select,textarea{font-family:var(--sans);}
 .wb-row>label{font-size:12.5px; color:var(--muted); min-width:66px;}
 .wb-row input[type=range]{flex:1; min-width:120px; accent-color:var(--blue-light);}
 .wb-row input[type=color]{width:44px; height:34px; padding:0; border:1px solid rgba(255,255,255,.2); border-radius:8px; background:none;}
+
+/* --- Werbung: Vorschau, Scroll-Ziel, Empfänger --- */
+.wb-props,.wb-wrap{scroll-margin-top:76px;}
+.wb-props.wb-flash{animation:wbFlash 1s ease;}
+@keyframes wbFlash{0%{box-shadow:0 0 0 0 rgba(74,156,255,0);}25%{box-shadow:0 0 0 6px rgba(74,156,255,.35);}100%{box-shadow:0 0 0 0 rgba(74,156,255,0);}}
+.wb-rec a{color:var(--blue-light); text-decoration:none;}
+.wb-rec small{display:block; margin-top:2px;}
+.wb-warn{color:#ffb86b; font-size:12.5px; margin:8px 0 0; line-height:1.45;}
+.wb-prev{display:none; position:fixed; inset:0; z-index:300; background:#04070d; flex-direction:column;}
+.wb-prev.show{display:flex;}
+.wb-prev-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:calc(10px + env(safe-area-inset-top)) 14px 10px; background:rgba(4,7,13,.92); border-bottom:1px solid rgba(255,255,255,.1);}
+.wb-prev-bar b{font-size:14px;}
+.wb-prev-bar small{display:block; color:var(--muted); font-size:11.5px; margin-top:1px;}
+.wb-prev-body{flex:1; overflow:auto; -webkit-overflow-scrolling:touch;}
+.wb-prev-in{max-width:520px; margin:0 auto; padding-bottom:calc(30px + env(safe-area-inset-bottom));}
+.wb-sms{margin:16px 16px 4px; padding:12px 14px; border-radius:18px 18px 18px 6px; background:#2a2f3a; color:#f2f5fb; font-size:14px; line-height:1.4; white-space:pre-wrap; overflow-wrap:anywhere; max-width:88%;}
+.wb-sms small{display:block; margin-top:6px; color:#8fb2ff; word-break:break-all;}
+.wb-prev-cap{margin:4px 18px 12px; color:var(--muted); font-size:11.5px;}
+.wb-prev-page{margin:0 16px;}
+.wb-prev-wrap{width:100%; overflow:hidden; border-radius:18px; box-shadow:0 20px 50px -20px rgba(0,0,0,.8);}
+.wb-prev-stage{position:relative; width:360px; transform-origin:0 0; overflow:hidden;}
+.wb-prev .wb-el{cursor:default; touch-action:auto;}
+.wb-prev .wb-tx a{pointer-events:auto;}
 </style>
 </head>
 <body>
@@ -922,8 +945,9 @@ input,select,textarea{font-family:var(--sans);}
 
     <div class="wb-card">
       <h3>👥 Empfänger</h3>
-      <label class="wb-check"><input type="checkbox" id="wbTest" checked> Testmodus – nur Jerome Ramspacher</label>
+      <div class="wb-row"><select class="wb-sel" id="wbMode" style="flex:1;" aria-label="Empfänger wählen"><option value="test">🧪 Test – nur Jerome Ramspacher</option><option value="alle">👥 Alle Kunden-Aufträge</option></select></div>
       <p class="wb-hint" id="wbRecInfo"></p>
+      <p class="wb-warn" id="wbRecWarn"></p>
       <div id="wbRecList"></div>
     </div>
 
@@ -941,6 +965,9 @@ input,select,textarea{font-family:var(--sans);}
         <button class="btn btn-ghost btn-sm" type="button" id="wbAddBtn">＋ Link-Button</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbTaller">↕ Höher</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbShorter">↕ Niedriger</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbLayout">✨ Automatisch anordnen</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbTemplate">🎨 Vorlage</button>
+        <button class="btn btn-primary btn-sm" type="button" data-wb-preview>👁 Vorschau</button>
       </div>
       <div class="wb-row"><label>Hintergrund</label><input type="color" id="wbBg1" aria-label="Hintergrundfarbe oben"><input type="color" id="wbBg2" aria-label="Hintergrundfarbe unten"></div>
       <div class="wb-wrap" id="wbWrap"><div class="wb-stage" id="wbStage"></div></div>
@@ -951,12 +978,18 @@ input,select,textarea{font-family:var(--sans);}
     <div class="wb-card">
       <button class="btn btn-primary" type="button" id="wbSendAll">📣 SMS senden</button>
       <div class="wb-row" style="margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" type="button" data-wb-preview>👁 Vorschau</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbPublishBtn">💾 Werbe-Seite speichern</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbNew">🆕 Neue Aktion</button>
       </div>
       <p class="wb-hint" id="wbMsg"></p>
       <p class="wb-hint">Jede SMS wird für den jeweiligen Kunden einzeln in deiner Nachrichten-App geöffnet – du tippst dort auf «Senden». So sehen die Kunden nie die Nummern der anderen.</p>
     </div>
+  </div>
+
+  <div class="wb-prev" id="wbPrev" role="dialog" aria-modal="true" aria-label="Vorschau">
+    <div class="wb-prev-bar"><div><b>👁 Vorschau</b><small>So sieht es der Kunde – ohne Bearbeitungs-Rahmen</small></div><button class="btn btn-primary btn-sm" type="button" id="wbPrevClose" style="width:auto;flex:none;white-space:nowrap;">✕ Schliessen</button></div>
+    <div class="wb-prev-body" id="wbPrevBody"></div>
   </div>
 
   <!-- LOGIN-STATISTIK (nur für Jerome sichtbar) -->
@@ -3349,10 +3382,12 @@ const wbStageHtml=(d,live)=>(d.els||[]).map(e=>wbElHtml(e,live)).join('');
 
 
 function wbDefault(){
-  return { h: 520, bg: '#0b1730', bg2: '#1e4fa8', els: [
-    { id:'e1', t:'text', x:24, y:48,  w:312, txt:'Neu bei BlueFix', f:'Space Grotesk', s:36, c:'#ffffff', b:1, i:0, a:'center' },
-    { id:'e2', t:'text', x:24, y:150, w:312, txt:'Jetzt 10 % Rabatt auf deine nächste Reparatur.', f:'Inter', s:20, c:'#d7e6ff', b:0, i:0, a:'center' },
-    { id:'e3', t:'btn',  x:60, y:260, w:240, txt:'Jetzt ansehen', url:'https://blue-fix.ch', bg:'#1e6fef', c:'#ffffff' }
+  return { h: 440, bg: '#071227', bg2: '#1e4fa8', els: [
+    { id:'e0', t:'text', x:24, y:40,  w:312, txt:'BlueFix · Handy Reparatur', f:'Inter', s:14, c:'#8fbaff', b:1, i:0, a:'center' },
+    { id:'e1', t:'text', x:24, y:76,  w:312, txt:'Neu bei BlueFix', f:'Space Grotesk', s:36, c:'#ffffff', b:1, i:0, a:'center' },
+    { id:'e2', t:'text', x:24, y:132, w:312, txt:'10 %', f:'Space Grotesk', s:84, c:'#4da3ff', b:1, i:0, a:'center' },
+    { id:'e3', t:'text', x:40, y:244, w:280, txt:'Rabatt auf deine nächste Reparatur.', f:'Inter', s:20, c:'#d7e6ff', b:0, i:0, a:'center' },
+    { id:'e4', t:'btn',  x:60, y:328, w:240, txt:'Jetzt ansehen', url:'https://blue-fix.ch', bg:'#1e6fef', c:'#ffffff' }
   ] };
 }
 let wb = (function(){
@@ -3402,7 +3437,7 @@ function wbRenderEl(d){
 function wbRenderProps(){
   const box = wbEl('wbProps'), d = wbCur();
   if (!d) { box.innerHTML = '<p class="wb-hint">Tippe ein Element an, um es zu bearbeiten. Ziehen = verschieben, blauer Punkt = Grösse ändern.</p>'; return; }
-  const acts = '<div class="wb-row"><button class="btn btn-ghost btn-sm" type="button" data-act="front">⬆ Nach vorne</button><button class="btn btn-ghost btn-sm" type="button" data-act="back">⬇ Nach hinten</button><button class="btn btn-danger btn-sm" type="button" data-act="del">🗑 Löschen</button></div>';
+  const acts = '<div class="wb-row"><button class="btn btn-ghost btn-sm" type="button" data-act="up">🔝 Zur Seite</button><button class="btn btn-ghost btn-sm" type="button" data-act="front">⬆ Nach vorne</button><button class="btn btn-ghost btn-sm" type="button" data-act="back">⬇ Nach hinten</button><button class="btn btn-danger btn-sm" type="button" data-act="del">🗑 Löschen</button></div>';
   const rng = (lab, k, a, b) => '<div class="wb-row"><label>' + lab + '</label><input type="range" min="' + a + '" max="' + b + '" value="' + wbNum(d[k], a, a, b) + '" data-k="' + k + '"></div>';
   const col = (lab, k, def) => '<label style="font-size:12.5px;color:var(--muted);">' + lab + '</label><input type="color" data-k="' + k + '" value="' + wbCol(d[k], def) + '">';
   if (d.t === 'text') {
@@ -3435,6 +3470,7 @@ wbEl('wbProps').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.tog) { d[b.dataset.tog] = d[b.dataset.tog] ? 0 : 1; wbRenderEl(d); wbRenderProps(); }
   else if (b.dataset.al) { d.a = b.dataset.al; wbRenderEl(d); wbRenderProps(); }
+  else if (b.dataset.act === 'up') { wbEl('wbWrap').scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
   else if (b.dataset.act === 'del') { wb.design.els = wb.design.els.filter(x => x.id !== d.id); wbSel = null; wbRender(); wbRenderProps(); }
   else if (b.dataset.act === 'front' || b.dataset.act === 'back') {
     wb.design.els = wb.design.els.filter(x => x.id !== d.id);
@@ -3460,6 +3496,7 @@ wbEl('wbProps').addEventListener('click', e => {
   st.addEventListener('pointermove', e => {
     if (!wbDrag) return;
     const d = wbGet(wbDrag.id); if (!d) return;
+    if (!wbDrag.moved && Math.hypot(e.clientX - wbDrag.sx, e.clientY - wbDrag.sy) < 6) return;   // kleines Zittern beim Tippen ignorieren
     const dx = (e.clientX - wbDrag.sx) / wbK, dy = (e.clientY - wbDrag.sy) / wbK;
     if (wbDrag.size) { d.w = Math.round(Math.max(30, Math.min(720, wbDrag.w + dx))); wbDrag.node.style.width = d.w + 'px'; }
     else {
@@ -3469,9 +3506,16 @@ wbEl('wbProps').addEventListener('click', e => {
     }
     wbDrag.moved = true;
   });
-  const end = () => { if (wbDrag && wbDrag.moved) { wbSave(); if (wbDrag.size) wbRenderProps(); } wbDrag = null; };
-  st.addEventListener('pointerup', end);
-  st.addEventListener('pointercancel', end);
+  // Tippen (ohne Ziehen) -> Seite scrollt automatisch zu den Bearbeitungs-Feldern
+  const fin = tap => {
+    if (wbDrag) {
+      if (wbDrag.moved) { wbSave(); if (wbDrag.size) wbRenderProps(); }
+      else if (tap && !wbDrag.size) wbScrollProps();
+    }
+    wbDrag = null;
+  };
+  st.addEventListener('pointerup', () => fin(true));
+  st.addEventListener('pointercancel', () => fin(false));
 })();
 
 /* ---- Elemente hinzufügen ---- */
@@ -3521,41 +3565,117 @@ wbEl('wbShorter').addEventListener('click', () => { wb.design.h = Math.max(200, 
 }));
 wbEl('wbSms').addEventListener('input', e => { wb.sms = e.target.value; wbSave(); });
 
-/* ---- Empfänger: automatisch aus allen Kunden-Aufträgen ---- */
-const wbTestOn = () => wbEl('wbTest').checked;
+/* ---- Empfänger: automatisch aus den Kunden-Aufträgen (Test / aktuelle Aufträge / alle) ---- */
+function wbModeGet(){ const v = localStorage.getItem(WB_TEST_KEY); return (v === '0' || v === 'a') ? 'alle' : 'test'; }
+function wbModeSet(m){ localStorage.setItem(WB_TEST_KEY, m === 'alle' ? '0' : '1'); }
+const wbFmtNum = n => /^41\d{9}$/.test(n) ? '+41 ' + n.slice(2, 4) + ' ' + n.slice(4, 7) + ' ' + n.slice(7, 9) + ' ' + n.slice(9) : '+' + n;
 function wbRecipients(){
-  const test = wbTestOn(), map = new Map();
-  let seen = false;
+  const mode = wbModeGet(), map = new Map();
+  let seen = 0, noPhone = 0;
   load(ORDERS_KEY, []).forEach(o => {
     if (o.typ !== 'kunde') return;
     const name = [o.vorname, o.nachname].filter(Boolean).join(' ').trim();
-    if (test && normName(name) !== normName(WB_TEST_NAME)) return;
-    seen = true;
+    if (mode === 'test' && normName(name) !== normName(WB_TEST_NAME)) return;
+    seen++;
     const num = normPhone(o.telefon);
-    if (num && !map.has(num)) map.set(num, { num, name: name || 'Kunde', vorname: o.vorname || '' });
+    if (!num) { noPhone++; return; }
+    if (map.has(num)) { map.get(num).n++; return; }
+    map.set(num, { num, name: name || 'Kunde', vorname: o.vorname || '', modell: o.modell || '', n: 1 });
   });
-  return { list: [...map.values()], test, seen };
+  return { list: [...map.values()], mode, test: mode === 'test', seen, noPhone };
 }
 function wbRenderRecipients(){
   const box = wbEl('wbRecList'); if (!box) return;
   const r = wbRecipients(), list = r.list, sent = wb.sent || {};
-  let info = list.length + (list.length === 1 ? ' Empfänger' : ' Empfänger') + ' mit Handynummer' + (r.test ? ' (Testmodus)' : ' – alle Kunden') + '. Neue Aufträge werden automatisch übernommen.';
-  if (r.test && !list.length) info = r.seen
-    ? 'Für Jerome Ramspacher ist keine gültige Handynummer hinterlegt. Bitte im Auftrag ergänzen (Feld Telefon).'
-    : 'Es gibt noch keinen Kunden-Auftrag auf den Namen Jerome Ramspacher. Lege einen Test-Auftrag mit deiner Handynummer an.';
+  const sel = wbEl('wbMode'); if (sel && sel.value !== r.mode) sel.value = r.mode;
+  const what = r.mode === 'test' ? ' (Testmodus)' : ' – alle Kunden-Aufträge';
+  let info = list.length + ' Empfänger mit Handynummer' + what + '. Neue Aufträge werden automatisch übernommen.';
+  if (!list.length) {
+    if (r.mode === 'test') info = r.seen
+      ? 'Für Jerome Ramspacher ist keine gültige Handynummer hinterlegt. Bitte im Auftrag ergänzen (Feld Telefon).'
+      : 'Es gibt noch keinen Kunden-Auftrag auf den Namen Jerome Ramspacher. Lege einen Test-Auftrag mit deiner Handynummer an.';
+    else info = 'Keine Kunden-Aufträge mit gültiger Handynummer gefunden.';
+  }
   wbEl('wbRecInfo').textContent = info;
-  box.innerHTML = list.map(x => '<div class="wb-rec' + (sent[x.num] ? ' done' : '') + '"><div><b>' + esc(x.name) + '</b><small>+' + esc(x.num) + (sent[x.num] ? ' · ✓ gesendet' : '') + '</small></div>' +
+  wbEl('wbRecWarn').textContent = r.mode !== 'test' && r.noPhone
+    ? '⚠️ ' + r.noPhone + (r.noPhone === 1 ? ' Auftrag hat' : ' Aufträge haben') + ' keine gültige Handynummer und fehlen in der Liste. Nummer im Auftrag ergänzen.' : '';
+  box.innerHTML = list.map(x => '<div class="wb-rec' + (sent[x.num] ? ' done' : '') + '"><div><b>' + esc(x.name) + '</b><small><a href="tel:+' + esc(x.num) + '">' + esc(wbFmtNum(x.num)) + '</a>' +
+    (x.modell ? ' · ' + esc(x.modell) : '') + (x.n > 1 ? ' (+' + (x.n - 1) + ' weitere)' : '') + (sent[x.num] ? ' · ✓ gesendet' : '') + '</small></div>' +
     '<button class="btn btn-ghost btn-sm" type="button" data-wb-send="' + esc(x.num) + '">✉️ ' + (sent[x.num] ? 'Nochmals' : 'SMS') + '</button></div>').join('');
   const open = list.filter(x => !sent[x.num]).length, b = wbEl('wbSendAll');
   b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 SMS senden (' + open + ' offen)' : '✅ Alle gesendet';
   b.disabled = !open; b.style.opacity = open ? '' : '.6';
 }
-wbEl('wbTest').checked = load(WB_TEST_KEY, '1') !== '0';
-wbEl('wbTest').addEventListener('change', e => {
-  if (e.target.checked) { localStorage.setItem(WB_TEST_KEY, '1'); wbRenderRecipients(); return; }
-  e.target.checked = true;
-  showConfirm('Dann werden alle Kunden mit Handynummer als Empfänger angezeigt.', () => { wbEl('wbTest').checked = false; localStorage.setItem(WB_TEST_KEY, '0'); wbRenderRecipients(); }, { title: 'Testmodus ausschalten?', ok: 'Ausschalten' });
+wbEl('wbMode').value = wbModeGet();
+wbEl('wbMode').addEventListener('change', e => {
+  const v = e.target.value;
+  if (v === 'test') { wbModeSet('test'); wbRenderRecipients(); return; }
+  e.target.value = wbModeGet();   // erst nach Bestätigung umschalten
+  showConfirm('Es werden alle Kunden-Aufträge mit Handynummer als Empfänger angezeigt.',
+    () => { wbModeSet(v); wbEl('wbMode').value = v; wbRenderRecipients(); }, { title: 'Empfänger ändern?', ok: 'Ja, ändern' });
 });
+
+
+/* ---- Scrollen zu den Bearbeitungs-Feldern ---- */
+function wbScrollProps(){
+  const box = wbEl('wbProps'); if (!box) return;
+  box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  box.classList.remove('wb-flash'); void box.offsetWidth; box.classList.add('wb-flash');
+}
+
+/* ---- Automatisch anordnen: Bilder/Logo oben, Texte in der Mitte, Buttons unten – alles zentriert ---- */
+function wbDoLayout(){
+  const els = wb.design.els; if (!els.length) return;
+  const rank = e => e.t === 'img' ? 0 : e.t === 'btn' ? 2 : 1;
+  const sorted = els.map((e, i) => ({ e, i })).sort((p, q) => rank(p.e) - rank(q.e) || (p.e.y - q.e.y) || (p.i - q.i)).map(o => o.e);
+  const st = wbEl('wbStage');
+  let y = 40, bottom = 40;
+  sorted.forEach((e, ix) => {
+    e.w = Math.min(+e.w || 200, 312); if (e.t === 'btn') e.w = Math.max(e.w, 200);
+    if (e.t === 'text') e.a = 'center';
+    e.x = Math.round((360 - e.w) / 2); e.y = y;
+    const n = st.querySelector('[data-id="' + e.id + '"]');
+    let h = e.t === 'btn' ? 50 : 40;
+    if (n) { n.style.left = e.x + 'px'; n.style.top = y + 'px'; n.style.width = e.w + 'px'; h = n.offsetHeight || h; }
+    bottom = y + h;
+    const nx = sorted[ix + 1];
+    y = bottom + (!nx ? 0 : nx.t === 'btn' ? 32 : e.t === 'img' ? 26 : 14);
+  });
+  wb.design.h = Math.max(320, Math.min(1600, Math.round(bottom + 56)));
+  wbSel = null; wbRender(); wbRenderProps(); wbSave();
+}
+wbEl('wbLayout').addEventListener('click', () => showConfirm('Alles wird mittig untereinander angeordnet: Logo/Bilder oben, dann Texte, Buttons unten. Danach kannst du weiter verschieben.', () => { wbDoLayout(); wbSay('✨ Angeordnet. Mit «Vorschau» siehst du das Ergebnis.'); }, { title: 'Automatisch anordnen?', ok: 'Anordnen' }));
+wbEl('wbTemplate').addEventListener('click', () => showConfirm('Ersetzt die Texte und den Button durch die BlueFix-Vorlage. Deine Bilder (z. B. Logo) bleiben erhalten und kommen oben hin.', () => {
+  const imgs = wb.design.els.filter(e => e.t === 'img');
+  const d = wbDefault(); d.els = imgs.concat(d.els);
+  wb.design = d; wbSel = null; wbRender();
+  if (imgs.length) wbDoLayout(); else { wbRenderProps(); wbSave(); }
+  wbEl('wbBg1').value = wbCol(wb.design.bg, '#071227'); wbEl('wbBg2').value = wbCol(wb.design.bg2, '#1e4fa8');
+  wbSay('🎨 Vorlage geladen. Texte antippen zum Bearbeiten.');
+}, { title: 'Vorlage laden?', ok: 'Laden' }));
+
+/* ---- Vorschau: genau wie beim Kunden (ohne Rahmen, Griffe und Ziehen) ---- */
+function wbPreviewFit(){
+  const w = wbEl('wbPrevWrap'), s = wbEl('wbPrevStage'); if (!w || !s) return;
+  const k = (w.clientWidth || 360) / 360;
+  s.style.transform = 'scale(' + k + ')'; w.style.height = (wb.design.h * k) + 'px';
+}
+function wbPreview(){
+  const d = wb.design, first = wbRecipients().list[0], vn = (first && first.vorname) || 'Max';
+  const sms = (wb.sms || '').replace(/\{vorname\}/gi, vn).replace(/\s+([,.!?])/g, '$1').trim();
+  const link = wb.token ? new URL('werbung.html?t=' + wb.token, location.href).href : 'werbung.html?t=…';
+  wbEl('wbPrevBody').innerHTML = '<div class="wb-prev-in">' +
+    '<div class="wb-sms">' + esc(sms || '(kein SMS-Text)') + '<small>' + esc(link) + '</small></div>' +
+    '<p class="wb-prev-cap">So kommt die SMS an – darunter die Seite, die der Kunde öffnet.</p>' +
+    '<div class="wb-prev-page"><div class="wb-prev-wrap" id="wbPrevWrap"><div class="wb-prev-stage" id="wbPrevStage" style="' + wbBg(d) + 'height:' + d.h + 'px;">' + wbStageHtml(d, true) + '</div></div></div></div>';
+  wbEl('wbPrev').classList.add('show'); document.body.style.overflow = 'hidden';
+  wbPreviewFit();
+}
+function wbPreviewClose(){ wbEl('wbPrev').classList.remove('show'); wbEl('wbPrevBody').innerHTML = ''; document.body.style.overflow = ''; }
+document.querySelectorAll('[data-wb-preview]').forEach(b => b.addEventListener('click', wbPreview));
+wbEl('wbPrevClose').addEventListener('click', wbPreviewClose);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && wbEl('wbPrev').classList.contains('show')) wbPreviewClose(); });
+window.addEventListener('resize', () => { if (wbEl('wbPrev').classList.contains('show')) wbPreviewFit(); });
 
 /* ---- Speichern (Firestore) & Senden ---- */
 async function wbPublish(){
