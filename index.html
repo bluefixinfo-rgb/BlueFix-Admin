@@ -399,6 +399,10 @@ input,select,textarea{font-family:var(--sans);}
 .status-send{display:flex; gap:8px; margin-top:4px;}
 .status-send .btn{flex:1;}
 
+.rep-info{margin:0 0 12px; padding:10px 12px; border-radius:10px; background:rgba(74,156,255,0.10); border:1px solid rgba(74,156,255,0.3); font-size:13px; line-height:1.55;}
+.status-send .btn{padding-left:6px; padding-right:6px; font-size:13.5px;}
+.status-save{width:100%; margin-top:8px;}
+
 /* ---------------- UMSATZ-DASHBOARD ---------------- */
 .rev-sub{color:var(--muted); font-size:12px; margin-top:2px;}
 .rev-card:hover{transform:none;}
@@ -859,6 +863,7 @@ input,select,textarea{font-family:var(--sans);}
       <div class="field"><label>Vorname Kunde</label><input type="text" id="custVorname" placeholder="Max"></div>
       <div class="field"><label>Nachname Kunde</label><input type="text" id="custNachname" placeholder="Muster"></div>
       <div class="field"><label>Handynummer Kunde (optional, für die Status-Nachricht)</label><input type="tel" id="custTelefon" inputmode="tel" placeholder="z.B. 079 123 45 67"></div>
+      <div class="field"><label>E-Mail Kunde (optional)</label><input type="email" id="custEmail" inputmode="email" autocapitalize="off" placeholder="z.B. max@muster.ch"></div>
       <div class="field"><label>Modell</label><input type="text" id="custModell" placeholder="z.B. iPhone 13 Pro"></div>
       <div class="field">
         <label>IMEI-Nummer</label>
@@ -2019,7 +2024,7 @@ function setupSignaturePad(canvasId, clearId){
 const bluefixSig=setupSignaturePad('blueSigCanvas','clearBlueSig');
 
 function resetCustomerOrderModal(){
-  ['custVorname','custNachname','custTelefon','custModell','custImei','custNotizen','custPreis','custGarantie'].forEach(id=>document.getElementById(id).value='');
+  ['custVorname','custNachname','custTelefon','custEmail','custModell','custImei','custNotizen','custPreis','custGarantie'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('custAuftrag').selectedIndex=0;
   document.getElementById('custAgb').checked=false;
   document.getElementById('editingCustomerOrderId').value='';
@@ -2036,6 +2041,7 @@ function openCustomerOrderModal(order=null){
     document.getElementById('custVorname').value=order.vorname||'';
     document.getElementById('custNachname').value=order.nachname||'';
     document.getElementById('custTelefon').value=order.telefon||'';
+    document.getElementById('custEmail').value=order.email||'';
     document.getElementById('custModell').value=order.modell||'';
     document.getElementById('custImei').value=order.imei||'';
     document.getElementById('custAuftrag').value=order.auftrag||'Display';
@@ -2080,6 +2086,7 @@ document.getElementById('custSave').addEventListener('click', () => {
     if(!order){alert('Auftrag wurde nicht gefunden.');return;}
     order.vorname=vorname; order.nachname=nachname; order.modell=modell; order.imei=imei;
     order.telefon=document.getElementById('custTelefon').value.trim();
+    order.email=document.getElementById('custEmail').value.trim();
     order.garantie=garantie; order.preis=preis;
     order.auftrag=document.getElementById('custAuftrag').value;
     order.notizen=document.getElementById('custNotizen').value.trim();
@@ -2098,6 +2105,7 @@ document.getElementById('custSave').addEventListener('click', () => {
   const order={
     id:uid(), typ:'kunde', vorname,nachname,modell,imei,preis,garantie,
     telefon:document.getElementById('custTelefon').value.trim(),
+    email:document.getElementById('custEmail').value.trim(),
     repStatus:'angenommen', statusToken:newStatusToken(), statusUpdatedAt:Date.now(),
     auftrag:document.getElementById('custAuftrag').value,
     notizen:document.getElementById('custNotizen').value.trim(),
@@ -2579,6 +2587,7 @@ function generateWarrantyPDF(o){
 }
 function renderOrders(){
   renderDashboard();
+  syncStatusWatchers();
   const orders=load(ORDERS_KEY,[]), list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
   list.innerHTML='';
@@ -2841,9 +2850,9 @@ document.getElementById('invDetailClose').addEventListener('click', () => docume
 
 /* ===================== STATUS-LINK FÜR KUNDEN =====================
    Pro Kundenauftrag gibt es einen zufälligen, nicht erratbaren Token. Unter diesem Token
-   liegt in Firestore (bluefix_status/<token>) ein kleines öffentliches Dokument mit nur
-   Vorname, Gerät, Status und Zeitstempel. status.html liest genau dieses Dokument.
-   Nachname, IMEI, Preis und Telefonnummer verlassen die App NICHT. */
+   liegt in Firestore (bluefix_status/<token>) ein kleines Dokument mit Vorname, Gerät, Status,
+   ggf. Sendungsnummer und dem Liefer-Wunsch, den der Kunde selbst auf status.html einträgt.
+   Nachname, IMEI, Preis, Telefon und E-Mail verlassen die App NICHT. */
 const STATUS_COLLECTION = 'bluefix_status';
 const REP_LABELS = { angenommen:'Angenommen', reparatur:'In Reparatur', fertig:'Fertig' };
 
@@ -2853,6 +2862,7 @@ function newStatusToken(){
   return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
 }
 function statusUrl(token){ return new URL('status.html?t=' + token, location.href).href; }
+function trackUrl(nr){ return 'https://service.post.ch/ekp-web/ui/list?formattedParcelCodes=' + encodeURIComponent(nr); }
 
 function publishStatus(o){
   if (!fbReady || !fbDb || !o || !o.statusToken) return;
@@ -2860,12 +2870,38 @@ function publishStatus(o){
     vorname: o.vorname || '',
     modell: o.modell || '',
     status: o.repStatus || 'angenommen',
-    updatedAt: o.statusUpdatedAt || Date.now()
-  }).catch(e => console.warn('Status konnte nicht veröffentlicht werden:', e));
+    updatedAt: o.statusUpdatedAt || Date.now(),
+    sendungsnr: o.sendungsnr || firebase.firestore.FieldValue.delete()
+  }, { merge: true }).catch(e => console.warn('Status konnte nicht veröffentlicht werden:', e));
 }
 function removeStatusDoc(o){
   if (!fbReady || !fbDb || !o || !o.statusToken) return;
   fbDb.collection(STATUS_COLLECTION).doc(o.statusToken).delete().catch(e => console.warn('Status-Dokument nicht gelöscht:', e));
+}
+
+// Liefer-Wunsch des Kunden (Abholen / Post) live in den Auftrag übernehmen
+const statusWatch = {};
+function syncStatusWatchers(){
+  if (!fbReady || !fbDb) return;
+  const now = Date.now(), want = {};
+  load(ORDERS_KEY, []).forEach(o => {
+    if (o.typ === 'kunde' && o.statusToken && o.repStatus === 'fertig' && !o.sendungsnr && now - (o.statusUpdatedAt || 0) < 60 * 864e5) want[o.statusToken] = 1;
+  });
+  Object.keys(statusWatch).forEach(t => { if (!want[t]) { statusWatch[t](); delete statusWatch[t]; } });
+  Object.keys(want).forEach(t => {
+    if (statusWatch[t]) return;
+    statusWatch[t] = fbDb.collection(STATUS_COLLECTION).doc(t).onSnapshot(doc => {
+      const w = doc.exists && doc.data().wunsch;
+      if (!w) return;
+      const arr = load(ORDERS_KEY, []);
+      const o = arr.find(x => x.statusToken === t);
+      if (!o || JSON.stringify(o.wunsch || null) === JSON.stringify(w)) return;
+      o.wunsch = w;
+      save(ORDERS_KEY, arr);
+      renderOrders();
+      notifyOther('BlueFix – Kundenwunsch', (o.vorname || 'Kunde') + ': ' + (w.art === 'post' ? 'Versand per Post' : 'Abholung im Shop'));
+    }, err => console.warn('Status-Watcher:', err));
+  });
 }
 
 // Älteren Aufträgen nachträglich Token + Startstatus geben
@@ -2899,35 +2935,46 @@ function setRepStatus(id, status){
 }
 
 function repBoxHtml(o){
-  const rs = o.repStatus || 'angenommen';
+  const rs = o.repStatus || 'angenommen', w = o.wunsch;
   const steps = Object.entries(REP_LABELS).map(([k, v]) =>
     `<button type="button" class="rep-step${rs === k ? ' on' : ''}${rs === k && k === 'fertig' ? ' done' : ''}" data-rep-set="${esc(o.id)}|${k}">${v}</button>`).join('');
+  let info = '';
+  if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>`;
+  else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
+  else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät im Shop ab</b></div>`;
   return `<div class="rep-box">
     <div class="order-section-title">📱 Status für den Kunden</div>
     <div class="rep-steps">${steps}</div>
+    ${info}
     <div class="rep-actions">
       <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link / QR</button>
       <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
+      ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
     </div>
   </div>`;
 }
 
-// Schweizer Handynummer -> internationales Format ohne "+" (für WhatsApp/SMS)
+// Handynummer -> internationales Format ohne "+" (Standard: Schweiz)
 function normPhone(raw){
   let d = String(raw || '').replace(/[^\d+]/g, '');
   if (d.startsWith('+')) d = d.slice(1);
   else if (d.startsWith('00')) d = d.slice(2);
   else if (d.startsWith('0')) d = '41' + d.slice(1);
+  else if (/^7[5-9]\d{7}$/.test(d)) d = '41' + d;   // 79 123 45 67 ohne führende 0
   return /^\d{9,15}$/.test(d) ? d : null;
 }
 function statusMessage(o, url){
   const hello = o.vorname ? 'Hallo ' + o.vorname + ', ' : 'Hallo, ';
   const dev = o.modell ? 'dein ' + o.modell : 'dein Gerät';
   const rs = o.repStatus || 'angenommen';
-  const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden.'
+  if (o.sendungsnr) return hello + dev + ' ist unterwegs zu dir.\nSendungsnummer: ' + o.sendungsnr + '\nSendung verfolgen: ' + trackUrl(o.sendungsnr) + '\nAlle Infos: ' + url;
+  const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden. Auf Wunsch schicken wir es dir auch per Post.'
              : rs === 'reparatur' ? dev + ' ist jetzt bei uns in Reparatur.'
              : 'wir haben ' + dev + ' angenommen.';
   return hello + line + '\nDen aktuellen Stand siehst du jederzeit hier: ' + url;
+}
+function mailSubject(o){
+  return o.sendungsnr ? 'Dein Gerät ist unterwegs – BlueFix' : o.repStatus === 'fertig' ? 'Dein Gerät ist fertig – BlueFix' : o.repStatus === 'reparatur' ? 'Dein Gerät ist in Reparatur – BlueFix' : 'Dein Gerät bei BlueFix';
 }
 
 let statusModalOrderId = null;
@@ -2936,17 +2983,22 @@ function openStatusModal(id, mode){
   if (!o) return;
   statusModalOrderId = id;
   const url = statusUrl(o.statusToken);
-  document.getElementById('statusModalTitle').textContent = mode === 'done' ? '✅ Gerät ist fertig' : '🔗 Status-Link';
+  const ship = mode === 'ship';
+  document.getElementById('statusModalTitle').textContent = ship ? '📦 Versand per Post' : mode === 'done' ? '✅ Gerät ist fertig' : '🔗 Status-Link';
   document.getElementById('statusModalBody').innerHTML = `
     <p class="card-sub">${esc(o.vorname)} ${esc(o.nachname)} · ${esc(o.modell)}</p>
-    <img class="status-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(url)}" width="180" height="180" alt="QR-Code zum Status">
+    ${ship ? `<div class="field" style="margin-top:12px;"><label>Sendungsnummer</label><input type="text" id="stTrack" autocapitalize="off" value="${esc(o.sendungsnr || '')}" placeholder="z.B. 99.00.123456.12345678"></div>`
+           : `<img class="status-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(url)}" width="180" height="180" alt="QR-Code zum Status">`}
     <div class="status-link-row"><input type="text" id="stLink" readonly value="${esc(url)}"><button class="btn btn-ghost btn-sm" type="button" id="stCopy">Kopieren</button></div>
     <div class="field" style="margin-top:14px;"><label>Handynummer Kunde</label><input type="tel" id="stPhone" inputmode="tel" value="${esc(o.telefon || '')}" placeholder="z.B. 079 123 45 67"></div>
-    <div class="field"><label>Nachricht</label><textarea id="stMsg" rows="4">${esc(statusMessage(o, url))}</textarea></div>
+    <div class="field"><label>E-Mail Kunde</label><input type="email" id="stMail" inputmode="email" autocapitalize="off" value="${esc(o.email || '')}" placeholder="z.B. max@muster.ch"></div>
+    <div class="field"><label>Nachricht</label><textarea id="stMsg" rows="5">${esc(statusMessage(o, url))}</textarea></div>
     <div class="status-send">
-      <button class="btn btn-primary" type="button" id="stWa">WhatsApp senden</button>
-      <button class="btn btn-ghost" type="button" id="stSms">SMS senden</button>
-    </div>`;
+      <button class="btn btn-primary" type="button" id="stWa">WhatsApp</button>
+      <button class="btn btn-ghost" type="button" id="stSms">SMS</button>
+      <button class="btn btn-ghost" type="button" id="stMailBtn">E-Mail</button>
+    </div>
+    ${ship ? '<button class="btn btn-ghost status-save" type="button" id="stSave">💾 Sendungsnummer speichern</button>' : ''}`;
   document.getElementById('stCopy').addEventListener('click', async e => {
     const btn = e.currentTarget;
     try { await navigator.clipboard.writeText(url); }
@@ -2954,21 +3006,38 @@ function openStatusModal(id, mode){
     btn.textContent = 'Kopiert ✓';
     setTimeout(() => { btn.textContent = 'Kopieren'; }, 1800);
   });
+  const tr = document.getElementById('stTrack');
+  if (tr) tr.addEventListener('input', () => {
+    document.getElementById('stMsg').value = statusMessage({ ...o, sendungsnr: tr.value.trim() }, url);
+  });
   document.getElementById('stWa').addEventListener('click', () => sendStatus('wa'));
   document.getElementById('stSms').addEventListener('click', () => sendStatus('sms'));
+  document.getElementById('stMailBtn').addEventListener('click', () => sendStatus('mail'));
+  const sv = document.getElementById('stSave');
+  if (sv) sv.addEventListener('click', () => sendStatus('save'));
   document.getElementById('statusModal').classList.add('show');
 }
 function sendStatus(kind){
   const arr = load(ORDERS_KEY, []);
   const o = arr.find(x => x.id === statusModalOrderId);
   if (!o) return;
-  const raw = document.getElementById('stPhone').value.trim();
-  const num = normPhone(raw);
-  if (!num) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
-  if (raw !== (o.telefon || '')) { o.telefon = raw; o.updatedBy = currentUser(); o.updatedAt = Date.now(); save(ORDERS_KEY, arr); renderOrders(); }
+  const phoneRaw = document.getElementById('stPhone').value.trim();
+  const mailRaw = document.getElementById('stMail').value.trim();
+  const trEl = document.getElementById('stTrack');
+  const track = trEl ? trEl.value.trim() : (o.sendungsnr || '');
+  const num = normPhone(phoneRaw);
+  if ((kind === 'wa' || kind === 'sms') && !num) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
+  if (kind === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailRaw)) { alert('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+  let dirty = false;
+  if (phoneRaw !== (o.telefon || '')) { o.telefon = phoneRaw; dirty = true; }
+  if (mailRaw !== (o.email || '')) { o.email = mailRaw; dirty = true; }
+  if (trEl && track !== (o.sendungsnr || '')) { o.sendungsnr = track; o.statusUpdatedAt = Date.now(); dirty = true; }
+  if (dirty) { o.updatedBy = currentUser(); o.updatedAt = Date.now(); save(ORDERS_KEY, arr); publishStatus(o); renderOrders(); }
+  if (kind === 'save') { document.getElementById('statusModal').classList.remove('show'); return; }
   const msg = document.getElementById('stMsg').value;
   if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
-  else window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
+  else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
+  else window.location.href = 'mailto:' + mailRaw + '?subject=' + encodeURIComponent(mailSubject(o)) + '&body=' + encodeURIComponent(msg);
 }
 document.getElementById('statusClose').addEventListener('click', () => document.getElementById('statusModal').classList.remove('show'));
 
@@ -2977,6 +3046,8 @@ document.getElementById('ordersList').addEventListener('click', e => {
   if (step) { const [id, st] = step.dataset.repSet.split('|'); setRepStatus(id, st); return; }
   const link = e.target.closest('[data-status-link]');
   if (link) { openStatusModal(link.dataset.statusLink, 'link'); return; }
+  const shp = e.target.closest('[data-ship]');
+  if (shp) { openStatusModal(shp.dataset.ship, 'ship'); return; }
   const done = e.target.closest('[data-device-done]');
   if (done) { const id = done.dataset.deviceDone; setRepStatus(id, 'fertig'); openStatusModal(id, 'done'); }
 });

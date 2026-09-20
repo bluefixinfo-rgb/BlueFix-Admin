@@ -14,72 +14,119 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <style>
 :root{
-  --bg:#04070d; --white:#f5f8ff; --muted:#8a99b8; --blue:#1e6fef; --blue-light:#4a9cff;
-  --good:#2fbf71; --line:rgba(255,255,255,0.14);
-  --card:rgba(22,34,58,0.5);
-  color-scheme:dark;
+  --bg:#04070d; --white:#f5f8ff; --muted:#8a99b8; --blue:#1e6fef; --blue-light:#4a9cff; --bad:#e34848;
+  --line:rgba(255,255,255,0.14); --rgb:74,156,255; color-scheme:dark;
 }
 *{box-sizing:border-box;}
 html,body{margin:0; min-height:100%;}
 body{
-  background:radial-gradient(circle at 20% 0%, rgba(30,111,239,0.16), transparent 55%), var(--bg);
+  background:
+    radial-gradient(circle at 15% 0%, rgba(30,111,239,0.20), transparent 50%),
+    radial-gradient(circle at 100% 100%, rgba(var(--rgb),0.10), transparent 45%), var(--bg);
+  background-attachment:fixed;
   color:var(--white); font-family:'Inter',system-ui,sans-serif; line-height:1.5; -webkit-font-smoothing:antialiased;
-  padding:max(20px, env(safe-area-inset-top)) 18px max(28px, env(safe-area-inset-bottom));
+  padding:max(22px, env(safe-area-inset-top)) 16px max(32px, env(safe-area-inset-bottom));
 }
-main{max-width:460px; margin:0 auto;}
-header{display:flex; align-items:center; gap:12px; padding:8px 0 22px;}
-header img{width:40px; height:40px; border-radius:10px;}
-header b{display:block; font-family:'Space Grotesk',sans-serif; font-size:18px;}
-header span{color:var(--muted); font-size:13px;}
+main{max-width:480px; margin:0 auto; display:flex; flex-direction:column; gap:14px;}
+.brand{position:relative; isolation:isolate; display:flex; justify-content:center; padding:6px 0 10px;}
+.brand::before{
+  content:''; position:absolute; left:50%; top:50%; width:300px; height:120px; transform:translate(-50%,-50%); z-index:-1;
+  background:radial-gradient(ellipse at center, rgba(74,156,255,0.28), transparent 70%); filter:blur(20px);
+  animation:led 4.5s ease-in-out infinite;
+}
+.brand img{height:46px; width:auto; filter:drop-shadow(0 0 6px rgba(140,190,255,0.3));}
 .card{
-  background:var(--card); border:1px solid var(--line); border-radius:20px; padding:24px 22px;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,0.28), 0 24px 50px -28px rgba(0,0,0,0.7);
+  position:relative; isolation:isolate; overflow:hidden; padding:22px 20px;
+  background:rgba(22,34,58,0.5); border:1px solid rgba(255,255,255,0.20); border-radius:22px;
+  backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.45), 0 26px 50px -28px rgba(0,0,0,0.75);
 }
-.hello{margin:0; font-family:'Space Grotesk',sans-serif; font-size:22px; font-weight:600;}
-.device{margin:4px 0 0; color:var(--muted); font-size:15px;}
+.card::before{content:''; position:absolute; inset:0; z-index:-1; pointer-events:none; background:linear-gradient(120deg, rgba(255,255,255,0.16), rgba(255,255,255,0.03) 30%, transparent 55%);}
+h1{margin:0; font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:600; letter-spacing:-0.01em;}
+h2{margin:0 0 4px; font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:600;}
+.device{display:flex; align-items:center; gap:8px; margin:6px 0 0; color:var(--muted); font-size:15px;}
+.device svg{width:17px; height:17px; flex:none;}
+.sub{margin:0; color:var(--muted); font-size:14px;}
+
+/* aktueller Status mit blinkendem Punkt */
 .now{
-  margin:22px 0 4px; padding:14px 16px; border-radius:14px;
-  background:rgba(30,111,239,0.14); border:1px solid rgba(74,156,255,0.35);
-  font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:600;
+  display:flex; align-items:center; gap:14px; margin:20px 0 22px; padding:15px 16px; border-radius:16px;
+  background:rgba(var(--rgb),0.13); border:1px solid rgba(var(--rgb),0.45);
+  animation:glow 2.6s ease-in-out infinite;
 }
-.now.fertig{background:rgba(47,191,113,0.14); border-color:rgba(47,191,113,0.45); color:#7be0a8;}
-.steps{list-style:none; margin:22px 0 0; padding:0;}
-.steps li{position:relative; display:flex; gap:14px; padding:0 0 22px;}
-.steps li:last-child{padding-bottom:0;}
-.steps li::before{
-  content:''; position:absolute; left:13px; top:28px; bottom:2px; width:2px; background:var(--line);
+.now b{display:block; font-family:'Space Grotesk',sans-serif; font-size:19px; font-weight:600; color:rgb(var(--rgb));}
+.now span{color:var(--muted); font-size:13.5px;}
+.pulse{position:relative; flex:none; width:14px; height:14px;}
+.pulse i,.pulse::before{content:''; position:absolute; inset:0; border-radius:50%; background:rgb(var(--rgb));}
+.pulse i{animation:blink 1.4s ease-in-out infinite; box-shadow:0 0 12px rgb(var(--rgb));}
+.pulse::before{animation:ping 1.6s cubic-bezier(0,0,.2,1) infinite;}
+
+/* Fortschritt */
+.track{position:relative; display:grid; grid-template-columns:repeat(3,1fr); margin:0; padding:0; list-style:none; text-align:center;}
+.line{position:absolute; top:21px; left:16.667%; right:16.667%; height:3px; border-radius:3px; background:var(--line);}
+.line i{display:block; height:100%; border-radius:3px; background:rgb(var(--rgb)); box-shadow:0 0 10px rgba(var(--rgb),0.7); transition:width .6s ease;}
+.track li{position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:8px; font-size:12.5px; color:var(--muted); font-weight:500;}
+.ico{
+  position:relative; width:44px; height:44px; border-radius:50%; display:grid; place-items:center;
+  background:#0a1220; border:2px solid var(--line); color:var(--muted);
 }
-.steps li:last-child::before{display:none;}
-.steps li.done::before{background:var(--good);}
-.dot{
-  flex:0 0 28px; height:28px; border-radius:50%; display:grid; place-items:center;
-  border:2px solid var(--line); background:var(--bg); color:var(--muted); font-size:13px; font-weight:700; z-index:1;
+.ico svg{width:20px; height:20px;}
+.done .ico{border-color:rgb(var(--rgb)); background:rgba(var(--rgb),0.18); color:rgb(var(--rgb));}
+.cur{color:var(--white);}
+.cur .ico{border-color:rgb(var(--rgb)); background:rgb(var(--rgb)); color:#04070d; box-shadow:0 0 18px rgba(var(--rgb),0.6);}
+.cur .ico::after{content:''; position:absolute; inset:-2px; border-radius:50%; border:2px solid rgb(var(--rgb)); animation:ping 1.8s cubic-bezier(0,0,.2,1) infinite;}
+
+/* Übergabe */
+.opts{display:grid; gap:10px; margin-top:16px;}
+.opt{
+  display:flex; align-items:center; gap:14px; text-align:left; width:100%; padding:15px 16px; border-radius:16px; cursor:pointer;
+  background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.18); color:var(--white); font:inherit;
+  transition:border-color .2s, transform .2s, background .2s;
 }
-.done .dot{background:var(--good); border-color:var(--good); color:#04120a;}
-.cur .dot{border-color:var(--blue-light); color:var(--blue-light); box-shadow:0 0 0 4px rgba(74,156,255,0.18);}
-.cur.fertig .dot{background:var(--good); border-color:var(--good); color:#04120a; box-shadow:0 0 0 4px rgba(47,191,113,0.2);}
-.steps h3{margin:2px 0 2px; font-size:15.5px; font-weight:600;}
-.steps p{margin:0; color:var(--muted); font-size:13.5px;}
-.pending h3{color:var(--muted); font-weight:500;}
-.updated{margin:24px 0 0; padding-top:16px; border-top:1px solid var(--line); color:var(--muted); font-size:12.5px;}
-.call{
-  display:none; margin-top:16px; text-align:center; padding:13px; border-radius:12px; text-decoration:none;
-  background:linear-gradient(135deg,var(--blue),#0b3f8a); color:#fff; font-weight:600;
+.opt:hover,.opt:focus-visible{border-color:var(--blue-light); background:rgba(74,156,255,0.10); transform:translateY(-1px); outline:none;}
+.opt svg{width:26px; height:26px; flex:none; color:var(--blue-light);}
+.opt b{display:block; font-family:'Space Grotesk',sans-serif; font-size:16px;}
+.opt span{color:var(--muted); font-size:13px;}
+.field{margin-top:12px;}
+.field label{display:block; margin-bottom:5px; color:var(--muted); font-size:12.5px;}
+.field input{
+  width:100%; padding:12px 13px; border-radius:12px; font:inherit; font-size:16px; color:var(--white);
+  background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18);
 }
-.msg{text-align:center; padding:12px 0;}
-.msg h2{margin:0 0 8px; font-family:'Space Grotesk',sans-serif; font-size:20px;}
+.field input:focus{outline:none; border-color:var(--blue-light); box-shadow:0 0 0 3px rgba(74,156,255,0.2);}
+.row{display:grid; grid-template-columns:110px 1fr; gap:10px;}
+.btns{display:flex; gap:10px; margin-top:16px; flex-wrap:wrap;}
+.btn{
+  flex:1; min-width:130px; padding:13px 14px; border-radius:12px; border:1px solid rgba(255,255,255,0.4); cursor:pointer;
+  background:linear-gradient(135deg,var(--blue),#0b3f8a); color:#fff; font:600 15px 'Inter',sans-serif; text-align:center; text-decoration:none;
+  box-shadow:0 0 14px rgba(30,111,239,0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+}
+.btn.ghost{background:rgba(255,255,255,0.06); border-color:rgba(255,255,255,0.22); box-shadow:none;}
+.btn[disabled]{opacity:.6; cursor:default;}
+.err{margin:12px 0 0; color:#ff9a9a; font-size:13.5px;}
+.recap{margin-top:14px; padding:13px 14px; border-radius:14px; background:rgba(255,255,255,0.05); border:1px solid var(--line); font-size:14.5px;}
+.recap small{display:block; color:var(--muted); font-size:12.5px; margin-bottom:3px;}
+.trk{margin-top:16px; padding:15px 16px; border-radius:14px; background:rgba(47,191,113,0.12); border:1px solid rgba(47,191,113,0.4);}
+.trk small{display:block; color:var(--muted); font-size:12.5px;}
+.trk b{font-family:'Space Grotesk',sans-serif; font-size:20px; letter-spacing:.02em; word-break:break-all;}
+.msg{text-align:center; padding:14px 0;}
 .msg p{margin:0; color:var(--muted);}
-@media (prefers-reduced-motion:no-preference){ .cur .dot{transition:box-shadow .4s ease;} }
+.call{display:none; text-align:center;}
+[hidden]{display:none !important;}
+
+@keyframes ping{0%{transform:scale(1); opacity:.7;} 100%{transform:scale(2.4); opacity:0;}}
+@keyframes blink{0%,100%{opacity:1;} 50%{opacity:.35;}}
+@keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(var(--rgb),0);} 50%{box-shadow:0 0 22px 0 rgba(var(--rgb),0.28);}}
+@keyframes led{0%,100%{opacity:.7;} 50%{opacity:1;}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none !important; transition:none !important;}}
 </style>
 </head>
 <body>
 <main>
-  <header>
-    <img src="icon-192.png" alt="" onerror="this.style.display='none'">
-    <div><b>BlueFix</b><span>Reparatur-Status</span></div>
-  </header>
-  <div class="card" id="card"><div class="msg"><p>Status wird geladen …</p></div></div>
-  <a class="call" id="call" href="#">BlueFix anrufen</a>
+  <div class="brand"><img src="logo.png" alt="BlueFix"></div>
+  <section class="card" id="card"><div class="msg"><p>Status wird geladen …</p></div></section>
+  <section class="card" id="ship" hidden></section>
+  <a class="btn ghost call" id="call" href="#">BlueFix anrufen</a>
 </main>
 
 <script>
@@ -95,69 +142,120 @@ const firebaseConfig = {
   appId: "1:317301627140:web:cc37ea8ca5d7a8caf71851"
 };
 
+const IC = {
+  phone:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>',
+  inbox:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5h13l3.5 7v6a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-6z"/></svg>',
+  wrench:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94z"/></svg>',
+  check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  store:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l1.5-5h15L21 9"/><path d="M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0"/><path d="M5 12v8h14v-8"/></svg>',
+  box:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/></svg>'
+};
 const STEPS = [
-  { k:'angenommen', t:'Gerät angenommen',    d:'Dein Gerät ist bei uns eingegangen.' },
-  { k:'reparatur',  t:'In Reparatur',        d:'Wir arbeiten gerade an deinem Gerät.' },
-  { k:'fertig',     t:'Fertig zur Abholung', d:'Du kannst dein Gerät bei uns abholen.' }
+  { k:'angenommen', t:'Angenommen',   title:'Gerät angenommen', d:'Wir haben dein Gerät erhalten.',        rgb:'74,156,255', ic:IC.inbox },
+  { k:'reparatur',  t:'In Reparatur', title:'In Reparatur',     d:'Wir arbeiten gerade an deinem Gerät.', rgb:'245,166,35', ic:IC.wrench },
+  { k:'fertig',     t:'Fertig',       title:'Fertig',           d:'Dein Gerät ist bereit für dich.',      rgb:'47,191,113', ic:IC.check }
 ];
+const COL = 'bluefix_status';
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-const card = document.getElementById('card');
-function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-function showMessage(title, text){
-  card.replaceChildren();
-  const box = el('div', 'msg');
-  box.append(el('h2', null, title), el('p', null, text));
-  card.append(box);
+let db = null, token = '', cur = null, ui = 'auto', errMsg = '';
+
+function render(){
+  const d = cur;
+  const idx = Math.max(0, STEPS.findIndex(s => s.k === d.status)), S = STEPS[idx];
+  document.documentElement.style.setProperty('--rgb', S.rgb);
+  $('card').innerHTML = `
+    <h1>${d.vorname ? 'Hallo ' + esc(d.vorname) : 'Hallo'}</h1>
+    ${d.modell ? `<p class="device">${IC.phone}${esc(d.modell)}</p>` : ''}
+    <div class="now"><span class="pulse"><i></i></span><div><b>${S.title}</b><span>${S.d}</span></div></div>
+    <ol class="track">
+      <div class="line"><i style="width:${idx * 50}%"></i></div>
+      ${STEPS.map((s, i) => `<li class="${i < idx ? 'done' : i === idx ? 'cur' : ''}"><span class="ico">${i < idx ? IC.check : s.ic}</span>${s.t}</li>`).join('')}
+    </ol>`;
+  const box = $('ship');
+  box.hidden = S.k !== 'fertig';
+  if (!box.hidden) box.innerHTML = shipHtml(d);
 }
 
-function render(d){
-  const idx = Math.max(0, STEPS.findIndex(s => s.k === d.status));
-  const fertig = STEPS[idx].k === 'fertig';
-  card.replaceChildren();
-
-  card.append(el('h1', 'hello', d.vorname ? 'Hallo ' + d.vorname : 'Hallo'));
-  if (d.modell) card.append(el('p', 'device', d.modell));
-  card.append(el('div', 'now' + (fertig ? ' fertig' : ''), STEPS[idx].t));
-
-  const ol = el('ol', 'steps');
-  STEPS.forEach((s, i) => {
-    const state = i < idx ? 'done' : i === idx ? (fertig ? 'done cur fertig' : 'cur') : 'pending';
-    const li = el('li', state);
-    li.append(el('div', 'dot', i < idx || (i === idx && fertig) ? '✓' : String(i + 1)));
-    const txt = el('div');
-    txt.append(el('h3', null, s.t));
-    if (i <= idx) txt.append(el('p', null, s.d));
-    li.append(txt);
-    ol.append(li);
-  });
-  card.append(ol);
-
-  if (d.updatedAt) {
-    const when = new Date(d.updatedAt).toLocaleString('de-CH', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
-    card.append(el('p', 'updated', 'Zuletzt aktualisiert: ' + when + ' · Diese Seite aktualisiert sich automatisch.'));
+function addr(w){
+  return `${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}`;
+}
+function shipHtml(d){
+  const w = d.wunsch;
+  if (d.sendungsnr) {
+    return `<h2>Dein Gerät ist unterwegs</h2><p class="sub">Wir haben es per Post an dich geschickt.</p>
+      <div class="trk"><small>Sendungsnummer</small><b>${esc(d.sendungsnr)}</b></div>
+      <div class="btns"><button class="btn ghost" data-a="copy">Nummer kopieren</button>
+      <a class="btn" target="_blank" rel="noopener" href="https://service.post.ch/ekp-web/ui/list?formattedParcelCodes=${encodeURIComponent(d.sendungsnr)}">Sendung verfolgen</a></div>
+      ${w && w.art === 'post' ? `<div class="recap"><small>Lieferadresse</small>${addr(w)}</div>` : ''}`;
   }
+  if (ui === 'form') {
+    const v = w && w.art === 'post' ? w : { name:'', strasse:'', plz:'', ort:'', land:'Schweiz' };
+    return `<h2>Lieferadresse</h2><p class="sub">Wir schicken dir dein Gerät per Post.</p>
+      <div class="field"><label>Vor- und Nachname</label><input id="f-name" autocomplete="name" value="${esc(v.name || d.vorname || '')}"></div>
+      <div class="field"><label>Strasse und Nr.</label><input id="f-strasse" autocomplete="address-line1" value="${esc(v.strasse)}"></div>
+      <div class="row"><div class="field"><label>PLZ</label><input id="f-plz" inputmode="numeric" autocomplete="postal-code" maxlength="5" value="${esc(v.plz)}"></div>
+      <div class="field"><label>Ort</label><input id="f-ort" autocomplete="address-level2" value="${esc(v.ort)}"></div></div>
+      <div class="field"><label>Land</label><input id="f-land" autocomplete="country-name" value="${esc(v.land || 'Schweiz')}"></div>
+      ${errMsg ? `<p class="err">${esc(errMsg)}</p>` : ''}
+      <div class="btns"><button class="btn ghost" data-a="back">Zurück</button><button class="btn" data-a="send-post">Absenden</button></div>`;
+  }
+  if (w && ui !== 'choose') {
+    return `<h2>${w.art === 'post' ? 'Versand per Post' : 'Abholung im Shop'}</h2>
+      <p class="sub">${w.art === 'post' ? 'Danke! Wir schicken dir dein Gerät. Sobald es unterwegs ist, siehst du hier deine Sendungsnummer.' : 'Danke! Wir freuen uns auf deinen Besuch.'}</p>
+      ${w.art === 'post' ? `<div class="recap"><small>Lieferadresse</small>${addr(w)}</div>` : ''}
+      <div class="btns"><button class="btn ghost" data-a="change">Auswahl ändern</button></div>`;
+  }
+  return `<h2>Wie möchtest du dein Gerät erhalten?</h2><p class="sub">Wähle eine Option, wir kümmern uns um den Rest.</p>
+    <div class="opts">
+      <button class="opt" data-a="abholen">${IC.store}<div><b>Im Shop abholen</b><span>Du kommst bei uns vorbei.</span></div></button>
+      <button class="opt" data-a="post-form">${IC.box}<div><b>Per Post schicken lassen</b><span>Du bekommst eine Sendungsnummer.</span></div></button>
+    </div>${errMsg ? `<p class="err">${esc(errMsg)}</p>` : ''}`;
+}
+
+async function saveWish(w){
+  errMsg = '';
+  try { await db.collection(COL).doc(token).update({ wunsch: { ...w, at: Date.now() } }); ui = 'auto'; }
+  catch (e) { console.warn(e); errMsg = 'Das hat leider nicht geklappt. Bitte versuche es gleich noch einmal.'; }
+  render();
+}
+$('ship').addEventListener('click', async e => {
+  const b = e.target.closest('[data-a]'); if (!b) return;
+  const a = b.dataset.a;
+  if (a === 'abholen') { b.disabled = true; saveWish({ art:'abholen' }); }
+  else if (a === 'post-form' || a === 'change') { ui = a === 'change' ? 'choose' : 'form'; errMsg = ''; render(); }
+  else if (a === 'back') { ui = 'auto'; errMsg = ''; render(); }
+  else if (a === 'send-post') {
+    const w = { art:'post', name:$('f-name').value.trim(), strasse:$('f-strasse').value.trim(), plz:$('f-plz').value.trim(), ort:$('f-ort').value.trim(), land:$('f-land').value.trim() || 'Schweiz' };
+    if (w.name.length < 3 || w.strasse.length < 3 || !/^\d{4,5}$/.test(w.plz) || w.ort.length < 2) {
+      errMsg = 'Bitte fülle alle Felder vollständig aus (PLZ mit 4 oder 5 Ziffern).'; render(); return;
+    }
+    b.disabled = true; saveWish(w);
+  }
+  else if (a === 'copy') { try { await navigator.clipboard.writeText(cur.sendungsnr); b.textContent = 'Kopiert ✓'; } catch (err) {} }
+});
+
+function showMessage(title, text){
+  $('ship').hidden = true;
+  $('card').innerHTML = `<div class="msg"><h2>${esc(title)}</h2><p>${esc(text)}</p></div>`;
 }
 
 (function start(){
-  const token = new URLSearchParams(location.search).get('t') || '';
+  token = new URLSearchParams(location.search).get('t') || '';
   if (!/^[0-9a-f]{32}$/.test(token)) { showMessage('Link ungültig', 'Bitte scanne den QR-Code noch einmal oder frag bei BlueFix nach einem neuen Link.'); return; }
-
-  if (SHOP_TEL) { const a = document.getElementById('call'); a.href = 'tel:' + SHOP_TEL.replace(/[^\d+]/g, ''); a.style.display = 'block'; }
-
+  if (SHOP_TEL) { const a = $('call'); a.href = 'tel:' + SHOP_TEL.replace(/[^\d+]/g, ''); a.style.display = 'block'; }
   try {
     firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+    db = firebase.firestore();
     db.settings({ experimentalAutoDetectLongPolling: true, useFetchStreams: false });
-    db.collection('bluefix_status').doc(token).onSnapshot(doc => {
+    db.collection(COL).doc(token).onSnapshot(doc => {
       if (!doc.exists) { showMessage('Auftrag nicht gefunden', 'Bitte prüfe den Link oder melde dich direkt bei BlueFix.'); return; }
-      render(doc.data());
-    }, err => {
-      console.warn(err);
-      showMessage('Status gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.');
-    });
-  } catch (e) {
-    showMessage('Status gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.');
-  }
+      cur = doc.data();
+      if (ui === 'form' && document.activeElement && document.activeElement.tagName === 'INPUT') return; // nicht beim Tippen überschreiben
+      render();
+    }, err => { console.warn(err); showMessage('Status gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.'); });
+  } catch (e) { showMessage('Status gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.'); }
 })();
 </script>
 </body>
