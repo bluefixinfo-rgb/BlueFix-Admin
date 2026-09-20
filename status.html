@@ -137,7 +137,12 @@ const SHOP_TEL = '';
 const PICKUP_ADDR_HTML = 'BlueFix Handy Reparatur<br>Weierbuckstrasse 1<br>8213 Neunkirch<br>Schweiz';
 const PICKUP_MAPS = 'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent('Weierbuckstrasse 1, 8213 Neunkirch, Schweiz');
 /* Wie oft der Kunde seine Auswahl nach der ersten Wahl noch ändern darf */
-const MAX_CHANGES = 2;
+const MAX_CHANGES = 1;
+const CONTACT_MAIL = 'BlueFix.info@gmail.com';
+function contactMailHref(d){
+  const body = 'Guten Tag\n\nich möchte meine Auswahl (Abholung / Versand) ändern.\n\nName: ' + (d.vorname || '') + '\nGerät: ' + (d.modell || '') + '\nStatus-Link: ' + location.href + '\n\nFreundliche Grüsse';
+  return 'mailto:' + CONTACT_MAIL + '?subject=' + encodeURIComponent('Auswahl ändern – ' + (d.modell || 'Gerät')) + '&body=' + encodeURIComponent(body);
+}
 const changesUsed = d => (d && d.wunsch && d.wunsch.changes) || 0;
 
 const firebaseConfig = {
@@ -213,8 +218,8 @@ function shipHtml(d){
     return `<h2>${w.art === 'post' ? 'Versand per Post' : 'Abholung bei BlueFix'}</h2>
       <p class="sub">${w.art === 'post' ? 'Danke! Wir schicken dir dein Gerät. Sobald es unterwegs ist, siehst du hier deine Sendungsnummer.' : 'Danke! Wir freuen uns auf deinen Besuch.'}</p>
       ${w.art === 'post' ? `<div class="recap"><small>Lieferadresse</small>${addr(w)}</div>` : `<div class="recap"><small>Abholadresse</small>${PICKUP_ADDR_HTML}</div>`}
-      <div class="btns">${w.art !== 'post' ? `<a class="btn" target="_blank" rel="noopener" href="${PICKUP_MAPS}">Route öffnen</a>` : ''}${left > 0 ? '<button class="btn ghost" data-a="change">Auswahl ändern</button>' : ''}</div>
-      <p class="sub" style="margin-top:14px;">${left > 0 ? 'Du kannst deine Auswahl noch ' + (left === 1 ? 'einmal' : left + '-mal') + ' ändern.' : 'Du hast deine Auswahl bereits zweimal geändert. Bei Fragen melde dich bitte direkt bei BlueFix.'}</p>`;
+      <div class="btns">${w.art !== 'post' ? `<a class="btn" target="_blank" rel="noopener" href="${PICKUP_MAPS}">Route öffnen</a>` : ''}${left > 0 ? '<button class="btn ghost" data-a="change">Auswahl ändern</button>' : `<a class="btn ghost" href="${contactMailHref(d)}">E-Mail an BlueFix</a>`}</div>
+      <p class="sub" style="margin-top:14px;">${left > 0 ? 'Du kannst deine Auswahl noch einmal ändern.' : 'Du hast deine Auswahl bereits geändert. Wenn du nochmals etwas ändern möchtest, schreibe uns bitte kurz per E-Mail an ' + CONTACT_MAIL + '.'}</p>`;
   }
   return `<h2>Wie möchtest du dein Gerät erhalten?</h2><p class="sub">Wähle eine Option, wir kümmern uns um den Rest.</p>
     <div class="opts">

@@ -1543,7 +1543,9 @@ function startChatCollectionSync(){
 
 /* ===================== CUSTOM CONFIRM ===================== */
 let confirmCallback = null;
-function showConfirm(message, callback){
+function showConfirm(message, callback, opts){
+  document.getElementById('confirmTitle').textContent = (opts && opts.title) || 'Wirklich löschen?';
+  document.getElementById('confirmOk').textContent = (opts && opts.ok) || 'Löschen';
   document.getElementById('confirmMessage').textContent = message;
   confirmCallback = callback;
   document.getElementById('confirmModal').classList.add('show');
@@ -2999,6 +3001,22 @@ function setRepStatus(id, status){
   renderOrders();
 }
 
+// Auswahl des Kunden (Abholen/Post) zurücksetzen -> Zähler beginnt wieder bei 0
+function resetWish(id){
+  const arr = load(ORDERS_KEY, []);
+  const o = arr.find(x => x.id === id);
+  if (!o) return;
+  delete o.wunsch;
+  o.updatedBy = currentUser(); o.updatedAt = Date.now();
+  save(ORDERS_KEY, arr);
+  if (fbReady && o.statusToken) {
+    fbDb.collection(STATUS_COLLECTION).doc(o.statusToken).set({ wunsch: firebase.firestore.FieldValue.delete() }, { merge: true })
+      .catch(e => { console.warn('Auswahl konnte nicht zurückgesetzt werden:', e); alert('Zurücksetzen hat nicht geklappt. Bitte Internetverbindung prüfen und nochmals versuchen.'); });
+  }
+  logActivity('↩️', 'die Auswahl (Abholung/Post) von ' + o.vorname + ' ' + o.nachname + ' zurückgesetzt');
+  renderOrders();
+}
+
 function repBoxHtml(o){
   const rs = o.repStatus || 'angenommen', w = o.wunsch;
   const steps = Object.entries(REP_LABELS).map(([k, v]) =>
@@ -3007,12 +3025,14 @@ function repBoxHtml(o){
   if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>`;
   else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
   else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät bei BlueFix ab</b></div>`;
+  if (w && (w.changes || 0) >= 1) info += `<div class="rep-info">🔒 Kunde hat seine Auswahl schon geändert – weitere Änderungen sind gesperrt.</div>`;
   return `<div class="rep-box">
     <div class="order-section-title">📱 Status für den Kunden</div>
     <div class="rep-steps">${steps}</div>
     ${info}
     <div class="rep-actions">
       <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link / QR</button>
+      ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Kundenauswahl zurücksetzen</button>` : ''}
       <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
       ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
     </div>
@@ -3076,9 +3096,7 @@ function buildMailBody(o, anliegen){
     'Für Rückfragen stehen wir Ihnen jederzeit gerne zur Verfügung.\n\n' +
     MAIL_SIGNATURE;
 }
-function mailSubject(o){
-  return o.sendungsnr ? 'Dein Gerät ist unterwegs – BlueFix' : o.repStatus === 'fertig' ? 'Dein Gerät ist fertig – BlueFix' : o.repStatus === 'reparatur' ? 'Dein Gerät ist in Reparatur – BlueFix' : 'Dein Gerät bei BlueFix';
-}
+function mailSubject(o){ return 'BlueFix - Handy Reparatur'; }
 
 let statusModalOrderId = null;
 function openStatusModal(id, mode){
@@ -3150,6 +3168,8 @@ function sendStatus(kind){
 document.getElementById('statusClose').addEventListener('click', () => document.getElementById('statusModal').classList.remove('show'));
 
 document.getElementById('ordersList').addEventListener('click', e => {
+  const rst = e.target.closest('[data-wish-reset]');
+  if (rst) { showConfirm('Der Kunde kann danach wieder neu wählen (Abholung oder Post) und hat wieder eine Änderung frei.', () => resetWish(rst.dataset.wishReset), { title: 'Auswahl zurücksetzen?', ok: 'Zurücksetzen' }); return; }
   const step = e.target.closest('[data-rep-set]');
   if (step) { const [id, st] = step.dataset.repSet.split('|'); setRepStatus(id, st); return; }
   const link = e.target.closest('[data-status-link]');
