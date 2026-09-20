@@ -3091,7 +3091,6 @@ function openGmailCompose(to, subject, body){
 function buildMailBody(o, anliegen){
   const name = [o.vorname, o.nachname].filter(Boolean).join(' ');
   return 'Sehr geehrte/r ' + name + ',\n\n' +
-    'vielen Dank für Ihre Nachricht.\n\n' +
     anliegen + '\n\n' +
     'Für Rückfragen stehen wir Ihnen jederzeit gerne zur Verfügung.\n\n' +
     MAIL_SIGNATURE;
