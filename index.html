@@ -742,6 +742,15 @@ input,select,textarea{font-family:var(--sans);}
 .wb-prev-stage{position:relative; width:360px; transform-origin:0 0; overflow:hidden;}
 .wb-prev .wb-el{cursor:default; touch-action:auto;}
 .wb-prev .wb-tx a{pointer-events:auto;}
+.wb-numbox{background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:10px 12px; margin-bottom:10px;}
+.wb-numbox .wb-numhead{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+.wb-nums{font-size:13px; line-height:1.7; word-break:break-word; margin-top:6px; color:var(--white);}
+.wb-series{display:none; position:fixed; inset:0; z-index:310; background:rgba(2,4,9,.92); align-items:center; justify-content:center; padding:24px;}
+.wb-series.show{display:flex;}
+.wb-series-in{width:100%; max-width:420px; text-align:center; padding:26px 20px; border-radius:22px; background:var(--glass-bg); border:1px solid var(--glass-border-soft);}
+.wb-series-in .wb-sp{color:var(--muted); font-size:13px;}
+.wb-series-in h3{margin:8px 0 2px; font-size:22px;}
+.wb-series-in .wb-sn{color:var(--blue-light); font-size:15px; margin-bottom:18px;}
 </style>
 </head>
 <body>
@@ -945,6 +954,7 @@ input,select,textarea{font-family:var(--sans);}
 
     <div class="wb-card">
       <h3>👥 Empfänger</h3>
+      <div class="wb-numbox" id="wbNumBox" style="display:none;"><div class="wb-numhead"><b id="wbNumTitle">📞 Nummern</b><button class="btn btn-ghost btn-sm" type="button" id="wbCopyNums">📋 Kopieren</button></div><div class="wb-nums" id="wbNums"></div></div>
       <div class="wb-row"><select class="wb-sel" id="wbMode" style="flex:1;" aria-label="Empfänger wählen"><option value="test">🧪 Test – nur Jerome Ramspacher</option><option value="alle">👥 Alle Kunden-Aufträge</option></select></div>
       <p class="wb-hint" id="wbRecInfo"></p>
       <p class="wb-warn" id="wbRecWarn"></p>
@@ -958,6 +968,14 @@ input,select,textarea{font-family:var(--sans);}
     </div>
 
     <div class="wb-card">
+      <h3>📁 Meine Vorlagen</h3>
+      <div class="wb-row"><input class="wb-in" id="wbTplName" style="flex:1;" maxlength="40" placeholder="Name der Vorlage" autocomplete="off"><button class="btn btn-primary btn-sm" type="button" id="wbTplSave" style="width:auto;flex:none;">💾 Speichern</button></div>
+      <p class="wb-hint">Speichert die aktuelle Werbe-Seite samt SMS-Text unter diesem Namen. Du kannst beliebig viele Vorlagen speichern und später wieder laden.</p>
+      <p class="wb-hint" id="wbTplMsg"></p>
+      <div id="wbTplList"></div>
+    </div>
+
+    <div class="wb-card">
       <h3>🎨 Werbe-Seite gestalten</h3>
       <div class="wb-tools">
         <button class="btn btn-ghost btn-sm" type="button" id="wbAddText">＋ Text</button>
@@ -966,7 +984,7 @@ input,select,textarea{font-family:var(--sans);}
         <button class="btn btn-ghost btn-sm" type="button" id="wbTaller">↕ Höher</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbShorter">↕ Niedriger</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbLayout">✨ Automatisch anordnen</button>
-        <button class="btn btn-ghost btn-sm" type="button" id="wbTemplate">🎨 Vorlage</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbTemplate">🎨 Standard-Vorlage</button>
         <button class="btn btn-primary btn-sm" type="button" data-wb-preview>👁 Vorschau</button>
       </div>
       <div class="wb-row"><label>Hintergrund</label><input type="color" id="wbBg1" aria-label="Hintergrundfarbe oben"><input type="color" id="wbBg2" aria-label="Hintergrundfarbe unten"></div>
@@ -979,7 +997,6 @@ input,select,textarea{font-family:var(--sans);}
       <button class="btn btn-primary" type="button" id="wbSendAll">📣 SMS senden</button>
       <button class="btn btn-ghost btn-sm" type="button" id="wbSendGroup" style="margin-top:10px;display:none;">👥 Alle in einer Gruppen-SMS</button>
       <div class="wb-row" style="margin-top:10px;">
-        <button class="btn btn-ghost btn-sm" type="button" data-wb-preview>👁 Vorschau</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbPublishBtn">💾 Werbe-Seite speichern</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbNew">🆕 Neue Aktion</button>
       </div>
@@ -991,6 +1008,16 @@ input,select,textarea{font-family:var(--sans);}
   <div class="wb-prev" id="wbPrev" role="dialog" aria-modal="true" aria-label="Vorschau">
     <div class="wb-prev-bar"><div><b>👁 Vorschau</b><small>So sieht es der Kunde – ohne Bearbeitungs-Rahmen</small></div><button class="btn btn-primary btn-sm" type="button" id="wbPrevClose" style="width:auto;flex:none;white-space:nowrap;">✕ Schliessen</button></div>
     <div class="wb-prev-body" id="wbPrevBody"></div>
+  </div>
+
+  <div class="wb-series" id="wbSeries" role="dialog" aria-modal="true">
+    <div class="wb-series-in">
+      <div class="wb-sp" id="wbSerieProg"></div>
+      <h3 id="wbSerieName"></h3>
+      <div class="wb-sn" id="wbSerieNum"></div>
+      <button class="btn btn-primary" type="button" id="wbSerieNext">✉️ Weiter</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="wbSerieStop" style="margin-top:12px;">Serie beenden</button>
+    </div>
   </div>
 
   <!-- LOGIN-STATISTIK (nur für Jerome sichtbar) -->
@@ -1335,6 +1362,7 @@ const BANK_INFO = {
 const SESSION_KEY = 'bluefix_team_session';
 const MSG_KEY = 'bluefix_team_messages';
 const ORDERS_KEY = 'bluefix_team_orders';
+const WB_TPL_KEY = 'bluefix_werbung_vorlagen';
 let orderTypeFilter = null;
 const INVOICES_KEY = 'bluefix_team_invoices';
 
@@ -1440,7 +1468,7 @@ try {
   }
 } catch (e) { console.warn('Firebase konnte nicht initialisiert werden:', e); }
 
-const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY];
+const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY];
 const MSG_COLLECTION = 'bluefix_sync_msgs';
 let ignoreNextSnapshot = {};
 
@@ -1491,6 +1519,7 @@ function titleFor(key, otherName){
   if (key === MSG_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Nachricht geschrieben';
   if (key === ORDERS_KEY) return 'BlueFix – ' + otherName + ' hat einen neuen Team/Kunden Auftrag erstellt';
   if (key === INVOICES_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Rechnung erstellt';
+  if (key === WB_TPL_KEY) return 'BlueFix – ' + otherName + ' hat eine Werbe-Vorlage gespeichert';
   return 'BlueFix – ' + otherName + ' hat ein Update erstellt';
 }
 
@@ -1507,6 +1536,7 @@ function bodyFor(key, remoteArr, otherName){
   if (key === INVOICES_KEY) {
     return otherName + ' hat eine Rechnung erstellt.';
   }
+  if (key === WB_TPL_KEY) return otherName + ' hat eine Werbe-Vorlage gespeichert.';
   return otherName + ' hat etwas Neues erstellt.';
 }
 
@@ -1543,6 +1573,7 @@ function startFirebaseSync(){
         syncSignedFilesToLocal(remoteArr);
       }
       if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
+      if (key === WB_TPL_KEY) { try { wbRenderTemplates(); } catch (e) {} }
 
       if (isNewFromOther) {
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
@@ -3604,8 +3635,10 @@ function wbRenderRecipients(){
     (x.modell ? ' · ' + esc(x.modell) : '') + (x.n > 1 ? ' (+' + (x.n - 1) + ' weitere)' : '') + (sent[x.num] ? ' · ✓ gesendet' : '') + '</small></div>' +
     '<button class="btn btn-ghost btn-sm" type="button" data-wb-send="' + esc(x.num) + '">✉️ ' + (sent[x.num] ? 'Nochmals' : 'SMS') + '</button></div>').join('');
   const open = list.filter(x => !sent[x.num]).length, b = wbEl('wbSendAll');
-  b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 SMS senden (' + open + ' offen)' : '✅ Alle gesendet';
+  b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 Alle einzeln senden (' + open + ')' : '✅ Alle gesendet';
   b.disabled = !open; b.style.opacity = open ? '' : '.6';
+  const nb = wbEl('wbNumBox');
+  if (nb) { nb.style.display = list.length ? '' : 'none'; wbEl('wbNumTitle').textContent = '📞 ' + list.length + (list.length === 1 ? ' Nummer' : ' Nummern'); wbEl('wbNums').innerHTML = list.map(x => '<a href="tel:+' + esc(x.num) + '" style="color:inherit;text-decoration:none;white-space:nowrap;' + (sent[x.num] ? 'opacity:.5;' : '') + '">' + esc(wbFmtNum(x.num)) + '</a>').join(' · '); }
   const g = wbEl('wbSendGroup'); if (g) { g.style.display = open > 1 ? '' : 'none'; g.textContent = '👥 Alle ' + open + ' in einer Gruppen-SMS'; }
 }
 wbEl('wbMode').value = wbModeGet();
@@ -3679,6 +3712,84 @@ wbEl('wbPrevClose').addEventListener('click', wbPreviewClose);
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && wbEl('wbPrev').classList.contains('show')) wbPreviewClose(); });
 window.addEventListener('resize', () => { if (wbEl('wbPrev').classList.contains('show')) wbPreviewFit(); });
 
+
+/* ---- Eigene Vorlagen (beliebig viele, bleiben gespeichert, auf allen Geräten) ----
+   Liste (Name/Datum) = synchronisierter Schlüssel WB_TPL_KEY; das Design jeder Vorlage liegt als eigenes
+   Dokument in Firestore (bluefix_status/<Token>), damit das 1-MB-Limit nur pro Vorlage gilt. */
+const wbTplAll = () => load(WB_TPL_KEY, []);
+const wbTplSay = h => { const n = wbEl('wbTplMsg'); if (n) n.innerHTML = h || ''; };
+const wbTimeout = ms => new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung – bitte Internet prüfen.')), ms));
+function wbRenderTemplates(){
+  const box = wbEl('wbTplList'); if (!box) return;
+  const l = wbTplAll().slice().sort((a, b) => (b.at || 0) - (a.at || 0));
+  box.innerHTML = l.length ? l.map(x => '<div class="wb-rec"><div><b>' + esc(x.name) + '</b><small>gespeichert am ' + esc(new Date(x.at || Date.now()).toLocaleDateString('de-CH')) + '</small></div>' +
+    '<div class="wb-row" style="gap:6px;flex-wrap:nowrap;"><button class="btn btn-ghost btn-sm" type="button" data-tpl-load="' + esc(x.id) + '">📂 Laden</button>' +
+    '<button class="btn btn-danger btn-sm" type="button" data-tpl-del="' + esc(x.id) + '" aria-label="Vorlage löschen">🗑</button></div></div>').join('')
+    : '<p class="wb-hint">Noch keine Vorlage gespeichert.</p>';
+}
+async function wbTplSaveDo(name, existing){
+  if (!fbReady || !fbDb) throw new Error('Keine Verbindung zum Server.');
+  const json = JSON.stringify(wb.design);
+  if (json.length > 900000) throw new Error('Die Werbe-Seite ist zu gross. Bitte Bilder verkleinern oder entfernen.');
+  const docId = existing ? existing.doc : newStatusToken();
+  await Promise.race([
+    fbDb.collection(STATUS_COLLECTION).doc(docId).set({ typ: 'werbungVorlage', name, vorlage: json, sms: wb.sms || '', updatedAt: Date.now() }),
+    wbTimeout(12000)
+  ]);
+  const arr = wbTplAll();
+  if (existing) { const e = arr.find(x => x.id === existing.id); if (e) { e.name = name; e.at = Date.now(); } }
+  else arr.unshift({ id: uid(), name, doc: docId, at: Date.now() });
+  save(WB_TPL_KEY, arr);
+  wbRenderTemplates();
+}
+wbEl('wbTplSave').addEventListener('click', () => {
+  const inp = wbEl('wbTplName'), name = inp.value.trim().slice(0, 40);
+  if (!name) { wbTplSay('⚠️ Bitte zuerst einen Namen eingeben.'); inp.focus(); return; }
+  const ex = wbTplAll().find(x => normName(x.name) === normName(name));
+  const run = async () => {
+    wbTplSay('⏳ Wird gespeichert …');
+    try { await wbTplSaveDo(name, ex); wbTplSay('✅ Vorlage «' + esc(name) + '» gespeichert.'); inp.value = ''; }
+    catch (e) { wbTplSay('⚠️ ' + esc(e.message || 'Speichern fehlgeschlagen.')); }
+  };
+  if (ex) showConfirm('Es gibt schon eine Vorlage «' + ex.name + '». Mit der aktuellen Werbe-Seite überschreiben?', run, { title: 'Vorlage überschreiben?', ok: 'Überschreiben' });
+  else run();
+});
+function wbTplLoad(id){
+  const t = wbTplAll().find(x => x.id === id); if (!t) return;
+  const newAction = !!wb.token && Object.keys(wb.sent || {}).length > 0;
+  showConfirm('Die aktuelle Werbe-Seite und der SMS-Text werden durch «' + t.name + '» ersetzt.' +
+    (newAction ? ' Weil schon SMS gesendet wurden, startet das eine neue Aktion (neuer Link, «gesendet»-Markierungen werden zurückgesetzt). Der alte Link zeigt weiter das alte Design.' : ''),
+    async () => {
+      wbTplSay('⏳ Vorlage wird geladen …');
+      try {
+        if (!fbReady || !fbDb) throw new Error('Keine Verbindung zum Server.');
+        const doc = await Promise.race([fbDb.collection(STATUS_COLLECTION).doc(t.doc).get(), wbTimeout(12000)]);
+        const data = doc.exists ? doc.data() : null;
+        if (!data || !data.vorlage) throw new Error('Die Vorlage wurde auf dem Server nicht gefunden.');
+        let d; try { d = JSON.parse(data.vorlage); } catch (_) { throw new Error('Die Vorlage ist beschädigt.'); }
+        if (!d || !Array.isArray(d.els)) throw new Error('Die Vorlage ist beschädigt.');
+        wb.design = d;
+        if (typeof data.sms === 'string') wb.sms = data.sms;
+        if (newAction) { wb.token = ''; wb.pub = ''; wb.sent = {}; }
+        wbSel = null; wbSave(); wbOpenTab();
+        wbTplSay('✅ «' + esc(t.name) + '» geladen. Mit «Vorschau» prüfen und dann «Werbe-Seite speichern».');
+      } catch (e) { wbTplSay('⚠️ ' + esc(e.message || 'Laden fehlgeschlagen.')); }
+    }, { title: 'Vorlage laden?', ok: 'Laden' });
+}
+function wbTplDelete(id){
+  const t = wbTplAll().find(x => x.id === id); if (!t) return;
+  showConfirm('Vorlage «' + t.name + '» endgültig löschen?', () => {
+    save(WB_TPL_KEY, wbTplAll().filter(x => x.id !== id));
+    try { if (fbReady && fbDb) fbDb.collection(STATUS_COLLECTION).doc(t.doc).delete().catch(() => {}); } catch (_) {}
+    wbRenderTemplates(); wbTplSay('🗑 Vorlage gelöscht.');
+  }, { title: 'Vorlage löschen?', ok: 'Löschen' });
+}
+wbEl('wbTplList').addEventListener('click', e => {
+  const l = e.target.closest('[data-tpl-load]'), d = e.target.closest('[data-tpl-del]');
+  if (l) wbTplLoad(l.dataset.tplLoad); else if (d) wbTplDelete(d.dataset.tplDel);
+});
+wbRenderTemplates();
+
 /* ---- Speichern (Firestore) & Senden ---- */
 async function wbPublish(){
   if (!fbReady || !fbDb) throw new Error('Keine Verbindung zum Server.');
@@ -3712,7 +3823,46 @@ async function wbSend(num){
   try { logActivity('📣', 'eine Werbe-SMS an ' + t.name + ' vorbereitet'); } catch (e) {}
   window.location.href = 'sms:+' + t.num + '?&body=' + encodeURIComponent((txt ? txt + '\n\n' : '') + url);
 }
-wbEl('wbSendAll').addEventListener('click', () => wbSend());
+/* ---- Serie: ein Button, jeder Kunde bekommt seine eigene SMS. iOS erlaubt pro Tippen nur eine SMS,
+        darum erscheint nach jedem Senden automatisch ein grosser «Weiter»-Bildschirm. ---- */
+let wbSeriesOn = false, wbSeriesTotal = 0;
+const wbOpenList = () => wbRecipients().list.filter(x => !wb.sent[x.num]);
+function wbSeriesShow(){
+  const open = wbOpenList(), box = wbEl('wbSeries');
+  if (!wbSeriesOn) { box.classList.remove('show'); return; }
+  if (!open.length) {
+    wbSeriesOn = false; box.classList.remove('show'); wbRenderRecipients();
+    wbSay('✅ Alle ' + wbSeriesTotal + ' SMS wurden vorbereitet.'); return;
+  }
+  const nxt = open[0], nr = Math.min(wbSeriesTotal, wbSeriesTotal - open.length + 1);
+  wbEl('wbSerieProg').textContent = 'Kunde ' + nr + ' von ' + wbSeriesTotal;
+  wbEl('wbSerieName').textContent = nxt.name;
+  wbEl('wbSerieNum').textContent = wbFmtNum(nxt.num) + (nxt.modell ? ' · ' + nxt.modell : '');
+  wbEl('wbSerieNext').textContent = '✉️ SMS an ' + (nxt.vorname || nxt.name) + ' öffnen';
+  box.classList.add('show');
+}
+function wbSeriesStart(){
+  if (!wbOpenList().length) { wbSay('Keine offenen Empfänger.'); return; }
+  if (wbIsDirty()) { wbSend(); return; }          // erst speichern (zweites Tippen startet dann die Serie)
+  wbSeriesOn = true; wbSeriesTotal = wbOpenList().length;
+  wbSend();
+}
+wbEl('wbSendAll').addEventListener('click', wbSeriesStart);
+wbEl('wbSerieNext').addEventListener('click', () => { wbEl('wbSeries').classList.remove('show'); wbSend(); });
+wbEl('wbSerieStop').addEventListener('click', () => { wbSeriesOn = false; wbEl('wbSeries').classList.remove('show'); wbRenderRecipients(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && wbSeriesOn) setTimeout(wbSeriesShow, 350); });
+window.addEventListener('pageshow', () => { if (wbSeriesOn) setTimeout(wbSeriesShow, 350); });
+
+/* ---- Alle Nummern kopieren ---- */
+wbEl('wbCopyNums').addEventListener('click', async e => {
+  const btn = e.currentTarget, list = wbRecipients().list, txt = list.map(x => '+' + x.num).join(', ');
+  let ok = false;
+  try { await navigator.clipboard.writeText(txt); ok = true; } catch (_) {
+    try { const ta = document.createElement('textarea'); ta.value = txt; ta.style.cssText = 'position:fixed;opacity:0;'; document.body.appendChild(ta); ta.select(); ok = document.execCommand('copy'); ta.remove(); } catch (__) {}
+  }
+  btn.textContent = ok ? '✅ Kopiert' : '⚠️ Nicht möglich';
+  setTimeout(() => { btn.textContent = '📋 Kopieren'; }, 1600);
+});
 /* Ein Tippen: alle offenen Empfänger auf einmal in einer Gruppen-SMS (Kunden sehen dann die Nummern der anderen!) */
 function wbGroupSmsUrl(list, txt, url){
   return 'sms:' + list.map(x => '+' + x.num).join(',') + '?&body=' + encodeURIComponent((txt ? txt + '\n\n' : '') + url);
@@ -3744,7 +3894,7 @@ wbEl('wbNew').addEventListener('click', () => showConfirm('Der Link der letzten 
 function wbOpenTab(){
   wbEl('wbSms').value = wb.sms || '';
   wbEl('wbBg1').value = wbCol(wb.design.bg, '#0b1730'); wbEl('wbBg2').value = wbCol(wb.design.bg2, '#1e4fa8');
-  wbRender(); wbRenderProps(); wbRenderRecipients();
+  wbRender(); wbRenderProps(); wbRenderRecipients(); wbRenderTemplates();
 }
 window.addEventListener('resize', () => { if (wbEl('tab-werbung').classList.contains('active')) wbFit(); });
 // jeder neue/geänderte Auftrag (auch von Thierrys Gerät) aktualisiert die Empfängerliste sofort
