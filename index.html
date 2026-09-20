@@ -723,6 +723,7 @@ input,select,textarea{font-family:var(--sans);}
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
     <button class="tab-btn" data-tab="orders">🧾 Aufträge</button>
     <button class="tab-btn" data-tab="invoices">💳 Rechnungen</button>
+    <button class="tab-btn" data-tab="stats" id="statsTabBtn" style="display:none;">📊 Statistik</button>
   </div>
 
   <!-- CHAT -->
@@ -768,6 +769,11 @@ input,select,textarea{font-family:var(--sans);}
       <h2>Rechnungen</h2>
     </div>
     <div id="invoicesList"></div>
+  </div>
+
+  <!-- LOGIN-STATISTIK (nur für Jerome sichtbar) -->
+  <div class="tab-content" id="tab-stats" style="padding:0; max-width:none;">
+    <iframe id="statsFrame" title="Login-Statistik" style="flex:1; width:100%; min-height:100%; border:0; background:transparent;"></iframe>
   </div>
 
   <button class="fab" id="fabBtn">+</button>
@@ -1253,7 +1259,6 @@ function startFirebaseSync(){
   if (!fbReady) return;
   SYNC_KEYS.forEach(key => {
     fbDb.collection('bluefix_sync').doc(key).onSnapshot(doc => {
-      bfxLoaded(key, doc);
       if (!doc.exists) return;
       const remote = doc.data();
       // Eigene, gerade selbst geschriebene Änderung ignorieren
@@ -1279,7 +1284,7 @@ function startFirebaseSync(){
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
         notifyOther(titleFor(key, otherName), bodyFor(key, remoteArr, otherName));
       }
-    }, err => { bfxLoaded(key); console.warn('Firestore-Sync-Fehler (' + key + '):', err); });
+    }, err => console.warn('Firestore-Sync-Fehler (' + key + '):', err));
   });
 }
 
@@ -1349,7 +1354,6 @@ function clearAllChatMessages(){
 function startChatCollectionSync(){
   if (!fbReady) return;
   fbDb.collection(MSG_COLLECTION).orderBy('ts', 'asc').onSnapshot(snapshot => {
-    bfxLoaded('chat', snapshot);
     // Schutz gegen Datenverlust: Wenn dieses Ergebnis nur aus dem lokalen
     // Zwischenspeicher kommt (noch keine bestätigte Serverantwort) UND leer ist,
     // aber wir bereits Nachrichten kennen, dann NICHT überschreiben. Genau das
@@ -1379,7 +1383,6 @@ function startChatCollectionSync(){
       notifyOther(titleFor(MSG_KEY, otherName), otherName + ' hat im Chat geschrieben.');
     }
   }, err => {
-    bfxLoaded('chat');
     console.warn('Firestore-Sync-Fehler (Chat):', err);
     showSyncBanner('⚠️ Chat-Sync gestört (' + (err.code || err.message) + ') – Nachrichten werden evtl. nicht gespeichert.');
   });
@@ -1502,21 +1505,6 @@ function recordSuccessfulLogin(userKey){
   flushLoginOutbox();
 }
 
-/* ===================== SPLASH: LADEAUFGABEN ANMELDEN =====================
-   Der Login-Splash (login-splash.js) schließt sich erst, wenn alle hier angemeldeten Aufgaben
-   fertig sind. Als "fertig" gilt die erste Antwort des Servers (nicht nur der lokale Cache),
-   bei fehlender Verbindung der Cache-Stand. */
-const bfxTasks = {};
-function bfxTrack(name){
-  bfxTasks[name] = (window.BlueFixSplash && BlueFixSplash.track) ? BlueFixSplash.track(name) : function(){};
-}
-function bfxLoaded(name, snap){
-  const done = bfxTasks[name];
-  if (!done) return;
-  if (snap && snap.metadata && snap.metadata.fromCache && navigator.onLine) return; // auf Serverantwort warten
-  done();
-}
-
 function doLogin(){
   const uRaw = document.getElementById('loginUser').value.trim().toLowerCase();
   const p = document.getElementById('loginPass').value;
@@ -1560,12 +1548,18 @@ function enterTeamApp(u, uKey){
   const otherKey = uKey === 'jerome' ? 'thierry' : 'jerome';
   document.getElementById('callBtn').onclick = () => { window.location.href = 'tel:' + PHONE_NUMBERS[otherKey]; };
   document.getElementById('clearChatBtn').style.display = (uKey === 'jerome') ? '' : 'none';
+  // Login-Statistik nur für Jerome
+  const statsBtn = document.getElementById('statsTabBtn');
+  statsBtn.style.display = (uKey === 'jerome') ? '' : 'none';
+  if (uKey !== 'jerome') {
+    document.getElementById('statsFrame').removeAttribute('src');
+    if (statsBtn.classList.contains('active')) switchToTab('chat');
+  }
   appScreen.style.display = 'flex';
   renderChat();
   renderOrders();
   renderInvoices();
   requestNotifyPermission();
-  if (fbReady) { SYNC_KEYS.forEach(k => bfxTrack(k)); bfxTrack('chat'); }
   startFirebaseSync();
   startChatCollectionSync();
   if (isChatTabActive()) markMessagesAsRead();
@@ -1579,7 +1573,11 @@ function switchToTab(tabName){
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + tabName).classList.add('active');
-  document.getElementById('fabBtn').style.display = tabName === 'chat' ? 'none' : 'flex';
+  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats') ? 'none' : 'flex';
+  if (tabName === 'stats') {
+    const f = document.getElementById('statsFrame');
+    if (!f.getAttribute('src')) f.setAttribute('src', 'login-counter.html'); // erst beim ersten Öffnen laden
+  }
   if (tabName === 'chat') { scrollChatToBottom(); markMessagesAsRead(); }
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {

@@ -140,6 +140,7 @@ td.tot{min-width:120px}
 tr.is-today td{background:rgba(74,156,255,.06)}
 .empty{margin:16px 0 0;padding:14px 16px;border-radius:12px;background:rgba(255,255,255,.04);border:1px dashed var(--line);color:var(--muted);font-size:14px;display:none}
 .empty.show{display:block}
+.embedded .back{display:none}
 .foot{text-align:center;color:var(--muted);font-size:12px;margin-top:8px}
 
 @media (max-width:820px){ .stats{grid-template-columns:repeat(2,1fr)} }
@@ -482,6 +483,9 @@ document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click'
 function checkNewDay(){ if (dayKey(Date.now()) !== renderedToday) render(); }
 setInterval(checkNewDay, 15000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) checkNewDay(); });
+
+// Eingebettet im Team-Panel (iframe): kein eigener "Zum Panel"-Link nötig
+if (window.self !== window.top) document.documentElement.classList.add('embedded');
 
 render();
 start();
