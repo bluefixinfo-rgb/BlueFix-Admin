@@ -2962,7 +2962,7 @@ function syncStatusWatchers(){
       if (seen[t] !== w.at) {
         seen[t] = w.at;
         save('bluefix_wish_seen', seen);
-        if (!known) notifyOther('BlueFix – Kundenwunsch', (o.vorname || 'Kunde') + ': ' + (w.art === 'post' ? 'Versand per Post' : 'Abholung im Shop'), 'wish-' + t);
+        if (!known) notifyOther('BlueFix – Kundenwunsch', (o.vorname || 'Kunde') + ': ' + (w.art === 'post' ? 'Versand per Post' : 'Abholung bei BlueFix'), 'wish-' + t);
       }
     }, err => console.warn('Status-Watcher:', err));
   });
@@ -3006,7 +3006,7 @@ function repBoxHtml(o){
   let info = '';
   if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>`;
   else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
-  else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät im Shop ab</b></div>`;
+  else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät bei BlueFix ab</b></div>`;
   return `<div class="rep-box">
     <div class="order-section-title">📱 Status für den Kunden</div>
     <div class="rep-steps">${steps}</div>
@@ -3037,6 +3037,44 @@ function statusMessage(o, url){
              : rs === 'reparatur' ? dev + ' ist jetzt bei uns in Reparatur.'
              : 'wir haben ' + dev + ' angenommen.';
   return hello + line + '\nDen aktuellen Stand siehst du jederzeit hier: ' + url;
+}
+// Sie-Form für E-Mails an Kunden
+function statusMessageSie(o, url){
+  const dev = o.modell ? 'Ihr ' + o.modell : 'Ihr Gerät';
+  const rs = o.repStatus || 'angenommen';
+  if (o.sendungsnr) return dev + ' ist unterwegs zu Ihnen.\nSendungsnummer: ' + o.sendungsnr + '\nSendung verfolgen: ' + trackUrl(o.sendungsnr) + '\nAlle Infos: ' + url;
+  const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden. Auf Wunsch schicken wir es Ihnen auch per Post.'
+             : rs === 'reparatur' ? dev + ' befindet sich jetzt bei uns in Reparatur.'
+             : 'wir haben ' + dev + ' angenommen.';
+  return line.charAt(0).toUpperCase() + line.slice(1) + '\nDen aktuellen Stand sehen Sie jederzeit hier: ' + url;
+}
+// Vorlage für jede E-Mail an Kunden (öffnet Gmail)
+const MAIL_SIGNATURE =
+  '\n\n_________________________________________\n\n' +
+  'Vielen Dank, dass Sie sich für BlueFix Handyreparatur entschieden haben. Wir hoffen, Sie sind mit unserem Service rundum zufrieden.\n\n' +
+  'Über eine kurze Bewertung auf Google würden wir uns sehr freuen – sie hilft uns weiter und unterstützt auch andere Kunden bei ihrer Entscheidung.\n\n' +
+  'LINK 🔗\nhttps://g.page/r/CSmWMWadV5iNEBI/review\n\n' +
+  'Liebe Grüsse\n\nBlueFix Team\n\n' +
+  'https://blue-fix.ch\nWeierbuckstrasse 1, 8213 Neunkirch, Schweiz';
+// Öffnet die Gmail-App (iPhone), sonst Gmail im Browser. In der App gibt es keine Bild-Signatur -> Text-Signatur im Body.
+function openGmailCompose(to, subject, body){
+  const q = 'to=' + encodeURIComponent(to) + '&subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  const ua = navigator.userAgent || '';
+  const web = () => window.open('https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(to) + '&su=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body.replace(MAIL_SIGNATURE, '')), '_blank');
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    window.location.href = 'googlegmail://co?' + q;
+    setTimeout(() => { if (!document.hidden) window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body); }, 1500);
+  } else if (/Android/i.test(ua)) {
+    window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  } else web();
+}
+function buildMailBody(o, anliegen){
+  const name = [o.vorname, o.nachname].filter(Boolean).join(' ');
+  return 'Sehr geehrte/r ' + name + ',\n\n' +
+    'vielen Dank für Ihre Nachricht.\n\n' +
+    anliegen + '\n\n' +
+    'Für Rückfragen stehen wir Ihnen jederzeit gerne zur Verfügung.\n\n' +
+    MAIL_SIGNATURE;
 }
 function mailSubject(o){
   return o.sendungsnr ? 'Dein Gerät ist unterwegs – BlueFix' : o.repStatus === 'fertig' ? 'Dein Gerät ist fertig – BlueFix' : o.repStatus === 'reparatur' ? 'Dein Gerät ist in Reparatur – BlueFix' : 'Dein Gerät bei BlueFix';
@@ -3102,7 +3140,12 @@ function sendStatus(kind){
   const msg = document.getElementById('stMsg').value;
   if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
   else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
-  else window.location.href = 'mailto:' + mailRaw + '?subject=' + encodeURIComponent(mailSubject(o)) + '&body=' + encodeURIComponent(msg);
+  else {
+    const url = statusUrl(o.statusToken);
+    const defaultMsg = statusMessage({ ...o, sendungsnr: track }, url);
+    const anliegen = msg === defaultMsg ? statusMessageSie({ ...o, sendungsnr: track }, url) : msg; // selbst bearbeiteter Text bleibt unverändert
+    openGmailCompose(mailRaw, mailSubject(o), buildMailBody(o, anliegen));
+  }
 }
 document.getElementById('statusClose').addEventListener('click', () => document.getElementById('statusModal').classList.remove('show'));
 

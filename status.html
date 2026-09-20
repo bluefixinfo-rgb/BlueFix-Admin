@@ -133,6 +133,13 @@ h2{margin:0 0 4px; font-family:'Space Grotesk',sans-serif; font-size:19px; font-
 /* Optional: Telefonnummer des Shops (z.B. '+41 44 000 00 00'). Leer lassen = kein Anruf-Button. */
 const SHOP_TEL = '';
 
+/* Abholung bei BlueFix */
+const PICKUP_ADDR_HTML = 'BlueFix Handy Reparatur<br>Weierbuckstrasse 1<br>8213 Neunkirch<br>Schweiz';
+const PICKUP_MAPS = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent('BlueFix, Weierbuckstrasse 1, 8213 Neunkirch, Schweiz');
+/* Wie oft der Kunde seine Auswahl nach der ersten Wahl noch ändern darf */
+const MAX_CHANGES = 2;
+const changesUsed = d => (d && d.wunsch && d.wunsch.changes) || 0;
+
 const firebaseConfig = {
   apiKey: "AIzaSyCKLqJ-YW_PQ0MRFHQLMZaKWaPc28ScSE8",
   authDomain: "bluefix-2255.firebaseapp.com",
@@ -202,21 +209,25 @@ function shipHtml(d){
       <div class="btns"><button class="btn ghost" data-a="back">Zurück</button><button class="btn" data-a="send-post">Absenden</button></div>`;
   }
   if (w && ui !== 'choose') {
-    return `<h2>${w.art === 'post' ? 'Versand per Post' : 'Abholung im Shop'}</h2>
+    const left = MAX_CHANGES - changesUsed(d);
+    return `<h2>${w.art === 'post' ? 'Versand per Post' : 'Abholung bei BlueFix'}</h2>
       <p class="sub">${w.art === 'post' ? 'Danke! Wir schicken dir dein Gerät. Sobald es unterwegs ist, siehst du hier deine Sendungsnummer.' : 'Danke! Wir freuen uns auf deinen Besuch.'}</p>
-      ${w.art === 'post' ? `<div class="recap"><small>Lieferadresse</small>${addr(w)}</div>` : ''}
-      <div class="btns"><button class="btn ghost" data-a="change">Auswahl ändern</button></div>`;
+      ${w.art === 'post' ? `<div class="recap"><small>Lieferadresse</small>${addr(w)}</div>` : `<div class="recap"><small>Abholadresse</small>${PICKUP_ADDR_HTML}</div>`}
+      <div class="btns">${w.art !== 'post' ? `<a class="btn" target="_blank" rel="noopener" href="${PICKUP_MAPS}">Route öffnen</a>` : ''}${left > 0 ? '<button class="btn ghost" data-a="change">Auswahl ändern</button>' : ''}</div>
+      <p class="sub" style="margin-top:14px;">${left > 0 ? 'Du kannst deine Auswahl noch ' + (left === 1 ? 'einmal' : left + '-mal') + ' ändern.' : 'Du hast deine Auswahl bereits zweimal geändert. Bei Fragen melde dich bitte direkt bei BlueFix.'}</p>`;
   }
   return `<h2>Wie möchtest du dein Gerät erhalten?</h2><p class="sub">Wähle eine Option, wir kümmern uns um den Rest.</p>
     <div class="opts">
-      <button class="opt" data-a="abholen">${IC.store}<div><b>Im Shop abholen</b><span>Du kommst bei uns vorbei.</span></div></button>
+      <button class="opt" data-a="abholen">${IC.store}<div><b>Bei BlueFix abholen</b><span>Weierbuckstrasse 1, 8213 Neunkirch</span></div></button>
       <button class="opt" data-a="post-form">${IC.box}<div><b>Per Post schicken lassen</b><span>Du bekommst eine Sendungsnummer.</span></div></button>
-    </div>${errMsg ? `<p class="err">${esc(errMsg)}</p>` : ''}`;
+    </div>${errMsg ? `<p class="err">${esc(errMsg)}</p>` : ''}${w ? '<div class="btns"><button class="btn ghost" data-a="back">Abbrechen</button></div>' : ''}`;
 }
 
 async function saveWish(w){
   errMsg = '';
-  try { await db.collection(COL).doc(token).update({ wunsch: { ...w, at: Date.now() } }); ui = 'auto'; }
+  const used = cur && cur.wunsch ? changesUsed(cur) + 1 : 0; // erste Wahl zählt nicht, jede spätere ist eine Änderung
+  if (used > MAX_CHANGES) { ui = 'auto'; render(); return; }
+  try { await db.collection(COL).doc(token).update({ wunsch: { ...w, changes: used, at: Date.now() } }); ui = 'auto'; }
   catch (e) { console.warn(e); errMsg = 'Das hat leider nicht geklappt. Bitte versuche es gleich noch einmal.'; }
   render();
 }
@@ -224,7 +235,10 @@ $('ship').addEventListener('click', async e => {
   const b = e.target.closest('[data-a]'); if (!b) return;
   const a = b.dataset.a;
   if (a === 'abholen') { b.disabled = true; saveWish({ art:'abholen' }); }
-  else if (a === 'post-form' || a === 'change') { ui = a === 'change' ? 'choose' : 'form'; errMsg = ''; render(); }
+  else if (a === 'post-form' || a === 'change') {
+    if (a === 'change' && changesUsed(cur) >= MAX_CHANGES) { render(); return; }
+    ui = a === 'change' ? 'choose' : 'form'; errMsg = ''; render();
+  }
   else if (a === 'back') { ui = 'auto'; errMsg = ''; render(); }
   else if (a === 'send-post') {
     const w = { art:'post', name:$('f-name').value.trim(), strasse:$('f-strasse').value.trim(), plz:$('f-plz').value.trim(), ort:$('f-ort').value.trim(), land:$('f-land').value.trim() || 'Schweiz' };
