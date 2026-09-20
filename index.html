@@ -2979,7 +2979,12 @@ function newStatusToken(){
   return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
 }
 function statusUrl(token){ return new URL('status.html?t=' + token, location.href).href; }
-function trackUrl(nr){ return 'https://service.post.ch/ekp-web/ui/list?formattedParcelCodes=' + encodeURIComponent(nr); }
+// Offizieller Tracking-Link der Schweizer Post: öffnet direkt die Sendung, die Nummer ist schon eingetragen
+function trackUrl(nr){
+  const t = String(nr || '').trim();
+  if (/^https?:\/\//i.test(t)) return t;
+  return 'https://www.post.ch/swisspost-tracking?formattedParcelCodes=' + encodeURIComponent(t.replace(/\s+/g, ''));
+}
 
 function publishStatus(o){
   if (!fbReady || !fbDb || !o || !o.statusToken) return;
@@ -3108,7 +3113,7 @@ function statusMessage(o, url){
   const hello = o.vorname ? 'Hallo ' + o.vorname + ', ' : 'Hallo, ';
   const dev = o.modell ? 'dein ' + o.modell : 'dein Gerät';
   const rs = o.repStatus || 'angenommen';
-  if (o.sendungsnr) return hello + dev + ' ist unterwegs zu dir.\nSendungsnummer: ' + o.sendungsnr + '\nSendung verfolgen: ' + trackUrl(o.sendungsnr) + '\nAlle Infos: ' + url;
+  if (o.sendungsnr) return hello + dev + ' ist unterwegs zu dir 🚚\n\nSendungsnummer: ' + o.sendungsnr + '\n👉 Hier tippen – die Schweizer Post öffnet sich mit deiner Nummer:\n' + trackUrl(o.sendungsnr) + '\n\nDen Weg deines Pakets siehst du auch hier:\n' + url;
   const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden. Auf Wunsch schicken wir es dir auch per Post.'
              : rs === 'reparatur' ? dev + ' ist jetzt bei uns in Reparatur.'
              : 'wir haben ' + dev + ' angenommen.';
@@ -3118,7 +3123,7 @@ function statusMessage(o, url){
 function statusMessageSie(o, url){
   const dev = o.modell ? 'Ihr ' + o.modell : 'Ihr Gerät';
   const rs = o.repStatus || 'angenommen';
-  if (o.sendungsnr) return dev + ' ist unterwegs zu Ihnen.\nSendungsnummer: ' + o.sendungsnr + '\nSendung verfolgen: ' + trackUrl(o.sendungsnr) + '\nAlle Infos: ' + url;
+  if (o.sendungsnr) return dev + ' ist unterwegs zu Ihnen 🚚\n\nSendungsnummer: ' + o.sendungsnr + '\n👉 Hier tippen – die Schweizer Post öffnet sich mit Ihrer Nummer:\n' + trackUrl(o.sendungsnr) + '\n\nDen Weg Ihres Pakets sehen Sie auch hier:\n' + url;
   const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden. Auf Wunsch schicken wir es Ihnen auch per Post.'
              : rs === 'reparatur' ? dev + ' befindet sich jetzt bei uns in Reparatur.'
              : 'wir haben ' + dev + ' angenommen.';
@@ -3202,6 +3207,7 @@ function sendStatus(kind){
   const trEl = document.getElementById('stTrack');
   const track = trEl ? trEl.value.trim() : (o.sendungsnr || '');
   const num = normPhone(phoneRaw);
+  if (trEl && !track && kind !== 'save') { alert('Bitte zuerst die Sendungsnummer eingeben.'); return; }
   if ((kind === 'wa' || kind === 'sms') && !num) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
   if (kind === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailRaw)) { alert('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
   let dirty = false;
