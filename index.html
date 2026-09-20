@@ -499,6 +499,29 @@ input,select,textarea{font-family:var(--sans);}
 .badge-bezahlt{background:rgba(47,191,113,0.15); color:var(--good);}
 .badge-dringend{background:rgba(227,72,72,0.18); color:#ff8f8f;}
 .badge-normal{background:rgba(138,153,184,0.12); color:var(--muted);}
+.badge-ueberfaellig{background:rgba(227,72,72,0.18); color:#ff8f8f;}
+.card.card-overdue{border-color:rgba(227,72,72,0.5); box-shadow:var(--glass-rim), var(--glass-depth), 0 0 18px -8px rgba(227,72,72,0.55);}
+.status-chip.alert{border-color:rgba(227,72,72,0.5);}
+.status-chip.alert .chip-num{color:#ff8f8f;}
+.status-chip.alert .chip-dot.on{background:var(--bad); animation:none; box-shadow:0 0 8px rgba(227,72,72,0.6);}
+.cust-link{background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:rgba(74,156,255,0.5); text-underline-offset:3px;}
+.cust-link:hover{text-decoration-color:var(--blue-light);}
+.hist-sum{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:0 0 6px;}
+.hist-sum > div{background:rgba(255,255,255,0.05); border:1px solid var(--glass-border-soft); border-radius:12px; padding:10px 12px;}
+.hist-sum .n{font-family:var(--serif); font-size:15px; font-weight:700;}
+.hist-sum .l{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em;}
+.hist-title{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin:18px 0 4px;}
+.hist-row{display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line); font-size:13.5px;}
+.hist-row .sub{color:var(--muted); font-size:12px;}
+.hist-row .r{text-align:right; flex-shrink:0;}
+.hist-contact{font-size:13.5px; color:var(--muted); margin:0 0 14px;}
+.hist-contact a{color:var(--blue-light);}
+.act-day{font-family:var(--serif); font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;}
+.act-item{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line);}
+.act-day + .act-item{border-top:0;}
+.act-ico{width:34px; height:34px; flex-shrink:0; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:15px; background:linear-gradient(155deg, rgba(74,156,255,0.28), rgba(30,111,239,0.12)); box-shadow:inset 0 0 0 1px rgba(255,255,255,0.10);}
+.act-text{font-size:14px; line-height:1.4;}
+.act-time{font-size:12px; color:var(--muted); margin-top:1px;}
 
 .card-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:8px 16px; font-size:13.5px; margin-top:10px;}
 .card-grid .k{color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:2px;}
@@ -769,6 +792,7 @@ input,select,textarea{font-family:var(--sans);}
     <button class="tab-btn" data-tab="orders">🧾 Aufträge</button>
     <button class="tab-btn" data-tab="invoices">💳 Rechnungen</button>
     <button class="tab-btn" data-tab="revenue">📈 Umsatz</button>
+    <button class="tab-btn" data-tab="activity" id="activityTabBtn" style="display:none;">🕘 Verlauf</button>
     <button class="tab-btn" data-tab="stats" id="statsTabBtn" style="display:none;">📊 Statistik</button>
   </div>
 
@@ -804,7 +828,7 @@ input,select,textarea{font-family:var(--sans);}
         <button class="btn btn-ghost" id="customerOrderBtn">👤 Kunden Auftrag</button>
         <button class="btn btn-ghost" id="teamOrderBtn">👥 Team Auftrag</button>
       </div>
-      <div class="order-search"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Auftrag nach Kundenname suchen…" autocomplete="off"></div>
+      <div class="order-search"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     </div>
     <div id="ordersList"></div>
   </div>
@@ -814,6 +838,7 @@ input,select,textarea{font-family:var(--sans);}
     <div class="section-head-row">
       <h2>Rechnungen</h2>
     </div>
+    <div class="order-search" style="margin-bottom:14px;"><span class="search-icon">⌕</span><input id="invoiceSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     <div id="invoicesList"></div>
   </div>
 
@@ -843,6 +868,14 @@ input,select,textarea{font-family:var(--sans);}
         </div>
       </div>
     </div>
+  </div>
+
+  <!-- AKTIVITÄTSVERLAUF -->
+  <div class="tab-content" id="tab-activity">
+    <div class="section-head-row">
+      <div><h2>Verlauf</h2><div style="color:var(--muted);font-size:12px;margin-top:2px;">Wer hat wann was gemacht</div></div>
+    </div>
+    <div id="activityList"></div>
   </div>
 
   <!-- LOGIN-STATISTIK (nur für Jerome sichtbar) -->
@@ -1010,6 +1043,17 @@ input,select,textarea{font-family:var(--sans);}
     <div id="statusModalBody"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="statusClose">Schliessen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: Kunden-Historie ==================== -->
+<div class="modal-overlay" id="historyModal">
+  <div class="modal">
+    <h3 id="historyTitle">Kunde</h3>
+    <div id="historyBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="historyClose">Schliessen</button>
     </div>
   </div>
 </div>
@@ -1297,10 +1341,10 @@ if (!fbReady) {
   showSyncBanner('⚠️ Live-Sync ist nicht aktiv (Firebase nicht verbunden) – Nachrichten bleiben nur auf diesem Gerät.');
 }
 
-function notifyOther(title, body){
+function notifyOther(title, body, tag){
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
-    try { new Notification(title, { body, icon: undefined }); } catch(e){}
+    try { new Notification(title, { body, icon: undefined, tag: tag || undefined }); } catch(e){}
   }
 }
 function requestNotifyPermission(){
@@ -1374,7 +1418,7 @@ function startFirebaseSync(){
         // Im Hintergrund alle synchronisierten Garantiescheine lokal sichern.
         syncSignedFilesToLocal(remoteArr);
       }
-      if (key === INVOICES_KEY) renderInvoices();
+      if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
 
       if (isNewFromOther) {
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
@@ -1679,6 +1723,7 @@ function enterTeamApp(u, uKey){
   startFirebaseSync();
   startChatCollectionSync();
   if (isChatTabActive()) markMessagesAsRead();
+  startTeamExtras(uKey);
 }
 
 /* ===================== TABS ===================== */
@@ -1689,7 +1734,8 @@ function switchToTab(tabName){
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + tabName).classList.add('active');
-  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue') ? 'none' : 'flex';
+  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity') ? 'none' : 'flex';
+  if (tabName === 'activity') renderActivity();
   if (tabName === 'revenue') renderRevenue();
   if (tabName === 'stats') {
     const f = document.getElementById('statsFrame');
@@ -1744,6 +1790,8 @@ function renderDashboard(){
 
   dashInv.textContent = openInvoices;
   document.getElementById('dashInvDot').classList.toggle('on', openInvoices > 0);
+  const dashInvChip = document.getElementById('dashInvChip');
+  if (dashInvChip) dashInvChip.classList.toggle('alert', invoices.some(isOverdue));
 }
 
 function renderChat(){
@@ -1998,6 +2046,7 @@ document.getElementById('teamOrdSave').addEventListener('click', () => {
     istNeu = true;
   }
   save(ORDERS_KEY, orders);
+  logActivity('🧾', (istNeu ? 'einen Team Auftrag erstellt: ' : 'den Team Auftrag bearbeitet: ') + vorname + ' ' + nachname + ' · ' + modell);
   if (istNeu) {
     const me = currentUser();
     const myName = USERS[me] ? USERS[me].displayName : me;
@@ -2094,6 +2143,7 @@ document.getElementById('custSave').addEventListener('click', () => {
     order.updatedBy=currentUser(); order.updatedAt=Date.now();
     if(bluefixSig.hasSignature()) order.bluefixSignature=bluefixSig.getData();
     save(ORDERS_KEY,orders);
+    logActivity('🧾','den Kunden Auftrag bearbeitet: '+vorname+' '+nachname+' · '+modell);
     if(order.statusToken) publishStatus(order);
     document.getElementById('customerOrderModal').classList.remove('show');
     renderOrders();
@@ -2114,6 +2164,7 @@ document.getElementById('custSave').addEventListener('click', () => {
     createdBy:currentUser(),createdAt:Date.now()
   };
   orders.unshift(order); save(ORDERS_KEY,orders);
+  logActivity('🧾','einen Kunden Auftrag erstellt: '+vorname+' '+nachname+' · '+modell);
   publishStatus(order);
   {
     const me = currentUser();
@@ -2366,6 +2417,7 @@ async function uploadSignedOrderFile(orderId,file){
 
     save(ORDERS_KEY,orders);
     pushToFirestore(ORDERS_KEY,orders);
+    logActivity('📎','die unterschriebene Datei zum Auftrag von '+order.vorname+' '+order.nachname+' hochgeladen');
 
     // Sofortige lokale Cache-URL erzeugen.
     await cacheSignedFile(signedFile);
@@ -2591,7 +2643,7 @@ function renderOrders(){
   const orders=load(ORDERS_KEY,[]), list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
   list.innerHTML='';
-  const filtered=orders.filter(o=>(!orderTypeFilter||o.typ===orderTypeFilter)&&(!q||(`${o.vorname||''} ${o.nachname||''}`).toLowerCase().includes(q)));
+  const filtered=orders.filter(o=>(!orderTypeFilter||o.typ===orderTypeFilter)&&orderMatchesSearch(o,q));
   if(!filtered.length){
     list.innerHTML=`<div class="empty-state">${orders.length?'Keine Aufträge für diese Suche.':'Noch keine Aufträge. Wähle „Kunden Auftrag“ oder „Team Auftrag“.'}</div>`;
     return;
@@ -2601,7 +2653,7 @@ function renderOrders(){
     const isCustomer=o.typ==='kunde';
     const signedFile=o.signedFile;
     card.innerHTML=`<div class="card-top">
-      <div><p class="card-title">${esc(o.vorname)} ${esc(o.nachname)}</p><p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)} · ${isCustomer?'Kunden Auftrag':'Team Auftrag'}</p></div>
+      <div><p class="card-title"><button type="button" class="cust-link" data-cust="${esc(o.vorname+' '+o.nachname)}" data-cust-phone="${esc(o.telefon||'')}">${esc(o.vorname)} ${esc(o.nachname)}</button></p><p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)} · ${isCustomer?'Kunden Auftrag':'Team Auftrag'}</p></div>
       <div class="card-actions">
         <button class="icon-btn-sm" data-del="${esc(o.id)}" title="Löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
       </div>
@@ -2643,7 +2695,7 @@ function renderOrders(){
     if(o.signedFile) cacheSignedFile(o.signedFile);
   });
 
-  list.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',()=>showConfirm('Diesen Auftrag wirklich löschen?',()=>{removeStatusDoc(load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del));save(ORDERS_KEY,load(ORDERS_KEY,[]).filter(o=>o.id!==btn.dataset.del));renderOrders();})));
+  list.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',()=>showConfirm('Diesen Auftrag wirklich löschen?',()=>{{const _d=load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del); if(_d) logActivity('🗑️','den Auftrag gelöscht: '+_d.vorname+' '+_d.nachname+' · '+_d.modell);} removeStatusDoc(load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del));save(ORDERS_KEY,load(ORDERS_KEY,[]).filter(o=>o.id!==btn.dataset.del));renderOrders();})));
   list.querySelectorAll('[data-edit-customer]').forEach(btn=>btn.addEventListener('click',()=>{
     const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.editCustomer);
     if(o) openCustomerOrderModal(o);
@@ -2652,7 +2704,7 @@ function renderOrders(){
     const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.editTeam);
     if(o) openTeamOrderModal(o);
   }));
-  list.querySelectorAll('[data-status-for]').forEach(sel=>sel.addEventListener('change',()=>{const arr=load(ORDERS_KEY,[]),o=arr.find(x=>x.id===sel.dataset.statusFor);if(o){o.status=sel.value;o.updatedBy=currentUser();o.updatedAt=Date.now();save(ORDERS_KEY,arr);renderOrders();}}));
+  list.querySelectorAll('[data-status-for]').forEach(sel=>sel.addEventListener('change',()=>{const arr=load(ORDERS_KEY,[]),o=arr.find(x=>x.id===sel.dataset.statusFor);if(o){if(o.status!==sel.value) logActivity('📦','beim Team Auftrag von '+o.vorname+' '+o.nachname+' den Status auf „'+(STATUS_LABELS[sel.value]||sel.value)+'“ gesetzt');o.status=sel.value;o.updatedBy=currentUser();o.updatedAt=Date.now();save(ORDERS_KEY,arr);renderOrders();}}));
   list.querySelectorAll('[data-pdf]').forEach(btn=>btn.addEventListener('click',()=>{const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.pdf);if(o)generateWarrantyPDF(o);}));
   list.querySelectorAll('[data-open-file]').forEach(btn=>btn.addEventListener('click',()=>{const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.openFile);if(o)openSignedFile(o.signedFile);}));
   list.querySelectorAll('[data-upload-file]').forEach(btn=>btn.addEventListener('click',()=>{
@@ -2702,6 +2754,7 @@ document.getElementById('invSave').addEventListener('click', () => {
     createdAt: Date.now()
   });
   save(INVOICES_KEY, invoices);
+  logActivity('💳', 'eine Rechnung erstellt: ' + kunde + ' · CHF ' + betrag.toFixed(2));
   {
     const me = currentUser();
     const myName = USERS[me] ? USERS[me].displayName : me;
@@ -2716,17 +2769,21 @@ const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
 function renderInvoices(){
   renderDashboard();
   renderRevenue();
-  const invoices = load(INVOICES_KEY, []);
+  const allInvoices = load(INVOICES_KEY, []);
   const list = document.getElementById('invoicesList');
   list.innerHTML = '';
-  if (!invoices.length) { list.innerHTML = '<div class="empty-state">Noch keine Rechnungen. Tippe unten rechts auf + um eine zu erstellen.</div>'; return; }
+  if (!allInvoices.length) { list.innerHTML = '<div class="empty-state">Noch keine Rechnungen. Tippe unten rechts auf + um eine zu erstellen.</div>'; return; }
+  const iq = (document.getElementById('invoiceSearch')?.value || '').trim().toLowerCase();
+  const custIdx = iq ? buildCustomerIndex() : null;
+  const invoices = allInvoices.filter(i => invoiceMatchesSearch(i, iq, custIdx));
+  if (!invoices.length) { list.innerHTML = '<div class="empty-state">Keine Rechnungen für diese Suche.</div>'; return; }
   invoices.forEach(inv => {
     const card = document.createElement('div');
-    card.className = 'card';
+    card.className = 'card' + (isOverdue(inv) ? ' card-overdue' : '');
     card.innerHTML = `
       <div class="card-top">
         <div>
-          <p class="card-title">${inv.kunde}</p>
+          <p class="card-title"><button type="button" class="cust-link" data-cust="${esc(inv.kunde)}">${esc(inv.kunde)}</button></p>
           <p class="card-sub">${inv.beschreibung ? linkify(inv.beschreibung) : PAY_LABELS[inv.zahlungsart]} · CHF ${inv.betrag.toFixed(2)}</p>
         </div>
         <div class="card-actions">
@@ -2735,7 +2792,7 @@ function renderInvoices(){
           </button>
         </div>
       </div>
-      <span class="badge ${inv.bezahlt ? 'badge-bezahlt' : 'badge-offen'}">${inv.bezahlt ? 'Bezahlt' : 'Offen'}</span>
+      ${invoiceBadgeHtml(inv)}
       <span class="badge badge-nicht" style="margin-left:6px;">${PAY_LABELS[inv.zahlungsart]}</span>
       <div class="card-grid">
         <div><div class="k">Erstellt</div><div class="v">${fmtTime(inv.createdAt)}</div></div>
@@ -2753,6 +2810,7 @@ function renderInvoices(){
 
   list.querySelectorAll('[data-del-inv]').forEach(btn => btn.addEventListener('click', () => {
     showConfirm('Diese Rechnung wirklich löschen?', () => {
+      { const _i = load(INVOICES_KEY, []).find(i => i.id === btn.dataset.delInv); if (_i) logActivity('🗑️', 'die Rechnung von ' + _i.kunde + ' (CHF ' + _i.betrag.toFixed(2) + ') gelöscht'); }
       save(INVOICES_KEY, load(INVOICES_KEY, []).filter(i => i.id !== btn.dataset.delInv));
       renderInvoices();
     });
@@ -2760,12 +2818,12 @@ function renderInvoices(){
   list.querySelectorAll('[data-paid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.paidInv);
-    if (inv) { inv.bezahlt = true; save(INVOICES_KEY, invoices); renderInvoices(); }
+    if (inv) { inv.bezahlt = true; save(INVOICES_KEY, invoices); logInvoiceState(inv, true); renderInvoices(); }
   }));
   list.querySelectorAll('[data-unpaid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.unpaidInv);
-    if (inv) { inv.bezahlt = false; save(INVOICES_KEY, invoices); renderInvoices(); }
+    if (inv) { inv.bezahlt = false; save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
   }));
   list.querySelectorAll('[data-view-inv]').forEach(btn => btn.addEventListener('click', () => {
     const inv = load(INVOICES_KEY, []).find(i => i.id === btn.dataset.viewInv);
@@ -2794,7 +2852,7 @@ function showInvoiceDetail(inv){
     <div><div class="k">Kunde</div><div class="v">${inv.kunde}</div></div>
     <div><div class="k">Betrag</div><div class="v">CHF ${inv.betrag.toFixed(2)}</div></div>
     <div><div class="k">Zahlungsart</div><div class="v">${PAY_LABELS[inv.zahlungsart]}</div></div>
-    <div><div class="k">Status</div><div class="v">${inv.bezahlt ? 'Bezahlt' : 'Offen'}</div></div>
+    <div><div class="k">Status</div><div class="v">${inv.bezahlt ? 'Bezahlt' : (isOverdue(inv) ? 'Überfällig · ' + invoiceAgeDays(inv) + ' Tage offen' : 'Offen')}</div></div>
   </div>`;
 
   if (inv.zahlungsart === 'twint') {
@@ -2840,6 +2898,7 @@ function showInvoiceDetail(inv){
     if (current) {
       current.bezahlt = !current.bezahlt;
       save(INVOICES_KEY, invoices);
+      logInvoiceState(current, current.bezahlt);
       renderInvoices();
       showInvoiceDetail(current);
     }
@@ -2895,11 +2954,16 @@ function syncStatusWatchers(){
       if (!w) return;
       const arr = load(ORDERS_KEY, []);
       const o = arr.find(x => x.statusToken === t);
-      if (!o || JSON.stringify(o.wunsch || null) === JSON.stringify(w)) return;
-      o.wunsch = w;
-      save(ORDERS_KEY, arr);
-      renderOrders();
-      notifyOther('BlueFix – Kundenwunsch', (o.vorname || 'Kunde') + ': ' + (w.art === 'post' ? 'Versand per Post' : 'Abholung im Shop'));
+      if (!o) return;
+      const known = JSON.stringify(o.wunsch || null) === JSON.stringify(w);
+      if (!known) { o.wunsch = w; save(ORDERS_KEY, arr); renderOrders(); }
+      // Pro Kundenwunsch höchstens EINE Meldung pro Gerät (auch bei mehrfach ausgelösten Snapshots)
+      const seen = load('bluefix_wish_seen', {});
+      if (seen[t] !== w.at) {
+        seen[t] = w.at;
+        save('bluefix_wish_seen', seen);
+        if (!known) notifyOther('BlueFix – Kundenwunsch', (o.vorname || 'Kunde') + ': ' + (w.art === 'post' ? 'Versand per Post' : 'Abholung im Shop'), 'wish-' + t);
+      }
     }, err => console.warn('Status-Watcher:', err));
   });
 }
@@ -2924,6 +2988,7 @@ function setRepStatus(id, status){
   if (!o || !REP_LABELS[status]) return;
   if (!o.statusToken) o.statusToken = newStatusToken();
   if ((o.repStatus || 'angenommen') !== status || !o.statusUpdatedAt) {
+    if ((o.repStatus || 'angenommen') !== status) logActivity('📱', 'den Reparaturstatus von ' + o.vorname + ' ' + o.nachname + ' auf „' + REP_LABELS[status] + '“ gesetzt');
     o.repStatus = status;
     o.statusUpdatedAt = Date.now();
     o.updatedBy = currentUser();
@@ -3184,6 +3249,233 @@ document.getElementById('revChart').addEventListener('click', e => {
 window.addEventListener('resize', () => {
   const t = document.getElementById('tab-revenue');
   if (t && t.classList.contains('active')) renderRevenueChart();
+});
+
+/* ===================== SUCHE · KUNDEN-HISTORIE · ZAHLUNGSERINNERUNG · VERLAUF ===================== */
+// Ab wie vielen Tagen eine offene Rechnung als überfällig (rot) gilt:
+const INVOICE_OVERDUE_DAYS = 7;
+// Solange sie offen bleibt, wird die Push-Meldung alle X Tage wiederholt:
+const INVOICE_REMIND_EVERY_DAYS = 7;
+const REMINDER_COLLECTION = 'bluefix_reminders';
+const ACTIVITY_COLLECTION = 'bluefix_activity';
+// Wer den Tab "Verlauf" sehen darf (nur Jerome: ['jerome']):
+const ACTIVITY_VISIBLE_FOR = ['jerome', 'thierry'];
+
+/* ---------- Suche ---------- */
+function normName(s){ return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+// Telefonnummer auf die Kernziffern reduzieren (079 123 45 67 = +41 79 123 45 67 = 0041 79 ...)
+function phoneCore(s){
+  const raw = String(s || '').trim();
+  let d = raw.replace(/\D/g, '');
+  if (raw.startsWith('+41')) d = d.slice(2);
+  else if (d.startsWith('0041')) d = d.slice(4);
+  else if (d.startsWith('41') && d.length >= 11) d = d.slice(2);
+  else if (d.startsWith('0')) d = d.slice(1);
+  return d;
+}
+function phoneMatches(tel, q){
+  const qd = String(q || '').replace(/\D/g, '');
+  if (qd.length < 3) return false;
+  const pc = phoneCore(tel);
+  return !!pc && pc.includes(phoneCore(q));
+}
+function searchTokensMatch(hay, tels, q){
+  hay = hay.toLowerCase();
+  if (tels.some(tel => phoneMatches(tel, q))) return true;
+  return q.split(/\s+/).filter(Boolean).every(t => hay.includes(t) || tels.some(tel => phoneMatches(tel, t)));
+}
+function orderMatchesSearch(o, q){
+  if (!q) return true;
+  const hay = [o.vorname, o.nachname, o.modell, o.auftrag, o.imei, o.telefon].filter(Boolean).join(' ');
+  return searchTokensMatch(hay, [o.telefon], q);
+}
+// Name -> Telefonnummern und Geräte aus den Aufträgen (Rechnungen haben nur den Namen)
+function buildCustomerIndex(){
+  const idx = {};
+  load(ORDERS_KEY, []).forEach(o => {
+    const k = normName((o.vorname || '') + ' ' + (o.nachname || ''));
+    const e = idx[k] || (idx[k] = { tels: [], models: [] });
+    if (o.telefon) e.tels.push(o.telefon);
+    if (o.modell) e.models.push(o.modell);
+  });
+  return idx;
+}
+function invoiceMatchesSearch(inv, q, custIdx){
+  if (!q) return true;
+  const c = (custIdx && custIdx[normName(inv.kunde)]) || { tels: [], models: [] };
+  const hay = [inv.kunde, inv.beschreibung, Number(inv.betrag).toFixed(2), PAY_LABELS[inv.zahlungsart], c.models.join(' '), c.tels.join(' ')].filter(Boolean).join(' ');
+  return searchTokensMatch(hay, c.tels, q);
+}
+document.getElementById('invoiceSearch').addEventListener('input', renderInvoices);
+
+/* ---------- Überfällige Rechnungen ---------- */
+function invoiceAgeDays(inv){ return Math.floor((Date.now() - (inv.createdAt || Date.now())) / 864e5); }
+function isOverdue(inv){ return !inv.bezahlt && (Date.now() - (inv.createdAt || Date.now())) > INVOICE_OVERDUE_DAYS * 864e5; }
+function invoiceBadgeHtml(inv){
+  if (inv.bezahlt) return '<span class="badge badge-bezahlt">Bezahlt</span>';
+  if (isOverdue(inv)) return '<span class="badge badge-ueberfaellig">⚠ Überfällig · ' + invoiceAgeDays(inv) + ' Tage</span>';
+  return '<span class="badge badge-offen">Offen</span>';
+}
+
+// Push an BEIDE Nutzer (sendPushToOther schickt nur an den jeweils anderen)
+async function sendPushToUsers(userKeys, title, body){
+  if (!fbReady || ONESIGNAL_APP_ID === "DEINE-ONESIGNAL-APP-ID") return;
+  try {
+    const ids = [];
+    for (const k of userKeys) {
+      const d = await fbDb.collection('bluefix_push_ids').doc(k).get();
+      if (d.exists && d.data().pushId) ids.push(d.data().pushId);
+    }
+    if (!ids.length) return;
+    await fetch('https://api.onesignal.com/notifications', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Key ' + ONESIGNAL_REST_API_KEY },
+      body: JSON.stringify({ app_id: ONESIGNAL_APP_ID, include_subscription_ids: ids, headings: { en: title }, contents: { en: body } })
+    });
+  } catch (e) { console.warn('Zahlungserinnerung-Push-Fehler:', e); }
+}
+
+// Wer zuerst prüft, "reserviert" die Erinnerung per Transaktion -> es kommt nur EINE Meldung,
+// auch wenn Jerome und Thierry gleichzeitig eingeloggt sind.
+let overdueCheckRunning = false;
+async function checkOverdueInvoices(){
+  if (!fbReady || !currentUser() || overdueCheckRunning) return;
+  overdueCheckRunning = true;
+  try {
+    const due = [];
+    for (const inv of load(INVOICES_KEY, []).filter(isOverdue)) {
+      const ref = fbDb.collection(REMINDER_COLLECTION).doc(inv.id);
+      let claimed = false;
+      try {
+        await fbDb.runTransaction(async tx => {
+          const snap = await tx.get(ref);
+          const last = snap.exists ? (snap.data().lastSent || 0) : 0;
+          if (last && Date.now() - last < INVOICE_REMIND_EVERY_DAYS * 864e5) return;
+          tx.set(ref, { lastSent: Date.now(), by: currentUser() });
+          claimed = true;
+        });
+      } catch (e) { continue; } // offline / keine Berechtigung -> nichts senden
+      if (claimed) due.push(inv);
+    }
+    if (!due.length) return;
+    const total = due.reduce((s, i) => s + (Number(i.betrag) || 0), 0);
+    const body = due.length === 1
+      ? due[0].kunde + ': CHF ' + Number(due[0].betrag).toFixed(2) + ' seit ' + invoiceAgeDays(due[0]) + ' Tagen offen.'
+      : due.length + ' Rechnungen sind überfällig (zusammen CHF ' + total.toFixed(2) + ').';
+    await sendPushToUsers(['jerome', 'thierry'], 'BlueFix – Zahlung offen', body);
+  } finally { overdueCheckRunning = false; }
+}
+
+/* ---------- Kunden-Historie ---------- */
+function getCustomerHistory(name, phone){
+  const n = normName(name), pc = phoneCore(phone);
+  const orders = load(ORDERS_KEY, []).filter(o =>
+    normName((o.vorname || '') + ' ' + (o.nachname || '')) === n || (pc && o.telefon && phoneCore(o.telefon) === pc));
+  const names = new Set(orders.map(o => normName((o.vorname || '') + ' ' + (o.nachname || ''))));
+  names.add(n);
+  const invoices = load(INVOICES_KEY, []).filter(i => names.has(normName(i.kunde)));
+  return { orders, invoices };
+}
+function openCustomerHistory(name, phone){
+  const h = getCustomerHistory(name, phone);
+  const orders = h.orders.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const invoices = h.invoices.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const tel = (orders.find(o => o.telefon) || {}).telefon, mail = (orders.find(o => o.email) || {}).email;
+  const sum = f => invoices.filter(f).reduce((s, i) => s + (Number(i.betrag) || 0), 0);
+  const open = sum(i => !i.bezahlt), paid = sum(i => i.bezahlt);
+  const contact = [
+    tel ? '<a href="tel:' + esc(String(tel).replace(/[^\d+]/g, '')) + '">' + esc(tel) + '</a>' : '',
+    mail ? '<a href="mailto:' + esc(mail) + '">' + esc(mail) + '</a>' : ''
+  ].filter(Boolean).join(' · ');
+  const orderRows = orders.map(o => {
+    const isC = o.typ === 'kunde';
+    const st = isC ? (REP_LABELS[o.repStatus || 'angenommen'] || '') : (STATUS_LABELS[o.status] || '');
+    return '<div class="hist-row"><div><div>' + esc(o.modell || '—') + ' · ' + esc(o.auftrag || '') + '</div><div class="sub">' + fmtTime(o.createdAt) + ' · ' + (isC ? 'Kunden Auftrag' : 'Team Auftrag') + '</div></div>' +
+      '<div class="r"><div>' + esc(st) + '</div>' + (isC && o.preis ? '<div class="sub">CHF ' + Number(o.preis).toFixed(2) + '</div>' : '') + '</div></div>';
+  }).join('');
+  const invRows = invoices.map(i =>
+    '<div class="hist-row"><div><div>' + esc(i.beschreibung || PAY_LABELS[i.zahlungsart] || '') + '</div><div class="sub">' + fmtTime(i.createdAt) + ' · ' + esc(PAY_LABELS[i.zahlungsart] || '') + '</div></div>' +
+    '<div class="r"><div>CHF ' + Number(i.betrag).toFixed(2) + '</div>' + invoiceBadgeHtml(i) + '</div></div>').join('');
+  document.getElementById('historyTitle').textContent = '👤 ' + name;
+  document.getElementById('historyBody').innerHTML =
+    (contact ? '<p class="hist-contact">' + contact + '</p>' : '') +
+    '<div class="hist-sum"><div><div class="n">' + orders.length + '</div><div class="l">Aufträge</div></div>' +
+    '<div><div class="n">' + revChf(open) + '</div><div class="l">Offen</div></div>' +
+    '<div><div class="n">' + revChf(paid) + '</div><div class="l">Bezahlt</div></div></div>' +
+    '<div class="hist-title">Aufträge (' + orders.length + ')</div>' + (orderRows || '<div class="card-sub" style="padding:8px 0;">Keine Aufträge.</div>') +
+    '<div class="hist-title">Rechnungen (' + invoices.length + ')</div>' + (invRows || '<div class="card-sub" style="padding:8px 0;">Keine Rechnungen.</div>');
+  document.getElementById('historyModal').classList.add('show');
+}
+document.getElementById('historyClose').addEventListener('click', () => document.getElementById('historyModal').classList.remove('show'));
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-cust]');
+  if (b) openCustomerHistory(b.dataset.cust, b.dataset.custPhone || '');
+});
+
+/* ---------- Aktivitätsverlauf (Firestore: bluefix_activity, ein Dokument pro Aktion) ---------- */
+function logActivity(icon, text){
+  const me = currentUser();
+  if (!me || !fbReady) return;
+  try {
+    fbDb.collection(ACTIVITY_COLLECTION).doc(uid()).set({ user: me, icon, text, ts: Date.now() })
+      .catch(e => console.warn('Aktivität konnte nicht gespeichert werden:', e));
+  } catch (e) {}
+}
+function logInvoiceState(inv, paid){
+  const what = 'die Rechnung von ' + inv.kunde + ' (CHF ' + Number(inv.betrag).toFixed(2) + ')';
+  logActivity(paid ? '✅' : '↩️', paid ? what + ' als bezahlt markiert' : what + ' wieder auf offen gesetzt');
+}
+let activityUnsub = null, activityCache = [];
+function stopActivityListener(){ if (activityUnsub) { activityUnsub(); activityUnsub = null; } activityCache = []; }
+function startActivityListener(){
+  if (!fbReady) { renderActivity(); return; }
+  stopActivityListener();
+  activityUnsub = fbDb.collection(ACTIVITY_COLLECTION).orderBy('ts', 'desc').limit(150).onSnapshot(snap => {
+    activityCache = snap.docs.map(d => d.data());
+    renderActivity();
+  }, err => console.warn('Aktivitätsverlauf:', err));
+}
+function activityDayLabel(ts){
+  const d = new Date(ts), t = new Date(), y = new Date(Date.now() - 864e5);
+  if (d.toDateString() === t.toDateString()) return 'Heute';
+  if (d.toDateString() === y.toDateString()) return 'Gestern';
+  return d.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+function renderActivity(){
+  const box = document.getElementById('activityList');
+  if (!box) return;
+  if (!fbReady) { box.innerHTML = '<div class="empty-state">Verlauf nicht verfügbar (Firebase nicht verbunden).</div>'; return; }
+  if (!activityCache.length) { box.innerHTML = '<div class="empty-state">Noch keine Aktivitäten. Ab jetzt wird hier festgehalten, wer was macht.</div>'; return; }
+  const groups = [];
+  activityCache.forEach(a => {
+    const k = new Date(a.ts).toDateString();
+    let g = groups[groups.length - 1];
+    if (!g || g.k !== k) { g = { k, ts: a.ts, items: [] }; groups.push(g); }
+    g.items.push(a);
+  });
+  box.innerHTML = groups.map(g =>
+    '<div class="card"><div class="act-day">' + esc(activityDayLabel(g.ts)) + '</div>' +
+    g.items.map(a =>
+      '<div class="act-item"><div class="act-ico">' + esc(a.icon || '•') + '</div><div>' +
+      '<div class="act-text"><b>' + esc(USERS[a.user] ? USERS[a.user].displayName : a.user) + '</b> hat ' + esc(a.text) + '</div>' +
+      '<div class="act-time">' + new Date(a.ts).toLocaleTimeString('de-CH', { hour: '2-digit', minute: '2-digit' }) + ' Uhr</div></div></div>'
+    ).join('') + '</div>').join('');
+}
+
+/* ---------- Start nach Login ---------- */
+let overdueTimer = null;
+function startTeamExtras(uKey){
+  const actBtn = document.getElementById('activityTabBtn');
+  const show = ACTIVITY_VISIBLE_FOR.includes(uKey);
+  actBtn.style.display = show ? '' : 'none';
+  if (show) startActivityListener();
+  else { stopActivityListener(); if (actBtn.classList.contains('active')) switchToTab('chat'); }
+  clearInterval(overdueTimer);
+  overdueTimer = setInterval(() => { if (currentUser()) { renderInvoices(); checkOverdueInvoices(); } }, 30 * 60 * 1000);
+  setTimeout(checkOverdueInvoices, 6000); // kurz warten, bis der erste Sync da ist
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && currentUser()) { renderInvoices(); checkOverdueInvoices(); }
 });
 
 /* ===================== ZOOM KOMPLETT SPERREN (iOS Safari ignoriert user-scalable=no) ===================== */
