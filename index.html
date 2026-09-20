@@ -516,6 +516,12 @@ input,select,textarea{font-family:var(--sans);}
 .hist-row .r{text-align:right; flex-shrink:0;}
 .hist-contact{font-size:13.5px; color:var(--muted); margin:0 0 14px;}
 .hist-contact a{color:var(--blue-light);}
+.card-chev{display:flex; align-items:center; color:var(--muted); font-size:15px; padding:0 4px; transition:transform .25s var(--ease-glass);}
+.card:not(.collapsed) .card-chev{transform:rotate(180deg);}
+.card.collapsed .card-more{display:none;}
+.card.collapsed .card-top{margin-bottom:0;}
+.card-top[data-toggle]{cursor:pointer;}
+.card-actions{align-items:center;}
 .act-day{font-family:var(--serif); font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.05em; margin-bottom:4px;}
 .act-item{display:flex; gap:12px; align-items:flex-start; padding:10px 0; border-top:1px solid var(--line);}
 .act-day + .act-item{border-top:0;}
@@ -874,6 +880,7 @@ input,select,textarea{font-family:var(--sans);}
   <div class="tab-content" id="tab-activity">
     <div class="section-head-row">
       <div><h2>Verlauf</h2><div style="color:var(--muted);font-size:12px;margin-top:2px;">Wer hat wann was gemacht</div></div>
+      <button class="btn btn-ghost btn-sm" id="activityClearBtn" style="display:none;">🗑 Verlauf zurücksetzen</button>
     </div>
     <div id="activityList"></div>
   </div>
@@ -2667,6 +2674,7 @@ function trackingHtml(t, carrier){
   else href = c ? c.url(nr) : 'https://parcelsapp.com/de/tracking/' + encodeURIComponent(nr); // ältere Aufträge ohne Versanddienst
   return (c ? esc(c.name) + ' · ' : '') + '<a href="' + esc(href) + '" target="_blank" rel="noopener" class="link-glow">' + esc(t) + ' ↗</a>';
 }
+const expandedOrders = new Set();
 function renderOrders(){
   renderDashboard();
   syncStatusWatchers();
@@ -2716,6 +2724,19 @@ function renderOrders(){
           <div class="upload-progress-text">0 %</div>
         </div>
       </div>`:`<select class="status-select" data-status-for="${esc(o.id)}">${Object.entries(STATUS_LABELS).map(([k,v])=>`<option value="${k}" ${k===o.status?'selected':''}>${v}</option>`).join('')}</select>`}`;
+    {
+      // Nur Kopfzeile (Name + Gerät) sichtbar, Tipp klappt alles auf
+      const top=card.querySelector('.card-top');
+      if(top){
+        const more=document.createElement('div'); more.className='card-more';
+        while(top.nextSibling) more.appendChild(top.nextSibling);
+        card.appendChild(more);
+        top.dataset.toggle=o.id;
+        const acts=top.querySelector('.card-actions');
+        if(acts){ const ch=document.createElement('span'); ch.className='card-chev'; ch.textContent='▾'; acts.prepend(ch); }
+        if(!expandedOrders.has(o.id)) card.classList.add('collapsed');
+      }
+    }
     list.appendChild(card);
   });
 
@@ -2748,6 +2769,13 @@ function renderOrders(){
   }));
 }
 document.getElementById('orderSearch').addEventListener('input',renderOrders);
+document.getElementById('ordersList').addEventListener('click',e=>{
+  const top=e.target.closest('[data-toggle]');
+  if(!top||e.target.closest('button,a,select,input')) return;
+  const id=top.dataset.toggle, card=top.closest('.card');
+  if(expandedOrders.has(id)){ expandedOrders.delete(id); card.classList.add('collapsed'); }
+  else { expandedOrders.add(id); card.classList.remove('collapsed'); }
+});
 
 /* ===================== INVOICES ===================== */
 let selectedPay = 'twint';
@@ -3552,12 +3580,29 @@ function renderActivity(){
     ).join('') + '</div>').join('');
 }
 
+/* ---------- Verlauf zurücksetzen (nur Jerome) ---------- */
+async function clearActivityLog(){
+  if (currentUser() !== 'jerome' || !fbReady) return;
+  try {
+    for (;;) {
+      const snap = await fbDb.collection(ACTIVITY_COLLECTION).limit(400).get();
+      if (snap.empty) break;
+      const batch = fbDb.batch();
+      snap.docs.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  } catch (e) { console.warn('Verlauf konnte nicht zurückgesetzt werden:', e); alert('Zurücksetzen hat nicht geklappt. Bitte Internetverbindung prüfen.'); }
+}
+document.getElementById('activityClearBtn').addEventListener('click', () =>
+  showConfirm('Der gesamte Verlauf wird für alle gelöscht. Das kann nicht rückgängig gemacht werden.', clearActivityLog, { title: 'Verlauf zurücksetzen?', ok: 'Zurücksetzen' }));
+
 /* ---------- Start nach Login ---------- */
 let overdueTimer = null;
 function startTeamExtras(uKey){
   const actBtn = document.getElementById('activityTabBtn');
   const show = ACTIVITY_VISIBLE_FOR.includes(uKey);
   actBtn.style.display = show ? '' : 'none';
+  document.getElementById('activityClearBtn').style.display = (uKey === 'jerome') ? '' : 'none';
   if (show) startActivityListener();
   else { stopActivityListener(); if (actBtn.classList.contains('active')) switchToTab('chat'); }
   clearInterval(overdueTimer);
