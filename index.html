@@ -2639,6 +2639,15 @@ function generateWarrantyPDF(o){
   const pdfUrl=doc.output('bloburl');
   showFilePreview(pdfUrl, 'Garantie-Schein · '+(o.id||''), 'application/pdf');
 }
+// Sendungsnummer oder eingefügter Link -> immer direkt anklickbar
+function trackingHtml(t){
+  t = String(t || '').trim();
+  let href;
+  if (/^https?:\/\//i.test(t)) href = t;
+  else if (/^[\w-]+(\.[\w-]+)+\/\S*/.test(t)) href = 'https://' + t;   // Link ohne https://
+  else href = 'https://parcelsapp.com/de/tracking/' + encodeURIComponent(t.replace(/\s+/g, '')); // reine Nummer: Sendungsverfolgung für alle Anbieter
+  return '<a href="' + esc(href) + '" target="_blank" rel="noopener" class="link-glow">' + esc(t) + ' ↗</a>';
+}
 function renderOrders(){
   renderDashboard();
   syncStatusWatchers();
@@ -2666,7 +2675,7 @@ function renderOrders(){
       <div><div class="k">Angelegt</div><div class="v">${fmtTime(o.createdAt)}</div></div>
       ${o.updatedAt?`<div><div class="k">Zuletzt aktualisiert</div><div class="v">${fmtTime(o.updatedAt)}</div></div>`:''}
       ${isCustomer?`<div><div class="k">IMEI</div><div class="v">${esc(o.imei)}</div></div><div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis||0).toFixed(2)}</div></div><div><div class="k">Garantie</div><div class="v">${esc(o.garantie||'—')}</div></div>`:''}
-      ${o.tracking?`<div><div class="k">Sendungsnr.</div><div class="v">${esc(o.tracking)}</div></div>`:''}
+      ${o.tracking?`<div><div class="k">Sendungsnr.</div><div class="v" style="word-break:break-all;">${trackingHtml(o.tracking)}</div></div>`:''}
       ${o.link?`<div><div class="k">Bestellt bei</div><div class="v"><a href="${esc(o.link)}" target="_blank" rel="noopener" class="link-glow">Link öffnen ↗</a></div></div>`:''}
       ${o.notizen?`<div style="grid-column:1/-1;"><div class="k">Notizen</div><div class="v">${linkify(o.notizen)}</div></div>`:''}
     </div>
