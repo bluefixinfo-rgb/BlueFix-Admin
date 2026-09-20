@@ -14,7 +14,7 @@
 <title>BlueFix</title>
 <script src="start-splash.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=Poppins:wght@400;600;700&family=Playfair+Display:wght@400;700&family=Bebas+Neue&family=Pacifico&family=Oswald:wght@400;600&display=swap" rel="stylesheet">
 <!-- Firebase (für Live-Sync zwischen euch beiden + Benachrichtigungen) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
@@ -691,6 +691,34 @@ input,select,textarea{font-family:var(--sans);}
 @media(max-width:600px){.signature-grid{grid-template-columns:1fr;}.app-brand img{height:32px;}.order-type-buttons{min-width:100%;}.order-search{min-width:100%;}}
 
 
+/* ===== WERBUNG ===== */
+.wb-card{position:relative; padding:16px; margin-bottom:14px; border-radius:18px; background:var(--glass-bg); border:1px solid var(--glass-border-soft); box-shadow:var(--glass-rim);}
+.wb-card h3{margin:0 0 10px; font-family:var(--serif); font-size:16px;}
+.wb-hint{color:var(--muted); font-size:12.5px; margin:8px 0 0; line-height:1.45;}
+.wb-hint a{color:var(--blue-light);}
+.wb-check{display:flex; align-items:center; gap:9px; font-size:14px; cursor:pointer;}
+.wb-check input{width:18px; height:18px; accent-color:var(--blue-light);}
+.wb-in,.wb-ta,.wb-sel{width:100%; padding:10px 12px; border-radius:10px; background:var(--bg-panel-2); border:1px solid rgba(255,255,255,.18); color:var(--white); font:inherit; font-size:15px;}
+.wb-ta{min-height:96px; resize:vertical;}
+.wb-in:focus,.wb-ta:focus,.wb-sel:focus{outline:none; border-color:var(--blue-light); box-shadow:var(--glow-sm);}
+.wb-rec{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,.05); margin-top:8px;}
+.wb-rec b{display:block; font-size:14.5px;}
+.wb-rec small{color:var(--muted); font-size:12.5px;}
+.wb-rec.done{opacity:.65;}
+.wb-tools{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
+.wb-wrap{width:100%; overflow:hidden; border-radius:14px; border:1px solid var(--glass-border-soft); position:relative; margin-top:12px;}
+.wb-stage{position:relative; width:360px; transform-origin:0 0; touch-action:pan-y; overflow:hidden; user-select:none; -webkit-user-select:none;}
+.wb-el{position:absolute; touch-action:none; cursor:grab;}
+.wb-el.sel{outline:2px dashed var(--blue-light); outline-offset:3px;}
+.wb-h{position:absolute; right:-10px; bottom:-10px; width:22px; height:22px; border-radius:50%; background:var(--blue-light); border:2px solid #fff; touch-action:none; cursor:nwse-resize;}
+.wb-tx{line-height:1.25; white-space:pre-wrap; overflow-wrap:anywhere;}
+.wb-tx a{color:inherit; text-decoration:underline; pointer-events:none;}
+.wb-btn{display:block; text-align:center; padding:14px 12px; border-radius:14px; font:600 17px/1.2 'Inter',sans-serif; text-decoration:none; box-shadow:0 8px 20px -8px rgba(0,0,0,.6);}
+.wb-props{margin-top:12px; display:grid; gap:10px;}
+.wb-row{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.wb-row>label{font-size:12.5px; color:var(--muted); min-width:66px;}
+.wb-row input[type=range]{flex:1; min-width:120px; accent-color:var(--blue-light);}
+.wb-row input[type=color]{width:44px; height:34px; padding:0; border:1px solid rgba(255,255,255,.2); border-radius:8px; background:none;}
 </style>
 </head>
 <body>
@@ -799,6 +827,7 @@ input,select,textarea{font-family:var(--sans);}
     <button class="tab-btn" data-tab="invoices">💳 Rechnungen</button>
     <button class="tab-btn" data-tab="revenue">📈 Umsatz</button>
     <button class="tab-btn" data-tab="activity" id="activityTabBtn" style="display:none;">🕘 Verlauf</button>
+    <button class="tab-btn" data-tab="werbung" id="werbungTabBtn" style="display:none;">📣 Werbung</button>
     <button class="tab-btn" data-tab="stats" id="statsTabBtn" style="display:none;">📊 Statistik</button>
   </div>
 
@@ -883,6 +912,51 @@ input,select,textarea{font-family:var(--sans);}
       <button class="btn btn-ghost btn-sm" id="activityClearBtn" style="display:none;">🗑 Verlauf zurücksetzen</button>
     </div>
     <div id="activityList"></div>
+  </div>
+
+  <!-- WERBUNG (nur für Jerome sichtbar) -->
+  <div class="tab-content" id="tab-werbung">
+    <div class="section-head-row">
+      <div><h2>Werbung</h2><div style="color:var(--muted);font-size:12px;margin-top:2px;">SMS mit eigener Werbe-Seite an deine Kunden</div></div>
+    </div>
+
+    <div class="wb-card">
+      <h3>👥 Empfänger</h3>
+      <label class="wb-check"><input type="checkbox" id="wbTest" checked> Testmodus – nur Jerome Ramspacher</label>
+      <p class="wb-hint" id="wbRecInfo"></p>
+      <div id="wbRecList"></div>
+    </div>
+
+    <div class="wb-card">
+      <h3>💬 SMS-Text</h3>
+      <textarea class="wb-ta" id="wbSms" placeholder="Dein SMS-Text …"></textarea>
+      <p class="wb-hint">{vorname} wird durch den Vornamen des Kunden ersetzt. Der Link zur Werbe-Seite wird automatisch unten angehängt.</p>
+    </div>
+
+    <div class="wb-card">
+      <h3>🎨 Werbe-Seite gestalten</h3>
+      <div class="wb-tools">
+        <button class="btn btn-ghost btn-sm" type="button" id="wbAddText">＋ Text</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbAddImg">＋ Bild</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbAddBtn">＋ Link-Button</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbTaller">↕ Höher</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbShorter">↕ Niedriger</button>
+      </div>
+      <div class="wb-row"><label>Hintergrund</label><input type="color" id="wbBg1" aria-label="Hintergrundfarbe oben"><input type="color" id="wbBg2" aria-label="Hintergrundfarbe unten"></div>
+      <div class="wb-wrap" id="wbWrap"><div class="wb-stage" id="wbStage"></div></div>
+      <div class="wb-props" id="wbProps"></div>
+      <input type="file" id="wbFile" accept="image/*" hidden>
+    </div>
+
+    <div class="wb-card">
+      <button class="btn btn-primary" type="button" id="wbSendAll">📣 SMS senden</button>
+      <div class="wb-row" style="margin-top:10px;">
+        <button class="btn btn-ghost btn-sm" type="button" id="wbPublishBtn">💾 Werbe-Seite speichern</button>
+        <button class="btn btn-ghost btn-sm" type="button" id="wbNew">🆕 Neue Aktion</button>
+      </div>
+      <p class="wb-hint" id="wbMsg"></p>
+      <p class="wb-hint">Jede SMS wird für den jeweiligen Kunden einzeln in deiner Nachrichten-App geöffnet – du tippst dort auf «Senden». So sehen die Kunden nie die Nummern der anderen.</p>
+    </div>
   </div>
 
   <!-- LOGIN-STATISTIK (nur für Jerome sichtbar) -->
@@ -1729,6 +1803,9 @@ function enterTeamApp(u, uKey){
   // Login-Statistik nur für Jerome
   const statsBtn = document.getElementById('statsTabBtn');
   statsBtn.style.display = (uKey === 'jerome') ? '' : 'none';
+  const wbTabBtn = document.getElementById('werbungTabBtn');
+  wbTabBtn.style.display = (uKey === 'jerome') ? '' : 'none';
+  if (uKey !== 'jerome' && wbTabBtn.classList.contains('active')) switchToTab('chat');
   if (uKey !== 'jerome') {
     document.getElementById('statsFrame').removeAttribute('src');
     if (statsBtn.classList.contains('active')) switchToTab('chat');
@@ -1752,7 +1829,8 @@ function switchToTab(tabName){
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + tabName).classList.add('active');
-  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity') ? 'none' : 'flex';
+  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity' || tabName === 'werbung') ? 'none' : 'flex';
+  if (tabName === 'werbung') wbOpenTab();
   if (tabName === 'activity') renderActivity();
   if (tabName === 'revenue') renderRevenue();
   if (tabName === 'stats') {
@@ -3240,6 +3318,296 @@ document.getElementById('ordersList').addEventListener('click', e => {
   const done = e.target.closest('[data-device-done]');
   if (done) { const id = done.dataset.deviceDone; setRepStatus(id, 'fertig'); openStatusModal(id, 'done'); }
 });
+
+
+/* ===================== WERBUNG =====================
+   Sammelt automatisch alle Handynummern deiner Kunden-Aufträge. Die Werbe-Seite (Text, Bilder, Link-Buttons)
+   wird in Firestore (bluefix_status/<Token>) gespeichert und unter werbung.html?t=<Token> angezeigt.
+   Die SMS enthält deinen Text + diesen Link. Eine SMS pro Kunde wird einzeln in der Nachrichten-App geöffnet. */
+const WB_KEY = 'bluefix_werbung_draft', WB_TEST_KEY = 'bluefix_werbung_test', WB_TEST_NAME = 'Jerome Ramspacher';
+const WB_FONTS=['Inter','Space Grotesk','Poppins','Playfair Display','Bebas Neue','Pacifico','Oswald','Georgia','Courier New'];
+const wbCol=(v,d)=>/^#[0-9a-f]{3,8}$/i.test(String(v||''))?v:d;
+const wbNum=(v,d,a,b)=>{v=+v;return isFinite(v)?Math.min(b,Math.max(a,v)):d;};
+const wbHref=u=>{u=String(u||'').trim();if(!u)return '';if(/^(https?:\/\/|tel:|mailto:)/i.test(u))return u;if(/^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(u))return 'https://'+u;return '';};
+const wbLinkify=t=>esc(t).replace(/(https?:\/\/[^\s<]+)/g,m=>'<a href="'+m+'" target="_blank" rel="noopener">'+m+'</a>');
+function wbBg(d){const a=wbCol(d.bg,'#0b1730'),b=wbCol(d.bg2,a);return 'background:linear-gradient(160deg,'+a+','+b+');';}
+function wbElHtml(e,live){
+  const id=esc(e.id||''),pos='left:'+wbNum(e.x,0,-400,800)+'px;top:'+wbNum(e.y,0,-400,2000)+'px;width:'+wbNum(e.w,100,20,720)+'px;';
+  const f=WB_FONTS.includes(e.f)?e.f:'Inter';
+  if(e.t==='img'){
+    if(!/^data:image\/(png|jpe?g|webp|gif);base64,[A-Za-z0-9+\/=]+$/i.test(e.src||''))return '';
+    return '<div class="wb-el" data-id="'+id+'" style="'+pos+'"><img src="'+e.src+'" alt="" draggable="false" style="display:block;width:100%;height:auto;border-radius:'+wbNum(e.r,0,0,180)+'px"></div>';
+  }
+  if(e.t==='btn'){
+    const h=wbHref(e.url),st='background:'+wbCol(e.bg,'#1e6fef')+';color:'+wbCol(e.c,'#ffffff')+';',t=esc(e.txt||'Öffnen');
+    return '<div class="wb-el" data-id="'+id+'" style="'+pos+'">'+(live&&h?'<a class="wb-btn" href="'+esc(h)+'" target="_blank" rel="noopener" style="'+st+'">'+t+'</a>':'<div class="wb-btn" style="'+st+'">'+t+'</div>')+'</div>';
+  }
+  const al=['left','center','right'].includes(e.a)?e.a:'left';
+  return '<div class="wb-el wb-tx" data-id="'+id+'" style="'+pos+'font-family:\''+f+'\',sans-serif;font-size:'+wbNum(e.s,18,8,96)+'px;color:'+wbCol(e.c,'#ffffff')+';font-weight:'+(e.b?700:400)+';font-style:'+(e.i?'italic':'normal')+';text-align:'+al+';">'+wbLinkify(e.txt||'')+'</div>';
+}
+const wbStageHtml=(d,live)=>(d.els||[]).map(e=>wbElHtml(e,live)).join('');
+
+
+function wbDefault(){
+  return { h: 520, bg: '#0b1730', bg2: '#1e4fa8', els: [
+    { id:'e1', t:'text', x:24, y:48,  w:312, txt:'Neu bei BlueFix', f:'Space Grotesk', s:36, c:'#ffffff', b:1, i:0, a:'center' },
+    { id:'e2', t:'text', x:24, y:150, w:312, txt:'Jetzt 10 % Rabatt auf deine nächste Reparatur.', f:'Inter', s:20, c:'#d7e6ff', b:0, i:0, a:'center' },
+    { id:'e3', t:'btn',  x:60, y:260, w:240, txt:'Jetzt ansehen', url:'https://blue-fix.ch', bg:'#1e6fef', c:'#ffffff' }
+  ] };
+}
+let wb = (function(){
+  const d = load(WB_KEY, null);
+  if (d && d.design && Array.isArray(d.design.els)) { d.sent = d.sent || {}; return d; }
+  return { design: wbDefault(), sms: 'Hallo {vorname}, schau dir unsere aktuelle Aktion an:', token: '', pub: '', sent: {} };
+})();
+let wbSel = null, wbDrag = null, wbK = 1, wbSaveT = null;
+const wbEl = id => document.getElementById(id);
+const wbGet = id => wb.design.els.find(e => e.id === id);
+const wbCur = () => wbSel ? wbGet(wbSel) : null;
+const wbIsDirty = () => !wb.token || wb.pub !== JSON.stringify(wb.design);
+function wbSay(html){ wbEl('wbMsg').innerHTML = html || ''; }
+function wbSave(){
+  clearTimeout(wbSaveT);
+  wbSaveT = setTimeout(() => { try { localStorage.setItem(WB_KEY, JSON.stringify(wb)); } catch (e) { wbSay('⚠️ Speicher voll – bitte ein Bild entfernen.'); } }, 250);
+}
+
+/* ---- Bühne (Vorschau = genau das, was der Kunde sieht) ---- */
+function wbFit(){
+  const w = wbEl('wbWrap').clientWidth || 360;
+  wbK = w / 360;
+  wbEl('wbStage').style.transform = 'scale(' + wbK + ')';
+  wbEl('wbWrap').style.height = (wb.design.h * wbK) + 'px';
+}
+function wbMark(){
+  wbEl('wbStage').querySelectorAll('.wb-el').forEach(n => {
+    const on = n.dataset.id === wbSel;
+    n.classList.toggle('sel', on);
+    const old = n.querySelector('.wb-h'); if (old) old.remove();
+    if (on) n.insertAdjacentHTML('beforeend', '<i class="wb-h"></i>');
+  });
+}
+function wbRender(){
+  const st = wbEl('wbStage'), d = wb.design;
+  st.style.cssText = wbBg(d) + 'height:' + d.h + 'px;';
+  st.innerHTML = wbStageHtml(d, false);
+  wbMark(); wbFit();
+}
+function wbRenderEl(d){
+  const n = wbEl('wbStage').querySelector('[data-id="' + d.id + '"]');
+  if (n) n.outerHTML = wbElHtml(d, false);
+  wbMark();
+}
+
+/* ---- Eigenschaften des gewählten Elements ---- */
+function wbRenderProps(){
+  const box = wbEl('wbProps'), d = wbCur();
+  if (!d) { box.innerHTML = '<p class="wb-hint">Tippe ein Element an, um es zu bearbeiten. Ziehen = verschieben, blauer Punkt = Grösse ändern.</p>'; return; }
+  const acts = '<div class="wb-row"><button class="btn btn-ghost btn-sm" type="button" data-act="front">⬆ Nach vorne</button><button class="btn btn-ghost btn-sm" type="button" data-act="back">⬇ Nach hinten</button><button class="btn btn-danger btn-sm" type="button" data-act="del">🗑 Löschen</button></div>';
+  const rng = (lab, k, a, b) => '<div class="wb-row"><label>' + lab + '</label><input type="range" min="' + a + '" max="' + b + '" value="' + wbNum(d[k], a, a, b) + '" data-k="' + k + '"></div>';
+  const col = (lab, k, def) => '<label style="font-size:12.5px;color:var(--muted);">' + lab + '</label><input type="color" data-k="' + k + '" value="' + wbCol(d[k], def) + '">';
+  if (d.t === 'text') {
+    box.innerHTML =
+      '<textarea class="wb-ta" style="min-height:74px;" data-k="txt">' + esc(d.txt) + '</textarea>' +
+      '<div class="wb-row"><label>Schrift</label><select class="wb-sel" style="flex:1;" data-k="f">' + WB_FONTS.map(f => '<option' + (f === d.f ? ' selected' : '') + '>' + f + '</option>').join('') + '</select></div>' +
+      rng('Grösse', 's', 10, 80) +
+      '<div class="wb-row">' + col('Farbe', 'c', '#ffffff') +
+        '<button class="btn btn-ghost btn-sm' + (d.b ? ' active' : '') + '" type="button" data-tog="b"><b>B</b></button>' +
+        '<button class="btn btn-ghost btn-sm' + (d.i ? ' active' : '') + '" type="button" data-tog="i"><i>I</i></button>' +
+        ['left', 'center', 'right'].map((a, ix) => '<button class="btn btn-ghost btn-sm' + (d.a === a ? ' active' : '') + '" type="button" data-al="' + a + '">' + ['⬅', '↔', '➡'][ix] + '</button>').join('') +
+      '</div>' + rng('Breite', 'w', 60, 360) +
+      '<p class="wb-hint" style="margin:0;">Links (https://…) im Text sind auf der Werbe-Seite antippbar.</p>' + acts;
+  } else if (d.t === 'img') {
+    box.innerHTML = rng('Breite', 'w', 40, 360) + rng('Rundung', 'r', 0, 90) + acts;
+  } else {
+    box.innerHTML =
+      '<div class="wb-row"><label>Beschriftung</label><input class="wb-in" style="flex:1;" data-k="txt" value="' + esc(d.txt) + '"></div>' +
+      '<div class="wb-row"><label>Link</label><input class="wb-in" style="flex:1;" data-k="url" inputmode="url" autocapitalize="off" placeholder="https://…" value="' + esc(d.url) + '"></div>' +
+      '<div class="wb-row">' + col('Button', 'bg', '#1e6fef') + col('Schrift', 'c', '#ffffff') + '</div>' + rng('Breite', 'w', 120, 360) + acts;
+  }
+}
+wbEl('wbProps').addEventListener('input', e => {
+  const k = e.target.dataset.k, d = wbCur(); if (!k || !d) return;
+  d[k] = ['s', 'w', 'r'].includes(k) ? +e.target.value : e.target.value;
+  wbRenderEl(d); wbSave();
+});
+wbEl('wbProps').addEventListener('click', e => {
+  const d = wbCur(); if (!d) return;
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.tog) { d[b.dataset.tog] = d[b.dataset.tog] ? 0 : 1; wbRenderEl(d); wbRenderProps(); }
+  else if (b.dataset.al) { d.a = b.dataset.al; wbRenderEl(d); wbRenderProps(); }
+  else if (b.dataset.act === 'del') { wb.design.els = wb.design.els.filter(x => x.id !== d.id); wbSel = null; wbRender(); wbRenderProps(); }
+  else if (b.dataset.act === 'front' || b.dataset.act === 'back') {
+    wb.design.els = wb.design.els.filter(x => x.id !== d.id);
+    if (b.dataset.act === 'front') wb.design.els.push(d); else wb.design.els.unshift(d);
+    wbRender();
+  } else return;
+  wbSave();
+});
+
+/* ---- Ziehen & Grösse ändern (Finger oder Maus) ---- */
+(function(){
+  const st = wbEl('wbStage');
+  st.addEventListener('pointerdown', e => {
+    const n = e.target.closest('.wb-el');
+    if (!n) { if (wbSel) { wbSel = null; wbMark(); wbRenderProps(); } return; }
+    const d = wbGet(n.dataset.id); if (!d) return;
+    const size = !!e.target.closest('.wb-h');
+    if (wbSel !== d.id) { wbSel = d.id; wbMark(); wbRenderProps(); }
+    wbDrag = { id: d.id, size, sx: e.clientX, sy: e.clientY, x: d.x, y: d.y, w: d.w, node: n, moved: false };
+    try { st.setPointerCapture(e.pointerId); } catch (_) {}
+    e.preventDefault();
+  });
+  st.addEventListener('pointermove', e => {
+    if (!wbDrag) return;
+    const d = wbGet(wbDrag.id); if (!d) return;
+    const dx = (e.clientX - wbDrag.sx) / wbK, dy = (e.clientY - wbDrag.sy) / wbK;
+    if (wbDrag.size) { d.w = Math.round(Math.max(30, Math.min(720, wbDrag.w + dx))); wbDrag.node.style.width = d.w + 'px'; }
+    else {
+      d.x = Math.round(Math.max(-60, Math.min(340, wbDrag.x + dx)));
+      d.y = Math.round(Math.max(-20, Math.min(wb.design.h - 10, wbDrag.y + dy)));
+      wbDrag.node.style.left = d.x + 'px'; wbDrag.node.style.top = d.y + 'px';
+    }
+    wbDrag.moved = true;
+  });
+  const end = () => { if (wbDrag && wbDrag.moved) { wbSave(); if (wbDrag.size) wbRenderProps(); } wbDrag = null; };
+  st.addEventListener('pointerup', end);
+  st.addEventListener('pointercancel', end);
+})();
+
+/* ---- Elemente hinzufügen ---- */
+function wbAdd(el){
+  el.id = 'e' + uid();
+  el.x = el.x ?? 30; el.y = el.y ?? Math.min(wb.design.h - 80, 40 + (wb.design.els.length * 30) % 300);
+  wb.design.els.push(el); wbSel = el.id;
+  wbRender(); wbRenderProps(); wbSave();
+}
+wbEl('wbAddText').addEventListener('click', () => wbAdd({ t:'text', w:300, txt:'Neuer Text', f:'Inter', s:22, c:'#ffffff', b:0, i:0, a:'left' }));
+wbEl('wbAddBtn').addEventListener('click', () => wbAdd({ t:'btn', w:240, x:60, txt:'Jetzt ansehen', url:'https://', bg:'#1e6fef', c:'#ffffff' }));
+wbEl('wbAddImg').addEventListener('click', () => wbEl('wbFile').click());
+function wbLoadImage(file){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        const sc = Math.min(1, 800 / Math.max(im.width, im.height));
+        const c = document.createElement('canvas'); c.width = Math.round(im.width * sc); c.height = Math.round(im.height * sc);
+        const g = c.getContext('2d'); g.drawImage(im, 0, 0, c.width, c.height);
+        let out = file.type === 'image/png' ? c.toDataURL('image/png') : '';
+        if (!out || out.length > 350000) {
+          const c2 = document.createElement('canvas'); c2.width = c.width; c2.height = c.height;
+          const g2 = c2.getContext('2d'); g2.fillStyle = '#fff'; g2.fillRect(0, 0, c.width, c.height); g2.drawImage(c, 0, 0);
+          out = c2.toDataURL('image/jpeg', 0.78);
+        }
+        res(out);
+      };
+      im.onerror = rej; im.src = fr.result;
+    };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+wbEl('wbFile').addEventListener('change', async e => {
+  const f = e.target.files && e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const src = await wbLoadImage(f);
+    wbAdd({ t:'img', w:220, x:70, src, r:12 });
+    if (JSON.stringify(wb.design).length > 850000) wbSay('⚠️ Die Werbe-Seite ist fast zu gross. Bitte nicht noch mehr Bilder einfügen.');
+  } catch (err) { wbSay('⚠️ Das Bild konnte nicht geladen werden.'); }
+});
+wbEl('wbTaller').addEventListener('click', () => { wb.design.h = Math.min(1600, wb.design.h + 60); wbRender(); wbSave(); });
+wbEl('wbShorter').addEventListener('click', () => { wb.design.h = Math.max(200, wb.design.h - 60); wbRender(); wbSave(); });
+['wbBg1', 'wbBg2'].forEach((id, ix) => wbEl(id).addEventListener('input', e => {
+  wb.design[ix ? 'bg2' : 'bg'] = e.target.value; wbEl('wbStage').style.cssText = wbBg(wb.design) + 'height:' + wb.design.h + 'px;'; wbSave();
+}));
+wbEl('wbSms').addEventListener('input', e => { wb.sms = e.target.value; wbSave(); });
+
+/* ---- Empfänger: automatisch aus allen Kunden-Aufträgen ---- */
+const wbTestOn = () => wbEl('wbTest').checked;
+function wbRecipients(){
+  const test = wbTestOn(), map = new Map();
+  let seen = false;
+  load(ORDERS_KEY, []).forEach(o => {
+    if (o.typ !== 'kunde') return;
+    const name = [o.vorname, o.nachname].filter(Boolean).join(' ').trim();
+    if (test && normName(name) !== normName(WB_TEST_NAME)) return;
+    seen = true;
+    const num = normPhone(o.telefon);
+    if (num && !map.has(num)) map.set(num, { num, name: name || 'Kunde', vorname: o.vorname || '' });
+  });
+  return { list: [...map.values()], test, seen };
+}
+function wbRenderRecipients(){
+  const box = wbEl('wbRecList'); if (!box) return;
+  const r = wbRecipients(), list = r.list, sent = wb.sent || {};
+  let info = list.length + (list.length === 1 ? ' Empfänger' : ' Empfänger') + ' mit Handynummer' + (r.test ? ' (Testmodus)' : ' – alle Kunden') + '. Neue Aufträge werden automatisch übernommen.';
+  if (r.test && !list.length) info = r.seen
+    ? 'Für Jerome Ramspacher ist keine gültige Handynummer hinterlegt. Bitte im Auftrag ergänzen (Feld Telefon).'
+    : 'Es gibt noch keinen Kunden-Auftrag auf den Namen Jerome Ramspacher. Lege einen Test-Auftrag mit deiner Handynummer an.';
+  wbEl('wbRecInfo').textContent = info;
+  box.innerHTML = list.map(x => '<div class="wb-rec' + (sent[x.num] ? ' done' : '') + '"><div><b>' + esc(x.name) + '</b><small>+' + esc(x.num) + (sent[x.num] ? ' · ✓ gesendet' : '') + '</small></div>' +
+    '<button class="btn btn-ghost btn-sm" type="button" data-wb-send="' + esc(x.num) + '">✉️ ' + (sent[x.num] ? 'Nochmals' : 'SMS') + '</button></div>').join('');
+  const open = list.filter(x => !sent[x.num]).length, b = wbEl('wbSendAll');
+  b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 SMS senden (' + open + ' offen)' : '✅ Alle gesendet';
+  b.disabled = !open; b.style.opacity = open ? '' : '.6';
+}
+wbEl('wbTest').checked = load(WB_TEST_KEY, '1') !== '0';
+wbEl('wbTest').addEventListener('change', e => {
+  if (e.target.checked) { localStorage.setItem(WB_TEST_KEY, '1'); wbRenderRecipients(); return; }
+  e.target.checked = true;
+  showConfirm('Dann werden alle Kunden mit Handynummer als Empfänger angezeigt.', () => { wbEl('wbTest').checked = false; localStorage.setItem(WB_TEST_KEY, '0'); wbRenderRecipients(); }, { title: 'Testmodus ausschalten?', ok: 'Ausschalten' });
+});
+
+/* ---- Speichern (Firestore) & Senden ---- */
+async function wbPublish(){
+  if (!fbReady || !fbDb) throw new Error('Keine Verbindung zum Server.');
+  const json = JSON.stringify(wb.design);
+  if (json.length > 900000) throw new Error('Die Werbe-Seite ist zu gross. Bitte Bilder verkleinern oder entfernen.');
+  if (!wb.token) wb.token = newStatusToken();
+  await Promise.race([
+    fbDb.collection(STATUS_COLLECTION).doc(wb.token).set({ typ: 'werbung', werbung: json, updatedAt: Date.now() }),
+    new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung – bitte Internet prüfen.')), 12000))
+  ]);
+  wb.pub = json; wbSave();
+  return new URL('werbung.html?t=' + wb.token, location.href).href;
+}
+const wbLink = url => '✅ Gespeichert. <a href="' + esc(url) + '" target="_blank" rel="noopener">Werbe-Seite öffnen</a>';
+async function wbPublishClick(){
+  wbSay('⏳ Wird gespeichert …');
+  try { wbSay(wbLink(await wbPublish())); } catch (e) { wbSay('⚠️ ' + esc(e.message || 'Speichern fehlgeschlagen.')); }
+}
+async function wbSend(num){
+  const list = wbRecipients().list;
+  const t = num ? list.find(x => x.num === num) : list.find(x => !wb.sent[x.num]);
+  if (!t) { wbSay('Keine offenen Empfänger.'); return; }
+  if (wbIsDirty()) {   // erst speichern, dann mit einem zweiten Tippen senden (sonst blockiert iOS das Öffnen der SMS-App)
+    wbSay('⏳ Werbe-Seite wird gespeichert …');
+    try { const url = await wbPublish(); wbSay(wbLink(url) + '<br>Tippe jetzt nochmals auf «SMS senden».'); } catch (e) { wbSay('⚠️ ' + esc(e.message || 'Speichern fehlgeschlagen.')); }
+    return;
+  }
+  const url = new URL('werbung.html?t=' + wb.token, location.href).href;
+  const txt = (wb.sms || '').replace(/\{vorname\}/gi, t.vorname || '').replace(/\s+([,.!?])/g, '$1').trim();
+  wb.sent[t.num] = Date.now(); wbSave(); wbRenderRecipients();
+  try { logActivity('📣', 'eine Werbe-SMS an ' + t.name + ' vorbereitet'); } catch (e) {}
+  window.location.href = 'sms:+' + t.num + '?&body=' + encodeURIComponent((txt ? txt + '\n\n' : '') + url);
+}
+wbEl('wbSendAll').addEventListener('click', () => wbSend());
+wbEl('wbRecList').addEventListener('click', e => { const b = e.target.closest('[data-wb-send]'); if (b) wbSend(b.dataset.wbSend); });
+wbEl('wbPublishBtn').addEventListener('click', wbPublishClick);
+wbEl('wbNew').addEventListener('click', () => showConfirm('Der Link der letzten Aktion zeigt weiter das alte Design. Die «gesendet»-Markierungen werden zurückgesetzt.', () => {
+  wb.token = ''; wb.pub = ''; wb.sent = {}; wbSave(); wbRenderRecipients(); wbSay('Neue Aktion gestartet – beim nächsten Speichern entsteht ein neuer Link.');
+}, { title: 'Neue Aktion starten?', ok: 'Neu starten' }));
+
+/* ---- Start, Tab-Wechsel, automatische Aktualisierung ---- */
+function wbOpenTab(){
+  wbEl('wbSms').value = wb.sms || '';
+  wbEl('wbBg1').value = wbCol(wb.design.bg, '#0b1730'); wbEl('wbBg2').value = wbCol(wb.design.bg2, '#1e4fa8');
+  wbRender(); wbRenderProps(); wbRenderRecipients();
+}
+window.addEventListener('resize', () => { if (wbEl('tab-werbung').classList.contains('active')) wbFit(); });
+// jeder neue/geänderte Auftrag (auch von Thierrys Gerät) aktualisiert die Empfängerliste sofort
+const wbBaseRenderOrders = renderOrders;
+renderOrders = function(){ const r = wbBaseRenderOrders.apply(this, arguments); try { wbRenderRecipients(); } catch (e) {} return r; };
+wbRenderRecipients();
 
 /* ===================== UMSATZ-DASHBOARD ===================== */
 const REV_MONTHS = ['Jan','Feb','Mär','Apr','Mai','Jun','Jul','Aug','Sep','Okt','Nov','Dez'];
