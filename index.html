@@ -1253,6 +1253,7 @@ function startFirebaseSync(){
   if (!fbReady) return;
   SYNC_KEYS.forEach(key => {
     fbDb.collection('bluefix_sync').doc(key).onSnapshot(doc => {
+      bfxLoaded(key, doc);
       if (!doc.exists) return;
       const remote = doc.data();
       // Eigene, gerade selbst geschriebene Änderung ignorieren
@@ -1278,7 +1279,7 @@ function startFirebaseSync(){
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
         notifyOther(titleFor(key, otherName), bodyFor(key, remoteArr, otherName));
       }
-    }, err => console.warn('Firestore-Sync-Fehler (' + key + '):', err));
+    }, err => { bfxLoaded(key); console.warn('Firestore-Sync-Fehler (' + key + '):', err); });
   });
 }
 
@@ -1348,6 +1349,7 @@ function clearAllChatMessages(){
 function startChatCollectionSync(){
   if (!fbReady) return;
   fbDb.collection(MSG_COLLECTION).orderBy('ts', 'asc').onSnapshot(snapshot => {
+    bfxLoaded('chat', snapshot);
     // Schutz gegen Datenverlust: Wenn dieses Ergebnis nur aus dem lokalen
     // Zwischenspeicher kommt (noch keine bestätigte Serverantwort) UND leer ist,
     // aber wir bereits Nachrichten kennen, dann NICHT überschreiben. Genau das
@@ -1377,6 +1379,7 @@ function startChatCollectionSync(){
       notifyOther(titleFor(MSG_KEY, otherName), otherName + ' hat im Chat geschrieben.');
     }
   }, err => {
+    bfxLoaded('chat');
     console.warn('Firestore-Sync-Fehler (Chat):', err);
     showSyncBanner('⚠️ Chat-Sync gestört (' + (err.code || err.message) + ') – Nachrichten werden evtl. nicht gespeichert.');
   });
@@ -1464,13 +1467,66 @@ function goToLogin(){
 document.getElementById('gateTeam').addEventListener('click', goToLogin);
 document.getElementById('loginBack').addEventListener('click', showGate);
 
+/* ===================== LOGIN-STATISTIK (Firestore: bluefix_login_events) =====================
+   Jeder ERFOLGREICHE Login wird als eigenes Dokument gespeichert (Benutzer + Zeitstempel).
+   Fehlgeschlagene Versuche werden nie gezählt. Die Dokument-ID wird pro Login einmal erzeugt,
+   dadurch kann ein Wiederholungsversuch (z. B. nach Netzausfall) nie doppelt zählen.
+   Solange ein Login noch nicht bestätigt in Firestore liegt, bleibt er im lokalen Postausgang
+   und wird beim nächsten Start automatisch nachgeliefert.
+   Auswertung pro Tag: login-counter.html */
+const LOGIN_EVENTS_COLLECTION = 'bluefix_login_events';
+const LOGIN_OUTBOX_KEY = 'bluefix_login_outbox';
+
+function loadLoginOutbox(){ return load(LOGIN_OUTBOX_KEY, []); }
+function saveLoginOutbox(arr){ try { localStorage.setItem(LOGIN_OUTBOX_KEY, JSON.stringify(arr)); } catch(e){} }
+
+function flushLoginOutbox(){
+  if (!fbReady) return;
+  loadLoginOutbox().forEach(ev => {
+    fbDb.collection(LOGIN_EVENTS_COLLECTION).doc(ev.id).set({
+      user: ev.user,
+      ts: ev.ts,
+      serverTs: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+      saveLoginOutbox(loadLoginOutbox().filter(x => x.id !== ev.id));
+    }).catch(e => console.warn('Login-Statistik konnte nicht gespeichert werden (wird erneut versucht):', e));
+  });
+}
+
+function recordSuccessfulLogin(userKey){
+  const ts = Date.now();
+  const ev = { id: ts.toString(36) + '-' + userKey + '-' + Math.random().toString(36).slice(2, 8), user: userKey, ts };
+  const box = loadLoginOutbox();
+  box.push(ev);
+  saveLoginOutbox(box);
+  flushLoginOutbox();
+}
+
+/* ===================== SPLASH: LADEAUFGABEN ANMELDEN =====================
+   Der Login-Splash (login-splash.js) schließt sich erst, wenn alle hier angemeldeten Aufgaben
+   fertig sind. Als "fertig" gilt die erste Antwort des Servers (nicht nur der lokale Cache),
+   bei fehlender Verbindung der Cache-Stand. */
+const bfxTasks = {};
+function bfxTrack(name){
+  bfxTasks[name] = (window.BlueFixSplash && BlueFixSplash.track) ? BlueFixSplash.track(name) : function(){};
+}
+function bfxLoaded(name, snap){
+  const done = bfxTasks[name];
+  if (!done) return;
+  if (snap && snap.metadata && snap.metadata.fromCache && navigator.onLine) return; // auf Serverantwort warten
+  done();
+}
+
 function doLogin(){
   const uRaw = document.getElementById('loginUser').value.trim().toLowerCase();
   const p = document.getElementById('loginPass').value;
   const u = USERS[uRaw];
   if (u && u.password === p) {
+    if (appScreen.style.display === 'flex') return; // Doppel-Auslösung (z. B. mehrfaches Tippen) ignorieren
     save(SESSION_KEY, { user: uRaw, area: 'team' });
     loginError.classList.remove('show');
+    recordSuccessfulLogin(uRaw);                      // zählt genau einen erfolgreichen Login
+    if (window.BlueFixSplash) BlueFixSplash.begin();  // Splash blockiert die Seite ab sofort
     enterArea();
   } else {
     loginError.classList.add('show');
@@ -1509,6 +1565,7 @@ function enterTeamApp(u, uKey){
   renderOrders();
   renderInvoices();
   requestNotifyPermission();
+  if (fbReady) { SYNC_KEYS.forEach(k => bfxTrack(k)); bfxTrack('chat'); }
   startFirebaseSync();
   startChatCollectionSync();
   if (isChatTabActive()) markMessagesAsRead();
@@ -2682,6 +2739,7 @@ document.addEventListener('touchend', function(e){
 // neu eingeloggt werden, es gibt keine dauerhaft gemerkte Sitzung mehr.
 localStorage.removeItem(SESSION_KEY);
 showGate();
+flushLoginOutbox(); // noch nicht bestätigte Logins der Login-Statistik nachliefern
 // Benachrichtigungs-Berechtigung schon jetzt anfragen (beim Öffnen der App),
 // nicht erst wenn man ins Team-Panel/Admin-Bereich eingeloggt ist.
 requestNotifyPermission();
