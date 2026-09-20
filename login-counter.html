@@ -133,6 +133,10 @@ th .sw{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:
 .chip{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;color:var(--blue-light);background:rgba(74,156,255,.14);border:1px solid rgba(74,156,255,.35);vertical-align:1px}
 td.zero{color:rgba(138,153,184,.55)}
 td.tot{min-width:120px}
+th.times,td.times{text-align:left}
+td.times{white-space:normal;min-width:130px}
+.tm{display:inline-block;margin:2px 5px 2px 0;padding:2px 9px;border-radius:8px;font-size:13.5px;font-weight:600;color:var(--c-thierry);background:rgba(95,224,207,.11);border:1px solid rgba(95,224,207,.3);font-variant-numeric:tabular-nums}
+.tm-none{color:rgba(138,153,184,.55)}
 .tot-n{font-weight:700;display:block}
 .mini{display:flex;height:4px;border-radius:2px;background:rgba(255,255,255,.07);overflow:hidden;margin-top:6px}
 .mini i{display:block;height:100%}
@@ -265,6 +269,7 @@ tr.is-today td{background:rgba(74,156,255,.06)}
         <thead>
           <tr>
             <th scope="col">Datum</th>
+            <th scope="col" class="times">Uhrzeiten</th>
             <th scope="col"><i class="sw t"></i>Logins</th>
           </tr>
         </thead>
@@ -319,6 +324,9 @@ function dateToKey(dt){ return dt.toISOString().slice(0, 10); }
 function addDays(key, n){ const d = keyToDate(key); d.setUTCDate(d.getUTCDate() + n); return dateToKey(d); }
 function fmtDay(key){ const [y, m, d] = key.split('-'); return d + '.' + m + '.' + y; }
 function weekday(key, style){ return new Intl.DateTimeFormat('de-CH', { weekday: style || 'long', timeZone: 'UTC' }).format(keyToDate(key)); }
+const timeFmt = new Intl.DateTimeFormat('de-CH', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false });
+const timeFmtSec = new Intl.DateTimeFormat('de-CH', { timeZone: TZ, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+function fmtTime(ts){ return timeFmt.format(new Date(ts)); }
 function fmtDateTime(ts){
   return new Intl.DateTimeFormat('de-CH', { timeZone: TZ, day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(ts));
 }
@@ -333,17 +341,19 @@ let renderedToday = dayKey(Date.now());
 
 function aggregate(){
   const byDay = {};
+  const times = {};                                   // Tag -> Zeitstempel aller Logins (für die Uhrzeiten)
   const totals = {}; PEOPLE.forEach(p => { totals[p.key] = 0; });
   let last = null, first = null;
   events.forEach(ev => {
     if (!(ev.user in totals)) return;                 // unbekannte Benutzer ignorieren
     const k = dayKey(ev.ts);
     (byDay[k] = byDay[k] || {})[ev.user] = ((byDay[k] || {})[ev.user] || 0) + 1;
+    (times[k] = times[k] || []).push(ev.ts);
     totals[ev.user]++;
     if (!last || ev.ts > last.ts) last = ev;
     if (first === null || ev.ts < first) first = ev.ts;
   });
-  return { byDay, totals, last, firstKey: first === null ? null : dayKey(first) };
+  return { byDay, times, totals, last, firstKey: first === null ? null : dayKey(first) };
 }
 function count(byDay, key, user){ return (byDay[key] && byDay[key][user]) || 0; }
 
@@ -351,7 +361,7 @@ function count(byDay, key, user){ return (byDay[key] && byDay[key][user]) || 0; 
 function render(){
   const today = dayKey(Date.now());
   renderedToday = today;
-  const { byDay, totals, last, firstKey } = aggregate();
+  const { byDay, times, totals, last, firstKey } = aggregate();
 
   // Karten
   $('totThierry').textContent = loaded ? totals.thierry : '–';
@@ -365,7 +375,7 @@ function render(){
   const days = [];
   for (let k = today; k >= startKey; k = addDays(k, -1)) days.push(k);   // neueste zuerst
   renderChart(byDay, today);
-  renderTable(days, byDay, today, firstKey);
+  renderTable(days, byDay, times, today, firstKey);
   $('empty').classList.toggle('show', loaded && events.length === 0);
   $('resetBtn').disabled = !loaded || events.length === 0;   // nichts da = nichts zu löschen
 }
@@ -402,7 +412,7 @@ function renderChart(byDay, today){
   plot.setAttribute('aria-label', 'Logins von Thierry pro Tag. ' + summary.join('; '));
 }
 
-function renderTable(days, byDay, today, firstKey){
+function renderTable(days, byDay, times, today, firstKey){
   const rows = $('rows'); rows.replaceChildren();
   let maxTotal = 0;
   days.forEach(k => { maxTotal = Math.max(maxTotal, count(byDay, k, 'thierry')); });
@@ -415,6 +425,19 @@ function renderTable(days, byDay, today, firstKey){
     d.appendChild(main);
     d.appendChild(el('span', 'd-sub', weekday(k)));
     tr.appendChild(d);
+    // Uhrzeiten des Tages, der späteste Login zuerst
+    const tt = el('td', 'times');
+    const list = (times[k] || []).slice().sort((a, b) => b - a);
+    if (list.length === 0) {
+      tt.appendChild(el('span', 'tm-none', '–'));
+    } else {
+      list.forEach(ts => {
+        const chip = el('span', 'tm', fmtTime(ts));
+        chip.title = fmtDay(k) + ', ' + timeFmtSec.format(new Date(ts)) + ' Uhr';
+        tt.appendChild(chip);
+      });
+    }
+    tr.appendChild(tt);
     const td = el('td', 'tot' + (t === 0 ? ' zero' : ''));
     td.appendChild(el('span', 'tot-n', String(t)));
     const mini = el('span', 'mini');
@@ -427,8 +450,8 @@ function renderTable(days, byDay, today, firstKey){
     rows.appendChild(tr);
   });
   $('cap').textContent = firstKey
-    ? 'Erfasst seit ' + fmtDay(firstKey) + '. Jeder Kalendertag hat einen eigenen Eintrag, der neueste steht oben.'
-    : 'Jeder Kalendertag hat einen eigenen Eintrag, der neueste steht oben.';
+    ? 'Erfasst seit ' + fmtDay(firstKey) + '. Jeder Kalendertag hat einen eigenen Eintrag, der neueste steht oben. Uhrzeiten in Zürcher Zeit.'
+    : 'Jeder Kalendertag hat einen eigenen Eintrag, der neueste steht oben. Uhrzeiten in Zürcher Zeit.';
 }
 
 /* ===================== STATUS ===================== */
