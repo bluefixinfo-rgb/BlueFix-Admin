@@ -857,7 +857,6 @@ input,select,textarea{font-family:var(--sans);}
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
     <button class="tab-btn" data-tab="orders">🧾 Aufträge</button>
     <button class="tab-btn" data-tab="invoices">💳 Rechnungen</button>
-    <button class="tab-btn" data-tab="prices">💶 Preisliste</button>
     <button class="tab-btn" data-tab="revenue">📈 Umsatz</button>
     <button class="tab-btn" data-tab="activity" id="activityTabBtn" style="display:none;">🕘 Verlauf</button>
     <button class="tab-btn" data-tab="werbung" id="werbungTabBtn" style="display:none;">📣 Werbung</button>
@@ -908,18 +907,6 @@ input,select,textarea{font-family:var(--sans);}
     </div>
     <div class="order-search" style="margin-bottom:14px;"><span class="search-icon">⌕</span><input id="invoiceSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     <div id="invoicesList"></div>
-  </div>
-
-  <!-- PREISLISTE -->
-  <div class="tab-content" id="tab-prices">
-    <div class="section-head-row"><h2>Preisliste</h2></div>
-    <div class="card">
-      <div class="field"><label>Gerät</label><input type="text" id="prGeraet" list="prGeraetList" placeholder="z.B. iPhone 13 Pro"><datalist id="prGeraetList"></datalist></div>
-      <div class="field"><label>Reparaturart</label><select id="prRep"></select></div>
-      <div class="field"><label>Preis (CHF)</label><input type="number" id="prPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
-      <button class="btn btn-primary" id="prAdd" style="width:100%;">Preis speichern</button>
-    </div>
-    <div id="pricesList" style="margin-top:14px;"></div>
   </div>
 
   <!-- UMSATZ-DASHBOARD -->
@@ -1064,10 +1051,9 @@ input,select,textarea{font-family:var(--sans);}
     </div>
     <div class="order-section">
       <div class="order-section-title">Reparatur</div>
-      <div class="field"><label>Gerät aus Preisliste (optional)</label><select id="custKatalog"></select></div>
       <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
       <div class="field"><label>Notizen (optional)</label><textarea id="custNotizen" placeholder="Zustand des Geräts, Kundenwünsche…"></textarea></div>
-      <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"><div id="custPreisHint" style="font-size:12px;color:var(--muted);margin-top:6px;"></div></div>
+      <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
 
     </div>
@@ -1178,16 +1164,8 @@ input,select,textarea{font-family:var(--sans);}
       <input type="text" id="invNachname" placeholder="Muster">
     </div>
     <div class="field">
-      <label>Gerät aus Preisliste (optional)</label>
-      <select id="invKatalog"></select>
-    </div>
-    <div class="field">
-      <label>Reparaturart</label>
-      <select id="invRep"></select>
-    </div>
-    <div class="field">
       <label>Betrag (CHF)</label>
-      <input type="number" id="invBetrag" min="0" step="0.05" placeholder="149.00"><div id="invPreisHint" style="font-size:12px;color:var(--muted);margin-top:6px;"></div>
+      <input type="number" id="invBetrag" min="0" step="0.05" placeholder="149.00">
     </div>
     <div class="field">
       <label>Beschreibung (optional)</label>
@@ -1386,8 +1364,6 @@ const ORDERS_KEY = 'bluefix_team_orders';
 const WB_TPL_KEY = 'bluefix_werbung_vorlagen';
 let orderTypeFilter = null;
 const INVOICES_KEY = 'bluefix_team_invoices';
-const PRICES_KEY = 'bluefix_team_prices';
-const REP_TYPES = ['Display','Akku','Ladebuchse','Backcover','Kamera','Wasserschaden','Sonstiges'];
 
 /* ===================== LIVE-SYNC + BENACHRICHTIGUNGEN (Firebase) =====================
    Firestore wird weiterhin für Auftrags-/Nachrichtensynchronisation verwendet.
@@ -1491,7 +1467,7 @@ try {
   }
 } catch (e) { console.warn('Firebase konnte nicht initialisiert werden:', e); }
 
-const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, PRICES_KEY];
+const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY];
 const MSG_COLLECTION = 'bluefix_sync_msgs';
 let ignoreNextSnapshot = {};
 
@@ -1543,7 +1519,6 @@ function titleFor(key, otherName){
   if (key === ORDERS_KEY) return 'BlueFix – ' + otherName + ' hat einen neuen Team/Kunden Auftrag erstellt';
   if (key === INVOICES_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Rechnung erstellt';
   if (key === WB_TPL_KEY) return 'BlueFix – ' + otherName + ' hat eine Werbe-Vorlage gespeichert';
-  if (key === PRICES_KEY) return 'BlueFix – ' + otherName + ' hat die Preisliste geändert';
   return 'BlueFix – ' + otherName + ' hat ein Update erstellt';
 }
 
@@ -1598,7 +1573,6 @@ function startFirebaseSync(){
       }
       if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
       if (key === WB_TPL_KEY) { try { wbRenderTemplates(); } catch (e) {} }
-      if (key === PRICES_KEY) { try { renderPrices(); } catch (e) {} }
 
       if (isNewFromOther) {
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
@@ -1919,10 +1893,9 @@ function switchToTab(tabName){
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + tabName).classList.add('active');
-  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity' || tabName === 'werbung' || tabName === 'prices') ? 'none' : 'flex';
+  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity' || tabName === 'werbung') ? 'none' : 'flex';
   if (tabName === 'werbung') wbOpenTab();
   if (tabName === 'activity') renderActivity();
-  if (tabName === 'prices') renderPrices();
   if (tabName === 'revenue') renderRevenue();
   if (tabName === 'stats') {
     const f = document.getElementById('statsFrame');
@@ -2269,7 +2242,6 @@ function resetCustomerOrderModal(){
   document.getElementById('editingCustomerOrderId').value='';
   document.getElementById('customerOrderModalTitle').textContent='👤 Kunden Auftrag';
   document.getElementById('custSave').textContent='Auftrag speichern & PDF erstellen';
-  fillDeviceSelect('custKatalog','– frei eingeben –'); document.getElementById('custPreisHint').textContent='';
   bluefixSig.clear();
 }
 function openCustomerOrderModal(order=null){
@@ -2887,7 +2859,6 @@ function renderOrders(){
         </div>
         <div class="order-edit-actions order-pdf-bottom">
           <button class="btn btn-ghost btn-sm" type="button" data-pdf="${esc(o.id)}">📄 Garantie-PDF</button>
-          <button class="btn btn-ghost btn-sm" type="button" data-inv-from="${esc(o.id)}">💳 Rechnung erstellen</button>
         </div>
         <input type="file" id="signedFile-${esc(o.id)}" data-file-input="${esc(o.id)}" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none">
         <div class="upload-progress" id="uploadProgress-${esc(o.id)}" hidden>
@@ -2938,11 +2909,6 @@ function renderOrders(){
     if(file) await uploadSignedOrderFile(input.dataset.fileInput,file);
     e.target.value='';
   }));
-  list.querySelectorAll('[data-inv-from]').forEach(btn=>btn.addEventListener('click',()=>{
-    const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.invFrom); if(!o) return;
-    switchToTab('invoices');
-    openInvoiceModal({vorname:o.vorname,nachname:o.nachname,betrag:Number(o.preis)||0,beschreibung:((o.auftrag||'')+' '+(o.modell||'')).trim()});
-  }));
 }
 document.getElementById('orderSearch').addEventListener('input',renderOrders);
 document.getElementById('ordersList').addEventListener('click',e=>{
@@ -2953,98 +2919,13 @@ document.getElementById('ordersList').addEventListener('click',e=>{
   else { expandedOrders.add(id); card.classList.remove('collapsed'); }
 });
 
-/* ===================== PREISLISTE / REPARATUR-KATALOG ===================== */
-let invAutoDesc = '';
-function normP(v){ return String(v||'').trim().toLowerCase(); }
-function priceFor(geraet, rep){
-  const e = load(PRICES_KEY, []).find(p => normP(p.geraet) === normP(geraet) && p.reparatur === rep);
-  return e ? Number(e.preis) : null;
-}
-function priceDevices(){
-  const seen = new Map();
-  load(PRICES_KEY, []).forEach(p => { const k = normP(p.geraet); if (k && !seen.has(k)) seen.set(k, p.geraet); });
-  return [...seen.values()].sort((a,b) => a.localeCompare(b, 'de', {numeric:true}));
-}
-function fillDeviceSelect(id, firstLabel){
-  document.getElementById(id).innerHTML = '<option value="">' + firstLabel + '</option>' + priceDevices().map(g => '<option value="' + esc(g) + '">' + esc(g) + '</option>').join('');
-}
-function renderPrices(){
-  document.getElementById('prGeraetList').innerHTML = priceDevices().map(g => '<option value="' + esc(g) + '">').join('');
-  const list = document.getElementById('pricesList');
-  const arr = load(PRICES_KEY, []);
-  if (!arr.length) { list.innerHTML = '<div class="empty-state">Noch keine Preise. Erfasse oben Gerät, Reparaturart und Preis.</div>'; return; }
-  list.innerHTML = priceDevices().map(g => {
-    const rows = arr.filter(p => normP(p.geraet) === normP(g)).sort((a,b) => REP_TYPES.indexOf(a.reparatur) - REP_TYPES.indexOf(b.reparatur));
-    return '<div class="card"><p class="card-title">' + esc(g) + '</p>' + rows.map(p =>
-      '<div class="card-top" style="margin-top:8px;"><div class="card-sub">' + esc(p.reparatur) + ' · <strong>CHF ' + Number(p.preis).toFixed(2) + '</strong></div>' +
-      '<div class="card-actions"><button class="btn btn-ghost btn-sm" data-pr-edit="' + esc(p.id) + '">✏️</button> <button class="btn btn-ghost btn-sm" data-pr-del="' + esc(p.id) + '">🗑️</button></div></div>').join('') + '</div>';
-  }).join('');
-}
-document.getElementById('prRep').innerHTML = REP_TYPES.map(r => '<option>' + r + '</option>').join('');
-document.getElementById('invRep').innerHTML = REP_TYPES.map(r => '<option>' + r + '</option>').join('');
-document.getElementById('prAdd').addEventListener('click', () => {
-  const geraet = document.getElementById('prGeraet').value.trim();
-  const reparatur = document.getElementById('prRep').value;
-  const preis = parseFloat(document.getElementById('prPreis').value);
-  if (!geraet || isNaN(preis) || preis < 0) { alert('Bitte Gerät und einen gültigen Preis eingeben.'); return; }
-  const arr = load(PRICES_KEY, []);
-  const ex = arr.find(p => normP(p.geraet) === normP(geraet) && p.reparatur === reparatur);
-  if (ex) { ex.geraet = geraet; ex.preis = preis; } else arr.push({ id: uid(), geraet, reparatur, preis });
-  save(PRICES_KEY, arr);
-  logActivity('💶', 'den Preis gespeichert: ' + geraet + ' · ' + reparatur + ' · CHF ' + preis.toFixed(2));
-  document.getElementById('prPreis').value = '';
-  renderPrices();
-});
-document.getElementById('pricesList').addEventListener('click', e => {
-  const ed = e.target.closest('[data-pr-edit]'), del = e.target.closest('[data-pr-del]');
-  if (ed) {
-    const p = load(PRICES_KEY, []).find(x => x.id === ed.dataset.prEdit); if (!p) return;
-    document.getElementById('prGeraet').value = p.geraet;
-    document.getElementById('prRep').value = p.reparatur;
-    document.getElementById('prPreis').value = Number(p.preis).toFixed(2);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  }
-  if (del) showConfirm('Diesen Preis wirklich löschen?', () => { save(PRICES_KEY, load(PRICES_KEY, []).filter(x => x.id !== del.dataset.prDel)); renderPrices(); });
-});
-function applyCatalogToOrder(){
-  const g = document.getElementById('custKatalog').value, hint = document.getElementById('custPreisHint');
-  if (!g) { hint.textContent = ''; return; }
-  document.getElementById('custModell').value = g;
-  const p = priceFor(g, document.getElementById('custAuftrag').value);
-  if (p !== null) { document.getElementById('custPreis').value = p.toFixed(2); hint.textContent = 'Preis aus der Preisliste übernommen'; }
-  else hint.textContent = 'Kein Preis in der Preisliste hinterlegt – bitte manuell eingeben';
-}
-document.getElementById('custKatalog').addEventListener('change', applyCatalogToOrder);
-document.getElementById('custAuftrag').addEventListener('change', applyCatalogToOrder);
-function applyCatalogToInvoice(){
-  const g = document.getElementById('invKatalog').value, rep = document.getElementById('invRep').value, hint = document.getElementById('invPreisHint');
-  if (!g) { hint.textContent = ''; return; }
-  const desc = document.getElementById('invBeschreibung');
-  if (!desc.value.trim() || desc.value === invAutoDesc) { invAutoDesc = rep + ' ' + g; desc.value = invAutoDesc; }
-  const p = priceFor(g, rep);
-  if (p !== null) { document.getElementById('invBetrag').value = p.toFixed(2); hint.textContent = 'Preis aus der Preisliste übernommen'; }
-  else hint.textContent = 'Kein Preis in der Preisliste hinterlegt – bitte Betrag manuell eingeben';
-}
-document.getElementById('invKatalog').addEventListener('change', applyCatalogToInvoice);
-document.getElementById('invRep').addEventListener('change', applyCatalogToInvoice);
-
 /* ===================== INVOICES ===================== */
 let selectedPay = 'twint';
-function openInvoiceModal(pre){
+function openInvoiceModal(){
   document.getElementById('invVorname').value = '';
   document.getElementById('invNachname').value = '';
   document.getElementById('invBetrag').value = '';
   document.getElementById('invBeschreibung').value = '';
-  invAutoDesc = '';
-  fillDeviceSelect('invKatalog', '– Gerät wählen –');
-  document.getElementById('invRep').value = REP_TYPES[0];
-  document.getElementById('invPreisHint').textContent = '';
-  if (pre) {
-    document.getElementById('invVorname').value = pre.vorname || '';
-    document.getElementById('invNachname').value = pre.nachname || '';
-    document.getElementById('invBetrag').value = pre.betrag > 0 ? pre.betrag.toFixed(2) : '';
-    document.getElementById('invBeschreibung').value = pre.beschreibung || '';
-  }
   selectedPay = 'twint';
   document.querySelectorAll('.pay-opt').forEach(p => p.classList.toggle('active', p.dataset.pay === 'twint'));
   document.getElementById('invoiceModal').classList.add('show');
