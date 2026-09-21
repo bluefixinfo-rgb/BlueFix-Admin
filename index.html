@@ -1208,6 +1208,23 @@ input,select,textarea{font-family:var(--sans);}
   </div>
 </div>
 
+<!-- ==================== MODAL: Mahnung ==================== -->
+<div class="modal-overlay" id="mahnModal">
+  <div class="modal">
+    <h3 id="mahnTitle">Mahnung</h3>
+    <div class="field"><label>Handynummer</label><input type="tel" id="mahnPhone" inputmode="tel" placeholder="z.B. 079 123 45 67"></div>
+    <div class="field"><label>E-Mail</label><input type="email" id="mahnMail" inputmode="email" autocapitalize="off" placeholder="z.B. max@muster.ch"></div>
+    <div class="field"><label>Mahngebühr (CHF, 0 = keine)</label><input type="number" id="mahnFee" min="0" step="0.05"></div>
+    <div class="field"><label>Nachricht (kann angepasst werden)</label><textarea id="mahnMsg" rows="9"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-primary btn-sm" id="mahnWa" style="flex:1;">💬 WhatsApp</button>
+      <button class="btn btn-primary btn-sm" id="mahnSms" style="flex:1;">📱 SMS</button>
+      <button class="btn btn-primary btn-sm" id="mahnMailBtn" style="flex:1;">✉️ Mail</button>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" id="mahnClose">Abbrechen</button></div>
+  </div>
+</div>
+
 <!-- ==================== MODAL: Status-Link für Kunden ==================== -->
 <div class="modal-overlay" id="statusModal">
   <div class="modal">
@@ -3096,6 +3113,8 @@ function renderInvoices(){
   const custIdx = iq ? buildCustomerIndex() : null;
   const invoices = allInvoices.filter(i => invoiceMatchesSearch(i, iq, custIdx));
   if (!invoices.length) { list.innerHTML = '<div class="empty-state">Keine Rechnungen für diese Suche.</div>'; return; }
+  const mahnCount = allInvoices.filter(i => mahnNext(i)).length;
+  if (mahnCount) list.insertAdjacentHTML('beforeend', '<div class="card card-overdue" style="padding:12px 16px;">📨 ' + mahnCount + (mahnCount === 1 ? ' Mahnung ist fällig' : ' Mahnungen sind fällig') + '</div>');
   invoices.forEach(inv => {
     const card = document.createElement('div');
     card.className = 'card' + (isOverdue(inv) ? ' card-overdue' : '');
@@ -3123,6 +3142,7 @@ function renderInvoices(){
           ? `<button class="btn btn-primary btn-sm" data-paid-inv="${inv.id}" style="flex:1;">Als bezahlt markieren</button>`
           : `<button class="btn btn-ghost btn-sm" data-unpaid-inv="${inv.id}" style="flex:1;">Rückgängig</button>`}
       </div>
+      ${mahnButtonHtml(inv)}
     `;
     list.appendChild(card);
   });
@@ -4194,7 +4214,7 @@ function invoiceAgeDays(inv){ return Math.floor((Date.now() - (inv.createdAt || 
 function isOverdue(inv){ return !inv.bezahlt && (Date.now() - (inv.createdAt || Date.now())) > INVOICE_OVERDUE_DAYS * 864e5; }
 function invoiceBadgeHtml(inv){
   if (inv.bezahlt) return '<span class="badge badge-bezahlt">Bezahlt</span>';
-  if (isOverdue(inv)) return '<span class="badge badge-ueberfaellig">⚠ Überfällig · ' + invoiceAgeDays(inv) + ' Tage</span>';
+  if (isOverdue(inv)) return '<span class="badge badge-ueberfaellig">⚠ Überfällig · ' + invoiceAgeDays(inv) + ' Tage</span>' + (inv.mahnstufe ? ' <span class="badge badge-nicht">' + inv.mahnstufe + '. Mahnung gesendet</span>' : '');
   return '<span class="badge badge-offen">Offen</span>';
 }
 
@@ -4246,6 +4266,87 @@ async function checkOverdueInvoices(){
     await sendPushToUsers(['jerome', 'thierry'], 'BlueFix – Zahlung offen', body);
   } finally { overdueCheckRunning = false; }
 }
+
+/* ---------- Mahnwesen (1./2. Mahnung per WhatsApp, SMS oder Mail) ---------- */
+const MAHN2_AGE = 14;   // 2. Mahnung frühestens ab Tag 14 nach Rechnungsdatum ...
+const MAHN_GAP = 7;     // ... und mind. 7 Tage nach der 1. Mahnung
+const MAHN_FEES = { 1: 10, 2: 20 };  // Mahngebühr in CHF pro Stufe (2. Mahnung: 20 insgesamt, nicht zusätzlich zu den 10)
+let mahnInvId = null, mahnStufe = 1, mahnAutoMsg = '';
+function mahnNext(inv){
+  if (inv.bezahlt || !isOverdue(inv)) return 0;
+  const st = inv.mahnstufe || 0;
+  if (st === 0) return 1;
+  if (st === 1 && invoiceAgeDays(inv) >= MAHN2_AGE && Date.now() - (inv.lastMahnAt || 0) >= MAHN_GAP * 864e5) return 2;
+  return 0;
+}
+function mahnButtonHtml(inv){
+  if (inv.bezahlt || !isOverdue(inv)) return '';
+  const n = mahnNext(inv), st = inv.mahnstufe || 0;
+  let b;
+  if (n) b = '<button class="btn btn-primary btn-sm" data-mahn="' + inv.id + '" data-stufe="' + n + '" style="flex:1;">📨 ' + n + '. Mahnung senden</button>';
+  else if (st === 2) b = '<button class="btn btn-ghost btn-sm" data-mahn="' + inv.id + '" data-stufe="2" style="flex:1;">📨 2. Mahnung erneut senden</button>';
+  else b = '<div class="order-file-meta" style="flex:1;">1. Mahnung gesendet · 2. Mahnung ab Tag ' + MAHN2_AGE + '</div>';
+  return '<div class="modal-actions" style="margin-top:8px;">' + b + '</div>';
+}
+function mahnContact(inv){
+  const n = normName(inv.kunde);
+  const os = load(ORDERS_KEY, []).filter(o => normName((o.vorname || '') + ' ' + (o.nachname || '')) === n).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return { tel: (os.find(o => o.telefon) || {}).telefon || '', mail: (os.find(o => o.email) || {}).email || '' };
+}
+function mahnText(inv, stufe, fee){
+  fee = Number(fee) || 0;
+  const gebuehr = fee > 0 ? ' Zusammen mit der Mahngebühr von CHF ' + fee.toFixed(2) + ' ergibt sich ein Betrag von CHF ' + (Number(inv.betrag) + fee).toFixed(2) + '.' : '';
+  const datum = new Date(inv.createdAt || Date.now()).toLocaleDateString('de-CH');
+  const frist = new Date(Date.now() + (stufe === 1 ? 7 : 5) * 864e5).toLocaleDateString('de-CH');
+  const betrag = 'CHF ' + Number(inv.betrag).toFixed(2);
+  const was = inv.beschreibung ? ' (' + inv.beschreibung + ')' : '';
+  const pay = inv.zahlungsart === 'twint' ? 'per Twint an ' + BANK_INFO.twintNumber : inv.zahlungsart === 'bank' ? 'per Überweisung auf IBAN ' + BANK_INFO.iban : 'bar bei uns im Geschäft';
+  if (stufe === 1) return 'Guten Tag ' + inv.kunde + '\n\nunsere Rechnung über ' + betrag + was + ' vom ' + datum + ' ist noch offen.' + gebuehr + ' Wir bitten Sie, den offenen Betrag bis ' + frist + ' zu begleichen (' + pay + ').\n\nFalls Sie bereits bezahlt haben, betrachten Sie diese Nachricht bitte als gegenstandslos.\n\nFreundliche Grüsse\nBlueFix Team';
+  return 'Guten Tag ' + inv.kunde + '\n\n2. Mahnung: Zu unserer Rechnung über ' + betrag + was + ' vom ' + datum + ' konnten wir trotz unserer Erinnerung noch keinen Zahlungseingang feststellen.' + gebuehr + ' Bitte bezahlen Sie den offenen Betrag bis ' + frist + ' (' + pay + ').\n\nBei Fragen melden Sie sich gerne bei uns.\n\nFreundliche Grüsse\nBlueFix Team';
+}
+function openMahn(invId, stufe){
+  const inv = load(INVOICES_KEY, []).find(i => i.id === invId); if (!inv) return;
+  mahnInvId = invId; mahnStufe = stufe;
+  const c = mahnContact(inv);
+  document.getElementById('mahnTitle').textContent = stufe + '. Mahnung – ' + inv.kunde;
+  document.getElementById('mahnPhone').value = c.tel;
+  document.getElementById('mahnMail').value = c.mail;
+  document.getElementById('mahnFee').value = MAHN_FEES[stufe] || 0;
+  mahnAutoMsg = mahnText(inv, stufe, MAHN_FEES[stufe] || 0);
+  document.getElementById('mahnMsg').value = mahnAutoMsg;
+  document.getElementById('mahnModal').classList.add('show');
+}
+function sendMahn(kind){
+  const arr = load(INVOICES_KEY, []), inv = arr.find(i => i.id === mahnInvId); if (!inv) return;
+  const num = normPhone(document.getElementById('mahnPhone').value.trim());
+  const mail = document.getElementById('mahnMail').value.trim();
+  const msg = document.getElementById('mahnMsg').value;
+  if ((kind === 'wa' || kind === 'sms') && !num) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
+  if (kind === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail)) { alert('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+  inv.mahnstufe = mahnStufe; inv.lastMahnAt = Date.now(); inv.mahnGebuehr = parseFloat(document.getElementById('mahnFee').value) || 0;
+  (inv.mahnLog = inv.mahnLog || []).push({ stufe: mahnStufe, ts: Date.now(), kanal: kind, by: currentUser() });
+  save(INVOICES_KEY, arr);
+  logActivity('📨', 'die ' + mahnStufe + '. Mahnung an ' + inv.kunde + ' vorbereitet (CHF ' + Number(inv.betrag).toFixed(2) + ')');
+  document.getElementById('mahnModal').classList.remove('show');
+  renderInvoices();
+  if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+  else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
+  else openGmailCompose(mail, mahnStufe + '. Mahnung – BlueFix Rechnung CHF ' + Number(inv.betrag).toFixed(2), msg);
+}
+document.getElementById('invoicesList').addEventListener('click', e => {
+  const b = e.target.closest('[data-mahn]'); if (b) openMahn(b.dataset.mahn, Number(b.dataset.stufe));
+});
+document.getElementById('mahnWa').addEventListener('click', () => sendMahn('wa'));
+document.getElementById('mahnSms').addEventListener('click', () => sendMahn('sms'));
+document.getElementById('mahnMailBtn').addEventListener('click', () => sendMahn('mail'));
+document.getElementById('mahnFee').addEventListener('input', () => {
+  const ta = document.getElementById('mahnMsg');
+  if (ta.value !== mahnAutoMsg) return; // selbst bearbeiteter Text bleibt unverändert
+  const inv = load(INVOICES_KEY, []).find(i => i.id === mahnInvId); if (!inv) return;
+  mahnAutoMsg = mahnText(inv, mahnStufe, parseFloat(document.getElementById('mahnFee').value) || 0);
+  ta.value = mahnAutoMsg;
+});
+document.getElementById('mahnClose').addEventListener('click', () => document.getElementById('mahnModal').classList.remove('show'));
 
 /* ---------- Kunden-Historie ---------- */
 function getCustomerHistory(name, phone){
