@@ -3307,6 +3307,26 @@ function buildMailBody(o, anliegen){
 function mailSubject(o){ return 'BlueFix - Handy Reparatur'; }
 
 let statusModalOrderId = null;
+let statusViewsUnsub = null;
+/* Zeigt im Status-Link-Fenster, ob/wie oft/wann der Kunde seinen Link schon geöffnet hat */
+function renderStatusViews(data){
+  const el = document.getElementById('stViews');
+  if (!el) return;
+  const views = (data && data.views) || [];
+  const count = (data && data.viewCount) || views.length || 0;
+  if (!count) { el.textContent = '👀 Link wurde vom Kunden noch nicht geöffnet.'; return; }
+  const last = views.length ? views.slice(-5).reverse() : (data.lastViewedAt ? [data.lastViewedAt] : []);
+  const timesHtml = last.map(ts => fmtTime(ts)).join(' · ');
+  el.innerHTML = '👀 <b>' + count + '×</b> geöffnet' + (timesHtml ? '<br><span style="opacity:.75;">Zuletzt: ' + esc(timesHtml) + '</span>' : '');
+}
+function watchStatusViews(token){
+  if (statusViewsUnsub) { statusViewsUnsub(); statusViewsUnsub = null; }
+  if (!fbReady || !fbDb || !token) { const el = document.getElementById('stViews'); if (el) el.textContent = ''; return; }
+  statusViewsUnsub = fbDb.collection(STATUS_COLLECTION).doc(token).onSnapshot(
+    doc => renderStatusViews(doc.exists ? doc.data() : null),
+    err => console.warn('Aufrufe konnten nicht geladen werden:', err)
+  );
+}
 function openStatusModal(id, mode){
   const o = ensureStatus(id);
   if (!o) return;
@@ -3319,6 +3339,7 @@ function openStatusModal(id, mode){
     ${ship ? `<div class="field" style="margin-top:12px;"><label>Sendungsnummer</label><input type="text" id="stTrack" autocapitalize="off" value="${esc(o.sendungsnr || '')}" placeholder="z.B. 99.00.123456.12345678"></div>`
            : `<img class="status-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(url)}" width="180" height="180" alt="QR-Code zum Status">`}
     <div class="status-link-row"><input type="text" id="stLink" readonly value="${esc(url)}"><button class="btn btn-ghost btn-sm" type="button" id="stCopy">Kopieren</button></div>
+    <div class="card-sub" id="stViews" style="margin-top:8px;">👀 Aufrufe werden geladen…</div>
     <div class="field" style="margin-top:14px;"><label>Handynummer Kunde</label><input type="tel" id="stPhone" inputmode="tel" value="${esc(o.telefon || '')}" placeholder="z.B. 079 123 45 67"></div>
     <div class="field"><label>E-Mail Kunde</label><input type="email" id="stMail" inputmode="email" autocapitalize="off" value="${esc(o.email || '')}" placeholder="z.B. max@muster.ch"></div>
     <div class="field"><label>Nachricht</label><textarea id="stMsg" rows="5">${esc(statusMessage(o, url))}</textarea></div>
@@ -3345,6 +3366,7 @@ function openStatusModal(id, mode){
   const sv = document.getElementById('stSave');
   if (sv) sv.addEventListener('click', () => sendStatus('save'));
   document.getElementById('statusModal').classList.add('show');
+  watchStatusViews(o.statusToken);
 }
 function sendStatus(kind){
   const arr = load(ORDERS_KEY, []);
@@ -3375,7 +3397,10 @@ function sendStatus(kind){
     openGmailCompose(mailRaw, mailSubject(o), buildMailBody(o, anliegen));
   }
 }
-document.getElementById('statusClose').addEventListener('click', () => document.getElementById('statusModal').classList.remove('show'));
+document.getElementById('statusClose').addEventListener('click', () => {
+  document.getElementById('statusModal').classList.remove('show');
+  if (statusViewsUnsub) { statusViewsUnsub(); statusViewsUnsub = null; }
+});
 
 document.getElementById('ordersList').addEventListener('click', e => {
   const rst = e.target.closest('[data-wish-reset]');

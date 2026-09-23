@@ -195,7 +195,18 @@ const COL = 'bluefix_status';
 const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-let db = null, token = '', cur = null, ui = 'auto', errMsg = '';
+let db = null, token = '', cur = null, ui = 'auto', errMsg = '', viewLogged = false;
+
+/* Zählt einen Linkaufruf (nur einmal pro Seitenaufruf), sichtbar im Admin-Bereich beim Status-Link */
+function logView(tok){
+  try {
+    db.collection(COL).doc(tok).set({
+      viewCount: firebase.firestore.FieldValue.increment(1),
+      lastViewedAt: Date.now(),
+      views: firebase.firestore.FieldValue.arrayUnion(Date.now())
+    }, { merge: true }).catch(e => console.warn('Aufruf konnte nicht gezählt werden:', e));
+  } catch (e) {}
+}
 
 function render(){
   const d = cur;
@@ -343,6 +354,7 @@ function showMessage(title, text){
     db.collection(COL).doc(token).onSnapshot(doc => {
       if (!doc.exists) { showMessage('Auftrag nicht gefunden', 'Bitte prüfe den Link oder melde dich direkt bei BlueFix.'); return; }
       cur = doc.data();
+      if (!viewLogged) { viewLogged = true; logView(token); }
       if (ui === 'form' && document.activeElement && document.activeElement.tagName === 'INPUT') return; // nicht beim Tippen überschreiben
       render();
     }, err => { console.warn(err); showMessage('Status gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.'); });
