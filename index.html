@@ -3369,8 +3369,9 @@ function sendStatus(kind){
   else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
   else {
     const url = statusUrl(o.statusToken);
-    const defaultMsg = statusMessage({ ...o, sendungsnr: track }, url);
-    const anliegen = msg === defaultMsg ? statusMessageSie({ ...o, sendungsnr: track }, url) : msg; // selbst bearbeiteter Text bleibt unverändert
+    // E-Mails gehen immer in der Sie-Form raus, unabhängig davon, ob die Nachricht
+    // oben (WhatsApp/SMS-Vorschau, Du-Form) verändert wurde oder nicht.
+    const anliegen = statusMessageSie({ ...o, sendungsnr: track }, url);
     openGmailCompose(mailRaw, mailSubject(o), buildMailBody(o, anliegen));
   }
 }
