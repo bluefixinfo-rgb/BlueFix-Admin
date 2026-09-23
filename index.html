@@ -2989,7 +2989,7 @@ function renderInvoices(){
     card.innerHTML = `
       <div class="card-top">
         <div>
-          <p class="card-title"><button type="button" class="cust-link" data-cust="${esc(inv.kunde)}">${esc(inv.kunde)}</button></p>
+          <p class="card-title"><button type="button" class="cust-link" data-cust="${esc(inv.kunde)}">${esc(inv.kunde)}</button>${!inv.bezahlt?'<span class="order-live-dot" title="Rechnung offen"></span>':''}</p>
           <p class="card-sub">${inv.beschreibung ? linkify(inv.beschreibung) : PAY_LABELS[inv.zahlungsart]} · CHF ${inv.betrag.toFixed(2)}</p>
         </div>
         <div class="card-actions">
