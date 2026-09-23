@@ -506,6 +506,12 @@ input,select,textarea{font-family:var(--sans);}
 .status-chip.alert .chip-dot.on{background:var(--bad); animation:none; box-shadow:0 0 8px rgba(227,72,72,0.6);}
 .cust-link{background:none; border:0; padding:0; margin:0; color:inherit; font:inherit; text-align:left; cursor:pointer; text-decoration:underline; text-decoration-color:rgba(74,156,255,0.5); text-underline-offset:3px;}
 .cust-link:hover{text-decoration-color:var(--blue-light);}
+.order-live-dot{display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:8px; vertical-align:middle; background:#ff3b30; box-shadow:0 0 0 0 rgba(255,59,48,0.65); animation:orderLiveDotPulse 1.4s ease-in-out infinite;}
+@keyframes orderLiveDotPulse{
+  0%{ box-shadow:0 0 0 0 rgba(255,59,48,0.65); opacity:1; }
+  70%{ box-shadow:0 0 0 7px rgba(255,59,48,0); opacity:0.55; }
+  100%{ box-shadow:0 0 0 0 rgba(255,59,48,0); opacity:1; }
+}
 .hist-sum{display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:0 0 6px;}
 .hist-sum > div{background:rgba(255,255,255,0.05); border:1px solid var(--glass-border-soft); border-radius:12px; padding:10px 12px;}
 .hist-sum .n{font-family:var(--serif); font-size:15px; font-weight:700;}
@@ -2833,7 +2839,7 @@ function renderOrders(){
     const isCustomer=o.typ==='kunde';
     const signedFile=o.signedFile;
     card.innerHTML=`<div class="card-top">
-      <div><p class="card-title"><button type="button" class="cust-link" data-cust="${esc(o.vorname+' '+o.nachname)}" data-cust-phone="${esc(o.telefon||'')}">${esc(o.vorname)} ${esc(o.nachname)}</button></p><p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)} · ${isCustomer?'Kunden Auftrag':'Team Auftrag'}</p></div>
+      <div><p class="card-title"><button type="button" class="cust-link" data-cust="${esc(o.vorname+' '+o.nachname)}" data-cust-phone="${esc(o.telefon||'')}">${esc(o.vorname)} ${esc(o.nachname)}</button>${(isCustomer?!signedFile:o.status!=='erledigt')?'<span class="order-live-dot" title="Auftrag offen"></span>':''}</p><p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)} · ${isCustomer?'Kunden Auftrag':'Team Auftrag'}</p></div>
       <div class="card-actions">
         <button class="icon-btn-sm" data-del="${esc(o.id)}" title="Löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
       </div>
