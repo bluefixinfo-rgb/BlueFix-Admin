@@ -3647,8 +3647,23 @@ function wbRecipients(){
   });
   return { list: [...map.values()], mode, test: mode === 'test', seen, noPhone };
 }
+/* ---- Aufrufe: zeigt live, ob/wie oft/wann ein Empfänger seinen Werbe-Link schon geöffnet hat ----
+   Jeder Empfänger bekommt denselben Werbe-Link, aber mit seiner eigenen Nummer im Parameter "r".
+   werbung.html schreibt beim Öffnen unter opens.<nummer> einen Zähler + Zeitstempel zurück. */
+let wbOpensUnsub = null, wbOpensCache = {}, wbOpensToken = undefined;
+function watchWbOpens(){
+  if (wbOpensToken === wb.token) return;
+  if (wbOpensUnsub) { wbOpensUnsub(); wbOpensUnsub = null; }
+  wbOpensCache = {}; wbOpensToken = wb.token;
+  if (!fbReady || !fbDb || !wb.token) return;
+  wbOpensUnsub = fbDb.collection(STATUS_COLLECTION).doc(wb.token).onSnapshot(doc => {
+    wbOpensCache = (doc.exists && doc.data().opens) || {};
+    wbRenderRecipients();
+  }, err => console.warn('Werbe-Aufrufe konnten nicht geladen werden:', err));
+}
 function wbRenderRecipients(){
   const box = wbEl('wbRecList'); if (!box) return;
+  watchWbOpens();
   const r = wbRecipients(), list = r.list, sent = wb.sent || {};
   const sel = wbEl('wbMode'); if (sel && sel.value !== r.mode) sel.value = r.mode;
   const what = r.mode === 'test' ? ' (Testmodus)' : ' – alle Kunden-Aufträge';
@@ -3662,9 +3677,13 @@ function wbRenderRecipients(){
   wbEl('wbRecInfo').textContent = info;
   wbEl('wbRecWarn').textContent = r.mode !== 'test' && r.noPhone
     ? '⚠️ ' + r.noPhone + (r.noPhone === 1 ? ' Auftrag hat' : ' Aufträge haben') + ' keine gültige Handynummer und fehlen in der Liste. Nummer im Auftrag ergänzen.' : '';
-  box.innerHTML = list.map(x => '<div class="wb-rec' + (sent[x.num] ? ' done' : '') + '"><div><b>' + esc(x.name) + '</b><small><a href="tel:+' + esc(x.num) + '">' + esc(wbFmtNum(x.num)) + '</a>' +
-    (x.modell ? ' · ' + esc(x.modell) : '') + (x.n > 1 ? ' (+' + (x.n - 1) + ' weitere)' : '') + (sent[x.num] ? ' · ✓ gesendet' : '') + '</small></div>' +
-    '<button class="btn btn-ghost btn-sm" type="button" data-wb-send="' + esc(x.num) + '">✉️ ' + (sent[x.num] ? 'Nochmals' : 'SMS') + '</button></div>').join('');
+  box.innerHTML = list.map(x => {
+    const op = wbOpensCache[x.num];
+    const openInfo = op && op.count ? '<br>👀 <b>' + op.count + '×</b> geöffnet' + (op.last ? ' · zuletzt ' + esc(fmtTime(op.last)) : '') : (sent[x.num] ? '<br>👀 noch nicht geöffnet' : '');
+    return '<div class="wb-rec' + (sent[x.num] ? ' done' : '') + '"><div><b>' + esc(x.name) + '</b><small><a href="tel:+' + esc(x.num) + '">' + esc(wbFmtNum(x.num)) + '</a>' +
+    (x.modell ? ' · ' + esc(x.modell) : '') + (x.n > 1 ? ' (+' + (x.n - 1) + ' weitere)' : '') + (sent[x.num] ? ' · ✓ gesendet' : '') + openInfo + '</small></div>' +
+    '<button class="btn btn-ghost btn-sm" type="button" data-wb-send="' + esc(x.num) + '">✉️ ' + (sent[x.num] ? 'Nochmals' : 'SMS') + '</button></div>';
+  }).join('');
   const open = list.filter(x => !sent[x.num]).length, b = wbEl('wbSendAll');
   b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 Alle einzeln senden (' + open + ')' : '✅ Alle gesendet';
   b.disabled = !open; b.style.opacity = open ? '' : '.6';
@@ -3728,7 +3747,7 @@ function wbPreviewFit(){
 function wbPreview(){
   const d = wb.design, first = wbRecipients().list[0], vn = (first && first.vorname) || 'Max';
   const sms = (wb.sms || '').replace(/\{vorname\}/gi, vn).replace(/\s+([,.!?])/g, '$1').trim();
-  const link = wb.token ? new URL('werbung.html?t=' + wb.token, location.href).href : 'werbung.html?t=…';
+  const link = wb.token ? new URL('werbung.html?t=' + wb.token + (first ? '&r=' + first.num : ''), location.href).href : 'werbung.html?t=…';
   wbEl('wbPrevBody').innerHTML = '<div class="wb-prev-in">' +
     '<div class="wb-sms">' + esc(sms || '(kein SMS-Text)') + '<small>' + esc(link) + '</small></div>' +
     '<p class="wb-prev-cap">So kommt die SMS an – darunter die Seite, die der Kunde öffnet.</p>' +
@@ -3847,7 +3866,7 @@ async function wbSend(num){
     try { const url = await wbPublish(); wbSay(wbLink(url) + '<br>Tippe jetzt nochmals auf «SMS senden».'); } catch (e) { wbSay('⚠️ ' + esc(e.message || 'Speichern fehlgeschlagen.')); }
     return;
   }
-  const url = new URL('werbung.html?t=' + wb.token, location.href).href;
+  const url = new URL('werbung.html?t=' + wb.token + '&r=' + t.num, location.href).href;
   const txt = (wb.sms || '').replace(/\{vorname\}/gi, t.vorname || '').replace(/\s+([,.!?])/g, '$1').trim();
   wb.sent[t.num] = Date.now(); wbSave(); wbRenderRecipients();
   try { logActivity('📣', 'eine Werbe-SMS an ' + t.name + ' vorbereitet'); } catch (e) {}

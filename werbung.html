@@ -111,8 +111,24 @@ function show(d){
   };
   fit(); window.addEventListener('resize', fit);
 }
+/* Meldet dem BlueFix-Team, dass genau diese Person (Empfänger-Kennung "r" aus dem Link)
+   die Werbe-Seite geöffnet hat. Läuft im Hintergrund und blockiert die Anzeige nie. */
+function recordOpen(db, token, recipient){
+  if (!recipient || !/^[0-9]{4,20}$/.test(recipient)) return;
+  try {
+    const field = 'opens.' + recipient;
+    db.collection('bluefix_status').doc(token).set({
+      [field]: {
+        count: firebase.firestore.FieldValue.increment(1),
+        last: Date.now()
+      }
+    }, { merge: true }).catch(() => {});
+  } catch (e) {}
+}
 (function start(){
-  const token = new URLSearchParams(location.search).get('t') || '';
+  const params = new URLSearchParams(location.search);
+  const token = params.get('t') || '';
+  const recipient = (params.get('r') || '').replace(/\D/g, '');
   if (!/^[0-9a-f]{32}$/.test(token)) { msg('Link ungültig', 'Bitte öffne den Link aus der Nachricht noch einmal.'); return; }
   try {
     firebase.initializeApp(firebaseConfig);
@@ -124,6 +140,7 @@ function show(d){
       let d; try { d = JSON.parse(raw); } catch (e) { msg('Seite nicht verfügbar', 'Bitte versuche es später noch einmal.'); return; }
       if (!d || !Array.isArray(d.els)) { msg('Seite nicht verfügbar', 'Bitte versuche es später noch einmal.'); return; }
       show(d);
+      recordOpen(db, token, recipient);
     }).catch(() => msg('Seite gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.'));
   } catch (e) { msg('Seite gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.'); }
 })();
