@@ -992,6 +992,7 @@ input,select,textarea{font-family:var(--sans);}
       </div>
       <div class="lohn-sum" id="myHoursSummary" style="margin-top:0;"></div>
     </div>
+    <button class="btn btn-primary" type="button" id="myHoursPdfBtn" style="margin-bottom:14px;">📄 Lohnabrechnung als PDF herunterladen</button>
     <div class="card" style="margin-bottom:24px;">
       <p class="card-title">🔧 Einzelne Einsätze</p>
       <p class="card-sub" style="margin-bottom:8px;">Von Jerome eingetragen.</p>
@@ -1037,7 +1038,7 @@ input,select,textarea{font-family:var(--sans);}
     </div>
 
     <button class="btn btn-primary" type="button" id="lohnPdfBtn" style="margin-bottom:12px;">📄 Lohnabrechnung erstellen (PDF)</button>
-    <button class="btn btn-primary" type="button" id="lohnChatBtn" style="margin-bottom:24px;">💬 Per Chat an Thierry senden (mit PDF)</button>
+    <button class="btn btn-primary" type="button" id="lohnSmsBtn" style="margin-bottom:24px;">💬 Per SMS an Thierry senden</button>
   </div>
 
   <!-- WERBUNG (nur für Jerome sichtbar) -->
@@ -4543,6 +4544,15 @@ function renderMyHours(){
     '<div class="lohn-row"><div class="lohn-left"><div class="d">' + esc(lohnFmtDate(e.date)) + '</div>' + (e.note ? '<div class="n">' + esc(e.note) + '</div>' : '') + '</div><div class="h">' + lohnFmtH(e.hours) + ' h</div></div>').join('');
 }
 
+document.getElementById('myHoursPdfBtn').addEventListener('click', function(){
+  if (currentUser() !== 'thierry') return;
+  const d = new Date();
+  const month = myHoursMonth || (d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+  const rec = lohnGetRec(month);
+  if (lohnCalc(rec).hours <= 0 || !(Number(rec.rate) > 0)) { alert('Für ' + lohnMonthLabel(month) + ' liegt noch keine Lohnabrechnung vor.'); return; }
+  generateLohnPDF(rec);
+});
+
 document.getElementById('myHoursMonth').addEventListener('change', function(){
   if (/^\d{4}-\d{2}$/.test(this.value)) myHoursMonth = this.value;
   renderMyHours();
@@ -4746,21 +4756,13 @@ function lohnSmsText(rec){
   t += '• Bruttolohn: CHF ' + money(c.gross) + '\n';
   if (c.dedPct > 0) t += '• Abzüge (' + lohnFmtH(c.dedPct) + ' %): - CHF ' + money(c.dedAmt) + '\n';
   t += '• Auszahlung: CHF ' + money(c.net) + '\n\n';
-  t += 'Die Auszahlung erfolgt am ' + lohnPayoutDate(rec.month) + '.\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
+  t += 'Die Auszahlung erfolgt am ' + lohnPayoutDate(rec.month) + '.\nDein PDF findest du in der BlueFix-App unter «Meine Stunden».\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
   return t;
 }
-document.getElementById('lohnChatBtn').addEventListener('click', function(){
+document.getElementById('lohnSmsBtn').addEventListener('click', function(){
   const rec = lohnGetRec(lohnMonth);
   if (lohnCalc(rec).hours <= 0) { alert('Bitte zuerst Stunden eintragen (Monatsstunden oder Einzeleinträge).'); return; }
-  const btn = this; const old = btn.textContent;
-  // PDF erzeugen; Chat-Nachrichten sind einzelne Firestore-Dokumente (max. ~1 MB) -> bei Bedarf ohne Logo
-  let dataUrl = generateLohnPDF(rec, { data: true });
-  if (dataUrl && dataUrl.length > 900000) dataUrl = generateLohnPDF(rec, { data: true, noLogo: true });
-  if (!dataUrl || dataUrl.length > 950000) { alert('Das PDF ist für den Chat zu gross. Bitte die Notizen der Einträge kürzen.'); return; }
-  const text = lohnSmsText(rec);
-  sendChatMessage({ id: uid(), from: currentUser(), text: text, pdf: { name: 'Lohnabrechnung_' + rec.month + '.pdf', label: 'Lohnabrechnung ' + lohnMonthLabel(rec.month), data: dataUrl }, ts: Date.now() });
-  btn.textContent = '✓ Im Chat gesendet';
-  setTimeout(() => { btn.textContent = old; switchToTab('chat'); }, 900);
+  window.location.href = 'sms:' + PHONE_NUMBERS.thierry + '?&body=' + encodeURIComponent(lohnSmsText(rec));
 });
 
 /* ===================== INIT ===================== */
