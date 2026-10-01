@@ -4750,13 +4750,13 @@ function lohnPayoutDate(month){
 function lohnSmsText(rec){
   const c = lohnCalc(rec);
   const money = n => Number(n).toFixed(2);
-  let t = 'Hallo Thierry\n\nDeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig:\n\n';
+  let t = 'Hallo Thierry,\n\nDeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig:\n\n';
   t += '• Stunden total: ' + lohnFmtH(c.hours) + ' h\n';
   t += '• Stundenlohn: CHF ' + money(c.rate) + '\n';
   t += '• Bruttolohn: CHF ' + money(c.gross) + '\n';
   if (c.dedPct > 0) t += '• Abzüge (' + lohnFmtH(c.dedPct) + ' %): - CHF ' + money(c.dedAmt) + '\n';
   t += '• Auszahlung: CHF ' + money(c.net) + '\n\n';
-  t += 'Die Auszahlung erfolgt am ' + lohnPayoutDate(rec.month) + '.\nDein PDF findest du in der BlueFix-App unter «Meine Stunden».\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
+  t += 'Die Auszahlung erfolgt am ' + lohnPayoutDate(rec.month) + '.\n\nDein PDF findest du in der BlueFix-App unter «Meine Stunden».\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
   return t;
 }
 document.getElementById('lohnSmsBtn').addEventListener('click', function(){
