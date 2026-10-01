@@ -1013,7 +1013,9 @@ input,select,textarea{font-family:var(--sans);}
       <div id="lohnEntries" style="margin-top:14px;"></div>
     </div>
 
-    <button class="btn btn-primary" type="button" id="lohnPdfBtn" style="margin-bottom:24px;">📄 Lohnabrechnung erstellen (PDF)</button>
+    <button class="btn btn-primary" type="button" id="lohnPdfBtn" style="margin-bottom:12px;">📄 Lohnabrechnung erstellen (PDF)</button>
+    <button class="btn btn-primary" type="button" id="lohnSmsBtn" style="margin-bottom:12px;">💬 Per SMS an Thierry senden</button>
+    <button class="btn btn-ghost" type="button" id="lohnShareBtn" style="margin-bottom:24px;">📎 PDF teilen (WhatsApp, Mail, Nachricht …)</button>
   </div>
 
   <!-- WERBUNG (nur für Jerome sichtbar) -->
@@ -4532,7 +4534,7 @@ document.getElementById('lohnPdfBtn').addEventListener('click', function(){
   generateLohnPDF(rec);
 });
 
-function generateLohnPDF(rec){
+function generateLohnPDF(rec, silent){
   if (!window.jspdf || !window.jspdf.jsPDF) { alert('PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung prüfen.'); return; }
   const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const c = lohnCalc(rec);
@@ -4648,9 +4650,42 @@ function generateLohnPDF(rec){
   }
   footer(pageNo);
 
+  if (silent) return doc.output('blob');
   const pdfUrl = doc.output('bloburl');
   showFilePreview(pdfUrl, 'Lohnabrechnung ' + LOHN_EMPLOYEE.name + ' · ' + periodLabel, 'application/pdf');
 }
+
+// SMS an Thierry mit fertigem Text (Zusammenfassung der Abrechnung)
+function lohnSmsText(rec){
+  const c = lohnCalc(rec);
+  const money = n => Number(n).toFixed(2);
+  let t = 'Hallo Thierry\n\nDeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig:\n\n';
+  t += '• Stunden total: ' + lohnFmtH(c.hours) + ' h\n';
+  t += '• Stundenlohn: CHF ' + money(c.rate) + '\n';
+  t += '• Bruttolohn: CHF ' + money(c.gross) + '\n';
+  if (c.dedPct > 0) t += '• Abzüge (' + lohnFmtH(c.dedPct) + ' %): - CHF ' + money(c.dedAmt) + '\n';
+  t += '• Auszahlung: CHF ' + money(c.net) + '\n\n';
+  t += 'Die detaillierte Abrechnung als PDF bekommst du zusätzlich.\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
+  return t;
+}
+document.getElementById('lohnSmsBtn').addEventListener('click', function(){
+  const rec = lohnGetRec(lohnMonth);
+  if (lohnCalc(rec).hours <= 0) { alert('Bitte zuerst Stunden eintragen (Monatsstunden oder Einzeleinträge).'); return; }
+  window.location.href = 'sms:' + PHONE_NUMBERS.thierry + '?&body=' + encodeURIComponent(lohnSmsText(rec));
+});
+document.getElementById('lohnShareBtn').addEventListener('click', async function(){
+  const rec = lohnGetRec(lohnMonth);
+  if (lohnCalc(rec).hours <= 0) { alert('Bitte zuerst Stunden eintragen (Monatsstunden oder Einzeleinträge).'); return; }
+  const blob = generateLohnPDF(rec, true);
+  if (!blob) return;
+  const fname = 'Lohnabrechnung_' + rec.month + '.pdf';
+  const file = new File([blob], fname, { type: 'application/pdf' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], text: lohnSmsText(rec) }); } catch (e) { /* abgebrochen */ }
+  } else {
+    generateLohnPDF(rec);
+  }
+});
 
 /* ===================== INIT ===================== */
 // Beim (Wieder-)Start der App immer ausgeloggt starten: es muss jedes Mal
