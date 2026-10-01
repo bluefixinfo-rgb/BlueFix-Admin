@@ -758,7 +758,16 @@ input,select,textarea{font-family:var(--sans);}
 .wb-series-in h3{margin:8px 0 2px; font-size:22px;}
 .wb-series-in .wb-sn{color:var(--blue-light); font-size:15px; margin-bottom:18px;}
 /* ---------------- LOHN ---------------- */
-.lohn-two{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.lohn-two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px;}
+/* Fix: Karten werden nicht mehr zusammengedrückt/abgeschnitten, Felder bleiben antippbar */
+#tab-lohn > *{flex-shrink:0;}
+#tab-lohn .card{overflow:visible; transform:none;}
+#tab-lohn .card:hover{transform:none;}
+#tab-lohn .field{min-width:0;}
+#tab-lohn .field input{display:block; width:100%; max-width:100%; min-width:0; box-sizing:border-box; -webkit-appearance:none; appearance:none; position:relative; z-index:1; font-size:16px; min-height:46px;}
+#tab-lohn input[type=month], #tab-lohn input[type=date]{text-align:center; text-align-last:center; overflow:hidden;}
+#tab-lohn input[type=month]::-webkit-date-and-time-value, #tab-lohn input[type=date]::-webkit-date-and-time-value{text-align:center; margin:0 auto; min-width:0;}
+#tab-lohn .lohn-sum:empty{display:none;}
 .lohn-sum{display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:14px;}
 .lohn-box{background:var(--glass-bg-2); border:1px solid var(--glass-border-soft); border-radius:12px; padding:10px 12px;}
 .lohn-box .k{color:var(--muted); font-size:11.5px; text-transform:uppercase; letter-spacing:0.4px; margin-bottom:2px;}
