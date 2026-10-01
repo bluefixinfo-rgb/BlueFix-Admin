@@ -4846,7 +4846,7 @@ document.getElementById('lohnChatBtn').addEventListener('click', function(){
   if (!data) return;
   if (data.length > LOHN_CHAT_HARD_LIMIT) { alert('Das PDF ist für eine Chat-Nachricht zu gross. Bitte kürze die Notizen der Einträge und versuche es nochmal.'); return; }
   const label = 'Lohnabrechnung ' + lohnMonthLabel(rec.month);
-  const text = 'Hallo Thierry,\n\ndeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig.\n\n• Stunden total: ' + lohnFmtH(c.hours) + ' h\n• Auszahlung am ' + lohnPayoutDate(rec.month) + '\n\nDas PDF findest du unten, sobald es freigeschaltet ist.\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
+  const text = 'Hallo Thierry,\n\ndeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig.\n\n• Auszahlung am ' + lohnPayoutDate(rec.month) + '\n\nDas PDF findest du oben, sobald es freigeschaltet ist.\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
   sendChatMessage({ id: uid(), from: currentUser(), text: text, pdf: { data: data, name: label + '.pdf', label: label, month: rec.month }, ts: Date.now() });
   const btn = this, old = btn.textContent;
   btn.textContent = '✓ Im Chat gesendet';
