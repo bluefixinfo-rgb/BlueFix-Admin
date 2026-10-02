@@ -994,8 +994,6 @@ input,select,textarea{font-family:var(--sans);}
       </div>
       <div class="lohn-sum" id="myHoursSummary" style="margin-top:0;"></div>
     </div>
-    <button class="btn btn-primary" type="button" id="myHoursPdfBtn" style="margin-bottom:6px;">📄 Lohnabrechnung als PDF herunterladen</button>
-    <div id="myHoursPdfInfo" style="color:var(--muted);font-size:12px;margin-bottom:14px;"></div>
     <div class="card" style="margin-bottom:24px;">
       <p class="card-title">🔧 Einzelne Einsätze</p>
       <p class="card-sub" style="margin-bottom:8px;">Von Jerome eingetragen.</p>
@@ -1043,7 +1041,7 @@ input,select,textarea{font-family:var(--sans);}
     <button class="btn btn-ghost" type="button" id="lohnUnlockBtn" style="margin-bottom:6px;width:100%;">🔓 Für Thierry freischalten</button>
     <div id="lohnUnlockInfo" style="color:var(--muted);font-size:12px;margin-bottom:14px;"></div>
     <button class="btn btn-primary" type="button" id="lohnPdfBtn" style="margin-bottom:12px;">📄 Lohnabrechnung erstellen (PDF)</button>
-    <button class="btn btn-primary" type="button" id="lohnSmsBtn" style="margin-bottom:24px;">💬 Per SMS an Thierry senden</button>
+    <button class="btn btn-primary" type="button" id="lohnChatBtn" style="margin-bottom:24px;">💬 Per Chat an Thierry senden (mit PDF)</button>
   </div>
 
   <!-- WERBUNG (nur für Jerome sichtbar) -->
@@ -1674,7 +1672,7 @@ function startFirebaseSync(){
       }
       if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
       if (key === WB_TPL_KEY) { try { wbRenderTemplates(); } catch (e) {} }
-      if (key === LOHN_KEY) { try { renderLohn(); } catch (e) {} try { renderMyHours(); } catch (e) {} }
+      if (key === LOHN_KEY) { try { renderLohn(); } catch (e) {} try { renderMyHours(); } catch (e) {} try { refreshChatPdfButtons(); } catch (e) {} }
 
       if (isNewFromOther) {
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
@@ -2079,7 +2077,7 @@ function renderChat(){
     let inner = '<div class="bubble">';
     if (m.image) inner += `<img src="${m.image}" alt="Foto">`;
     if (m.audio) inner += `<audio controls src="${m.audio}"></audio>`;
-    if (m.pdf && m.pdf.data) inner += `<button type="button" class="msg-pdf" data-id="${m.id}">📄 ${esc(m.pdf.label || m.pdf.name || 'PDF öffnen')}</button>`;
+    if (m.pdf && m.pdf.data) inner += `<button type="button" class="msg-pdf" data-id="${m.id}"${m.pdf.month ? ` data-month="${esc(m.pdf.month)}" data-label="${esc(m.pdf.label || '')}"` : ''}>📄 ${esc(m.pdf.label || m.pdf.name || 'PDF öffnen')}</button>`;
     if (m.text) inner += linkify(m.text);
     inner += '</div>';
     inner += `<div class="meta"><span>${USERS[m.from] ? USERS[m.from].displayName : m.from} · ${fmtTime(m.ts)}</span>`;
@@ -2091,6 +2089,7 @@ function renderChat(){
     div.innerHTML = inner;
     chatMessages.appendChild(div);
   });
+  try { refreshChatPdfButtons(); } catch (e) {}
   scrollChatToBottom();
 }
 
@@ -2148,6 +2147,7 @@ chatMessages.addEventListener('click', (e) => {
   if (pdfBtn) {
     const m = loadLocalMessages().find(x => x.id === pdfBtn.dataset.id);
     if (m && m.pdf && m.pdf.data) {
+      if (m.pdf.month && currentUser() !== 'jerome' && !lohnChatGate(m.pdf.month)) return;
       try {
         const b64 = m.pdf.data.split(',')[1];
         const bin = atob(b64); const bytes = new Uint8Array(bin.length);
@@ -4514,6 +4514,7 @@ function renderLohn(force){
   if (!monthIn) return;
   const rec = lohnGetRec(lohnMonth);
   const c = lohnCalc(rec);
+  try { refreshChatPdfButtons(); } catch (e) {}
   if (document.activeElement !== monthIn) monthIn.value = lohnMonth;
   const unlockBtn = document.getElementById('lohnUnlockBtn'), unlockInfo = document.getElementById('lohnUnlockInfo');
   if (unlockBtn) {
@@ -4521,7 +4522,7 @@ function renderLohn(force){
     unlockBtn.textContent = open ? '🔒 Freigabe zurückziehen' : (expired ? '🔓 Erneut freischalten (2 Tage)' : '🔓 Für Thierry freischalten (2 Tage)');
     let info = open ? '✓ Freigeschaltet – noch ' + lohnFmtRemaining(lohnRemainingMs(rec)) + ' (bis ' + lohnFmtTs(rec.unlockedAt + LOHN_UNLOCK_HOURS * 3600000) + ')'
       : expired ? '⏱ Frist abgelaufen – wieder gesperrt.'
-      : 'Gesperrt – bei Thierry steht: «' + lohnUnlockLabel(lohnMonth) + '».';
+      : 'Gesperrt – im Chat steht bei Thierry: «' + lohnUnlockLabel(lohnMonth) + '».';
     info += '<br>' + (rec.clickedAt ? '👆 Thierry hat angeklickt: ' + lohnFmtTs(rec.clickedAt) + (rec.clickedLocked ? ' (war noch gesperrt)' : '') : '👆 Noch nicht angeklickt');
     info += '<br>' + (rec.downloadedAt ? '⬇ Heruntergeladen: ' + lohnFmtTs(rec.downloadedAt) : '⬇ Noch nicht heruntergeladen');
     unlockInfo.innerHTML = info;
@@ -4572,15 +4573,6 @@ function renderMyHours(){
   if (mIn && document.activeElement !== mIn) mIn.value = month;
   const rec = lohnGetRec(month);
   const c = lohnCalc(rec);
-  const pdfBtn = document.getElementById('myHoursPdfBtn'), pdfInfo = document.getElementById('myHoursPdfInfo');
-  if (pdfBtn) {
-    const open = lohnIsOpen(rec), expired = rec.unlocked && !open;
-    pdfBtn.disabled = false;
-    pdfBtn.classList.toggle('is-locked', !open);
-    pdfBtn.textContent = open ? '📄 Lohnabrechnung als PDF herunterladen' : (expired ? '🔒 Frist abgelaufen' : '🔒 ' + lohnUnlockLabel(month));
-    if (pdfInfo) pdfInfo.textContent = open ? '⏱ Noch ' + lohnFmtRemaining(lohnRemainingMs(rec)) + ' zum Herunterladen, danach wird es wieder gesperrt.'
-      : expired ? 'Die 2 Tage sind vorbei. Bitte Jerome, es erneut freizuschalten.' : '';
-  }
   document.getElementById('myHoursSub').textContent = lohnMonthLabel(month) + ' · Auszahlung am ' + lohnPayoutDate(month);
   sum.innerHTML =
     '<div class="lohn-box total"><div class="k">Total Stunden</div><div class="v">' + lohnFmtH(c.hours) + ' h</div></div>' +
@@ -4593,30 +4585,50 @@ function renderMyHours(){
     '<div class="lohn-row"><div class="lohn-left"><div class="d">' + esc(lohnFmtDate(e.date)) + '</div>' + (e.note ? '<div class="n">' + esc(e.note) + '</div>' : '') + '</div><div class="h">' + lohnFmtH(e.hours) + ' h</div></div>').join('');
 }
 
-document.getElementById('myHoursPdfBtn').addEventListener('click', function(){
-  if (currentUser() !== 'thierry') return;
-  const d = new Date();
-  const month = myHoursMonth || (d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'));
+// Gemeinsame Logik: Thierry klickt im Chat auf die Lohnabrechnung (Tracking, Sperre, 2-Tage-Frist)
+function lohnChatGate(month){
   const rec = lohnGetRec(month);
   const open = lohnIsOpen(rec);
+  const mLabel = lohnMonthLabel(month);
   rec.clickedAt = Date.now(); rec.clickedLocked = !open;
   lohnPutRec(rec);
-  const mLabel = lohnMonthLabel(month);
   try { logActivity('👆', 'die Lohnabrechnung ' + mLabel + (open ? ' angeklickt' : ' angeklickt (noch gesperrt)')); } catch (e) {}
   if (!open) {
-    renderMyHours();
+    refreshChatPdfButtons();
     alert(rec.unlocked ? 'Die Frist ist abgelaufen. Bitte Jerome, die Lohnabrechnung erneut freizuschalten.' : lohnUnlockLabel(month) + '.');
     try { sendPushToOther('👆 Lohnabrechnung angeklickt', 'Thierry hat die Lohnabrechnung ' + mLabel + ' angeklickt (noch gesperrt).'); } catch (e) {}
-    return;
+    return false;
   }
-  if (lohnCalc(rec).hours <= 0 || !(Number(rec.rate) > 0)) { alert('Für ' + mLabel + ' liegt noch keine Lohnabrechnung vor.'); return; }
   rec.downloadedAt = Date.now();
   lohnPutRec(rec);
   try { logActivity('⬇', 'die Lohnabrechnung ' + mLabel + ' heruntergeladen'); } catch (e) {}
   try { sendPushToOther('⬇ Lohnabrechnung heruntergeladen', 'Thierry hat die Lohnabrechnung ' + mLabel + ' heruntergeladen.'); } catch (e) {}
-  generateLohnPDF(rec);
-  renderMyHours();
-});
+  refreshChatPdfButtons();
+  return true;
+}
+
+// Beschriftung/Status der Lohn-PDFs im Chat (abhängig von Freischaltung, Frist, Klick, Download)
+function refreshChatPdfButtons(){
+  const me = currentUser();
+  document.querySelectorAll('.msg-pdf[data-month]').forEach(btn => {
+    const month = btn.dataset.month, label = btn.dataset.label || 'Lohnabrechnung';
+    const rec = lohnGetRec(month);
+    const open = lohnIsOpen(rec), expired = rec.unlocked && !open;
+    let info = btn.nextElementSibling && btn.nextElementSibling.classList.contains('msg-pdf-info') ? btn.nextElementSibling : null;
+    if (!info) { info = document.createElement('div'); info.className = 'msg-pdf-info'; info.style.cssText = 'font-size:12px;opacity:.85;margin:0 0 8px;'; btn.after(info); }
+    if (me === 'jerome') {
+      btn.textContent = '📄 ' + label;
+      info.innerHTML = (open ? '✓ Freigeschaltet – noch ' + lohnFmtRemaining(lohnRemainingMs(rec)) : expired ? '⏱ Frist abgelaufen – gesperrt' : '🔒 Noch nicht freigeschaltet')
+        + '<br>' + (rec.clickedAt ? '👆 Thierry hat angeklickt: ' + lohnFmtTs(rec.clickedAt) : '👆 Noch nicht angeklickt')
+        + '<br>' + (rec.downloadedAt ? '⬇ Heruntergeladen: ' + lohnFmtTs(rec.downloadedAt) : '⬇ Noch nicht heruntergeladen');
+    } else {
+      btn.textContent = open ? '📄 ' + label : (expired ? '🔒 Frist abgelaufen' : '🔒 ' + lohnUnlockLabel(month));
+      btn.classList.toggle('is-locked', !open);
+      info.textContent = open ? '⏱ Noch ' + lohnFmtRemaining(lohnRemainingMs(rec)) + ' zum Herunterladen, danach wird es wieder gesperrt.'
+        : expired ? 'Die 2 Tage sind vorbei. Bitte Jerome, es erneut freizuschalten.' : '';
+    }
+  });
+}
 
 document.getElementById('myHoursMonth').addEventListener('change', function(){
   if (/^\d{4}-\d{2}$/.test(this.value)) myHoursMonth = this.value;
@@ -4682,7 +4694,7 @@ document.getElementById('lohnUnlockBtn').addEventListener('click', function(){
 });
 
 // Restzeit/Ablauf regelmässig aktualisieren
-setInterval(function(){ try { renderMyHours(); } catch (e) {} try { if (document.getElementById('tab-lohn').classList.contains('active')) renderLohn(); } catch (e) {} }, 60000);
+setInterval(function(){ try { refreshChatPdfButtons(); } catch (e) {} try { renderMyHours(); } catch (e) {} try { if (document.getElementById('tab-lohn').classList.contains('active')) renderLohn(); } catch (e) {} }, 60000);
 
 document.getElementById('lohnPdfBtn').addEventListener('click', function(){
   const rec = lohnGetRec(lohnMonth);
@@ -4822,23 +4834,23 @@ function lohnPayoutDate(month){
   return '15.' + String(d.getMonth() + 1).padStart(2, '0') + '.' + d.getFullYear();
 }
 
-// SMS an Thierry mit fertigem Text (Zusammenfassung der Abrechnung)
-function lohnSmsText(rec){
-  const c = lohnCalc(rec);
-  const money = n => Number(n).toFixed(2);
-  let t = 'Hallo Thierry,\n\nDeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig:\n\n';
-  t += '• Stunden total: ' + lohnFmtH(c.hours) + ' h\n';
-  t += '• Stundenlohn: CHF ' + money(c.rate) + '\n';
-  t += '• Bruttolohn: CHF ' + money(c.gross) + '\n';
-  if (c.dedPct > 0) t += '• Abzüge (' + lohnFmtH(c.dedPct) + ' %): - CHF ' + money(c.dedAmt) + '\n';
-  t += '• Auszahlung: CHF ' + money(c.net) + '\n\n';
-  t += 'Die Auszahlung erfolgt am ' + lohnPayoutDate(rec.month) + '.\n\nDein PDF findest du in der BlueFix-App unter «Meine Stunden».\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
-  return t;
-}
-document.getElementById('lohnSmsBtn').addEventListener('click', function(){
+// Lohnabrechnung per Chat senden: Zusammenfassung (ohne Geldbeträge) + PDF als Button.
+// Zu gross für eine Chat-Nachricht? Dann automatisch ohne Logo; reicht das nicht, kommt eine Meldung.
+const LOHN_CHAT_SOFT_LIMIT = 700000, LOHN_CHAT_HARD_LIMIT = 900000; // Zeichen (Firestore: max. ca. 1 MB pro Nachricht)
+document.getElementById('lohnChatBtn').addEventListener('click', function(){
   const rec = lohnGetRec(lohnMonth);
-  if (lohnCalc(rec).hours <= 0) { alert('Bitte zuerst Stunden eintragen (Monatsstunden oder Einzeleinträge).'); return; }
-  window.location.href = 'sms:' + PHONE_NUMBERS.thierry + '?&body=' + encodeURIComponent(lohnSmsText(rec));
+  const c = lohnCalc(rec);
+  if (c.hours <= 0) { alert('Bitte zuerst Stunden eintragen (Monatsstunden oder Einzeleinträge).'); return; }
+  let data = generateLohnPDF(rec, { data: true });
+  if (data && data.length > LOHN_CHAT_SOFT_LIMIT) data = generateLohnPDF(rec, { data: true, noLogo: true });
+  if (!data) return;
+  if (data.length > LOHN_CHAT_HARD_LIMIT) { alert('Das PDF ist für eine Chat-Nachricht zu gross. Bitte kürze die Notizen der Einträge und versuche es nochmal.'); return; }
+  const label = 'Lohnabrechnung ' + lohnMonthLabel(rec.month);
+  const text = 'Hallo Thierry,\n\ndeine Lohnabrechnung für ' + lohnMonthLabel(rec.month) + ' ist fertig.\n\n• Auszahlung am ' + lohnPayoutDate(rec.month) + '\n\nDas PDF findest du oben, sobald es freigeschaltet ist.\n\nBesten Dank für deinen Einsatz!\nGruss Jerome, BlueFix';
+  sendChatMessage({ id: uid(), from: currentUser(), text: text, pdf: { data: data, name: label + '.pdf', label: label, month: rec.month }, ts: Date.now() });
+  const btn = this, old = btn.textContent;
+  btn.textContent = '✓ Im Chat gesendet';
+  setTimeout(() => { btn.textContent = old; }, 1800);
 });
 
 /* ===================== INIT ===================== */
