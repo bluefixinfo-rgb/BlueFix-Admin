@@ -1402,12 +1402,22 @@ input,select,textarea{font-family:var(--sans);}
       <input type="text" id="invNachname" placeholder="Muster">
     </div>
     <div class="field">
-      <label>Betrag (CHF)</label>
-      <input type="number" id="invBetrag" min="0" step="0.05" placeholder="149.00">
+      <label>Gerät (optional)</label>
+      <input type="text" id="invGeraet" placeholder="z.B. iPhone 13">
     </div>
     <div class="field">
-      <label>Beschreibung (optional)</label>
-      <input type="text" id="invBeschreibung" placeholder="z.B. Display iPhone 13">
+      <label>IMEI / Seriennummer (optional, für die Versicherung)</label>
+      <input type="text" id="invImei" placeholder="z.B. 35 123456 789012 3">
+    </div>
+    <div class="field">
+      <label>Adresse Kunde (optional)</label>
+      <input type="text" id="invAdresse" placeholder="Strasse Nr, PLZ Ort">
+    </div>
+    <div class="field">
+      <label>Positionen (was hat was gekostet)</label>
+      <div id="invItems"></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="invAddItem" style="width:100%; margin-top:2px;">+ Position hinzufügen</button>
+      <div id="invTotalLine" style="text-align:right; margin-top:10px; font-weight:600; color:var(--white);">Total: CHF 0.00</div>
     </div>
     <div class="field">
       <label>Zahlungsart</label>
@@ -3197,8 +3207,12 @@ let selectedPay = 'twint';
 function openInvoiceModal(){
   document.getElementById('invVorname').value = '';
   document.getElementById('invNachname').value = '';
-  document.getElementById('invBetrag').value = '';
-  document.getElementById('invBeschreibung').value = '';
+  document.getElementById('invGeraet').value = '';
+  document.getElementById('invImei').value = '';
+  document.getElementById('invAdresse').value = '';
+  document.getElementById('invItems').innerHTML = '';
+  invAddItemRow('', '');
+  invUpdateTotal();
   selectedPay = 'twint';
   document.querySelectorAll('.pay-opt').forEach(p => p.classList.toggle('active', p.dataset.pay === 'twint'));
   document.getElementById('invoiceModal').classList.add('show');
@@ -3210,23 +3224,72 @@ document.querySelectorAll('.pay-opt').forEach(opt => opt.addEventListener('click
 }));
 document.getElementById('invCancel').addEventListener('click', () => document.getElementById('invoiceModal').classList.remove('show'));
 
+/* ---------- Positionen (Rechnung mit mehreren Posten) ---------- */
+function invRound2(n){ return Math.round((Number(n) || 0) * 100) / 100; }
+function invAddItemRow(desc, amt){
+  const wrap = document.getElementById('invItems');
+  const row = document.createElement('div');
+  row.className = 'inv-item';
+  row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-bottom:8px;';
+  row.innerHTML = '<input type="text" class="inv-item-desc" placeholder="z.B. Display-Austausch" style="flex:1; min-width:0;">'
+    + '<input type="number" class="inv-item-amt" min="0" step="0.05" inputmode="decimal" placeholder="CHF" style="width:92px; flex:none;">'
+    + '<button type="button" class="icon-btn-sm inv-item-del" title="Entfernen" style="flex:none;">✕</button>';
+  row.querySelector('.inv-item-desc').value = desc || '';
+  row.querySelector('.inv-item-amt').value = amt === '' || amt == null ? '' : amt;
+  row.querySelector('.inv-item-amt').addEventListener('input', invUpdateTotal);
+  row.querySelector('.inv-item-del').addEventListener('click', () => {
+    if (wrap.children.length <= 1) { row.querySelector('.inv-item-desc').value = ''; row.querySelector('.inv-item-amt').value = ''; }
+    else row.remove();
+    invUpdateTotal();
+  });
+  wrap.appendChild(row);
+}
+function invReadItems(){
+  const items = [];
+  document.querySelectorAll('#invItems .inv-item').forEach(row => {
+    const text = row.querySelector('.inv-item-desc').value.trim();
+    const amt = parseFloat(row.querySelector('.inv-item-amt').value);
+    if (!isFinite(amt) || amt === 0) return;
+    items.push({ text: text || 'Position', betrag: invRound2(amt) });
+  });
+  return items;
+}
+function invUpdateTotal(){
+  const total = invReadItems().reduce((s, p) => s + p.betrag, 0);
+  document.getElementById('invTotalLine').textContent = 'Total: CHF ' + invRound2(total).toFixed(2);
+}
+document.getElementById('invAddItem').addEventListener('click', () => {
+  invAddItemRow('', '');
+  const last = document.querySelector('#invItems .inv-item:last-child .inv-item-desc');
+  if (last) last.focus();
+});
+
 document.getElementById('invSave').addEventListener('click', () => {
   const vorname = document.getElementById('invVorname').value.trim();
   const nachname = document.getElementById('invNachname').value.trim();
-  const betrag = parseFloat(document.getElementById('invBetrag').value);
-  if (!vorname || !nachname || !betrag || betrag <= 0) { alert('Bitte Vorname, Nachname und einen gültigen Betrag eingeben.'); return; }
+  const items = invReadItems();
+  const betrag = invRound2(items.reduce((s, p) => s + p.betrag, 0));
+  if (!vorname || !nachname) { alert('Bitte Vorname und Nachname eingeben.'); return; }
+  if (!items.length || betrag <= 0) { alert('Bitte mindestens eine Position mit Betrag eingeben.'); return; }
   const kunde = vorname + ' ' + nachname;
+  const geraet = document.getElementById('invGeraet').value.trim();
   const invoices = load(INVOICES_KEY, []);
-  invoices.unshift({
+  const newInv = {
     id: uid(),
     kunde, betrag,
-    beschreibung: document.getElementById('invBeschreibung').value.trim(),
+    beschreibung: (geraet ? geraet + ': ' : '') + items.map(p => p.text).join(', '),
+    positionen: items,
+    geraet,
+    imei: document.getElementById('invImei').value.trim(),
+    adresse: document.getElementById('invAdresse').value.trim(),
     zahlungsart: selectedPay,
     bezahlt: false,
     createdBy: currentUser(),
     createdAt: Date.now()
-  });
+  };
+  invoices.unshift(newInv);
   save(INVOICES_KEY, invoices);
+  invoiceEnsureNr(newInv.id);
   logActivity('💳', 'eine Rechnung erstellt: ' + kunde + ' · CHF ' + betrag.toFixed(2));
   {
     const me = currentUser();
@@ -3236,6 +3299,163 @@ document.getElementById('invSave').addEventListener('click', () => {
   document.getElementById('invoiceModal').classList.remove('show');
   renderInvoices();
 });
+
+/* ---------- Rechnungs-PDF (für Kunde / Versicherung) ---------- */
+function invoiceItems(inv){
+  if (Array.isArray(inv.positionen) && inv.positionen.length) return inv.positionen;
+  return [{ text: inv.beschreibung || 'Reparatur', betrag: Number(inv.betrag) || 0 }];
+}
+// Fortlaufende Rechnungsnummer pro Jahr (BF-2026-001). Wird einmal vergeben und gespeichert.
+function invoiceEnsureNr(invId){
+  const arr = load(INVOICES_KEY, []);
+  const inv = arr.find(i => i.id === invId);
+  if (!inv) return '';
+  if (inv.nr) return inv.nr;
+  const year = new Date(inv.createdAt || Date.now()).getFullYear();
+  let max = 0;
+  arr.forEach(i => { const m = /^BF-(\d{4})-(\d+)$/.exec(i.nr || ''); if (m && Number(m[1]) === year) max = Math.max(max, Number(m[2])); });
+  inv.nr = 'BF-' + year + '-' + String(max + 1).padStart(3, '0');
+  save(INVOICES_KEY, arr);
+  return inv.nr;
+}
+function buildInvoicePdf(invIn){
+  if (!window.jspdf || !window.jspdf.jsPDF) { alert('PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung prüfen.'); return null; }
+  const nr = invoiceEnsureNr(invIn.id);
+  const inv = load(INVOICES_KEY, []).find(i => i.id === invIn.id) || invIn;
+  const items = invoiceItems(inv);
+  const total = invRound2(items.reduce((s, p) => s + (Number(p.betrag) || 0), 0));
+  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+  const navy = [6, 16, 31], blue = [30, 111, 239], text = [18, 27, 43], muted = [92, 105, 125], soft = [244, 248, 255], line = [218, 226, 238];
+  const pageW = 210, margin = 18, right = pageW - margin;
+  const money = n => Number(n).toFixed(2);
+  const dFmt = ts => new Date(ts).toLocaleDateString('de-CH');
+  const logoData = document.querySelector('.brand-logo-img')?.src;
+
+  // Kopfbereich im BlueFix-Design
+  doc.setFillColor(...navy); doc.rect(0, 0, pageW, 42, 'F');
+  doc.setFillColor(...blue); doc.rect(0, 40, pageW, 2, 'F');
+  let logoOk = false;
+  if (logoData) { try { doc.addImage(logoData, 'PNG', 18, 6, 64, 20); logoOk = true; } catch (e) {} }
+  if (!logoOk) { doc.setTextColor(255, 255, 255); doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text('BlueFix', 18, 19); }
+  doc.setTextColor(220, 230, 245); doc.setFontSize(8.5); doc.setFont(undefined, 'normal'); doc.text('HANDY REPARATUR', right, 14, { align: 'right' });
+  doc.setTextColor(255, 255, 255); doc.setFontSize(15); doc.setFont(undefined, 'bold'); doc.text('RECHNUNG', right, 24, { align: 'right' });
+  doc.setTextColor(160, 177, 202); doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.text('Nr. ' + nr, right, 31, { align: 'right' });
+
+  // Absender / Empfänger
+  let y = 54;
+  const addrLines = String(inv.adresse || '').split(',').map(s => s.trim()).filter(Boolean).slice(0, 3);
+  doc.setFillColor(...soft); doc.setDrawColor(...line); doc.roundedRect(margin, y, pageW - margin * 2, 46, 5, 5, 'FD');
+  const colX = [margin + 8, 112];
+  const blocks = [
+    ['RECHNUNGSSTELLER', [BANK_INFO.name, 'BlueFix', BANK_INFO.strasse + ' ' + BANK_INFO.hausnr, BANK_INFO.plz + ' ' + BANK_INFO.ort, 'Tel. ' + BANK_INFO.twintNumber]],
+    ['RECHNUNG AN', [inv.kunde || ''].concat(addrLines)]
+  ];
+  blocks.forEach((blk, i) => {
+    doc.setTextColor(...blue); doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.text(blk[0], colX[i], y + 10);
+    blk[1].forEach((ln, j) => {
+      doc.setTextColor(...(j === 0 ? text : muted)); doc.setFontSize(j === 0 ? 10.5 : 9.5); doc.setFont(undefined, j === 0 ? 'bold' : 'normal');
+      doc.text(String(ln), colX[i], y + 17 + j * 6);
+    });
+  });
+
+  // Eckdaten
+  y = 110;
+  const first = s => doc.splitTextToSize(String(s || '—'), 56)[0];
+  doc.setTextColor(...muted); doc.setFontSize(8); doc.setFont(undefined, 'bold');
+  doc.text('RECHNUNGSDATUM', margin, y); doc.text('GERÄT', 80, y); doc.text('IMEI / SERIENNUMMER', 140, y);
+  doc.setTextColor(...text); doc.setFontSize(10); doc.setFont(undefined, 'bold');
+  doc.text(dFmt(inv.createdAt || Date.now()), margin, y + 6); doc.text(first(inv.geraet), 80, y + 6); doc.text(first(inv.imei), 140, y + 6);
+
+  // Fusszeile
+  let pageNo = 1;
+  const footer = n => {
+    doc.setDrawColor(...line); doc.setLineWidth(.3); doc.line(margin, 282, right, 282);
+    doc.setTextColor(...muted); doc.setFontSize(7.5); doc.setFont(undefined, 'normal');
+    doc.text('BlueFix · Rechnung ' + nr + ' · ' + (inv.kunde || ''), margin, 288);
+    doc.text('Seite ' + n, right, 288, { align: 'right' });
+  };
+
+  // Positionen
+  y = 128;
+  const tableHead = () => {
+    doc.setFillColor(...blue); doc.roundedRect(margin, y, pageW - margin * 2, 9, 2, 2, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(8.5); doc.setFont(undefined, 'bold');
+    doc.text('POSITION', margin + 4, y + 6);
+    doc.text('BETRAG (CHF)', right - 4, y + 6, { align: 'right' });
+    y += 9;
+  };
+  tableHead();
+  items.forEach(it => {
+    const lines = doc.splitTextToSize(String(it.text || '—'), 128);
+    const need = lines.length * 4.8 + 6;
+    if (y + need > 262) { footer(pageNo); doc.addPage(); pageNo++; y = 24; tableHead(); }
+    y += 7;
+    doc.setTextColor(...text); doc.setFontSize(9.5); doc.setFont(undefined, 'normal');
+    lines.forEach((ln, i) => doc.text(ln, margin + 4, y + i * 4.8));
+    doc.text(money(it.betrag), right - 4, y, { align: 'right' });
+    y += (lines.length - 1) * 4.8;
+    doc.setDrawColor(...line); doc.setLineWidth(.2); doc.line(margin, y + 3, right, y + 3);
+  });
+
+  // Total
+  if (y > 205) { footer(pageNo); doc.addPage(); pageNo++; y = 24; }
+  y += 10;
+  doc.setFillColor(...navy); doc.roundedRect(margin, y, pageW - margin * 2, 14, 3, 3, 'F');
+  doc.setFillColor(...blue); doc.rect(margin, y + 14 - 1.6, pageW - margin * 2, 1.6, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFontSize(11); doc.setFont(undefined, 'bold');
+  doc.text('TOTAL', margin + 6, y + 8.5);
+  doc.setFontSize(13); doc.text('CHF ' + money(total), right - 6, y + 8.8, { align: 'right' });
+  y += 24;
+
+  // Zahlung
+  const pay = [];
+  let payTitle = 'ZAHLUNGSINFORMATIONEN';
+  if (inv.bezahlt) {
+    payTitle = 'ZAHLUNGSSTATUS';
+    pay.push('Bezahlt' + (inv.paidAt ? ' am ' + dFmt(inv.paidAt) : '') + ' · ' + (PAY_LABELS[inv.zahlungsart] || ''));
+  } else if (inv.zahlungsart === 'twint') {
+    pay.push('Zahlbar innert ' + INVOICE_OVERDUE_DAYS + ' Tagen per Twint an ' + BANK_INFO.twintNumber);
+  } else if (inv.zahlungsart === 'bank') {
+    pay.push('Zahlbar innert ' + INVOICE_OVERDUE_DAYS + ' Tagen per Banküberweisung');
+    pay.push('IBAN: ' + BANK_INFO.iban);
+    pay.push('Empfänger: ' + BANK_INFO.name + ', ' + BANK_INFO.strasse + ' ' + BANK_INFO.hausnr + ', ' + BANK_INFO.plz + ' ' + BANK_INFO.ort);
+    pay.push('Bank: ' + BANK_INFO.bank + ' (BIC ' + BANK_INFO.bic + ')');
+  } else {
+    pay.push('Zahlbar in bar');
+  }
+  const boxH = 14 + pay.length * 6;
+  if (y + boxH + 12 > 276) { footer(pageNo); doc.addPage(); pageNo++; y = 24; }
+  doc.setFillColor(...soft); doc.setDrawColor(...line); doc.roundedRect(margin, y, pageW - margin * 2, boxH, 4, 4, 'FD');
+  doc.setTextColor(...blue); doc.setFontSize(8); doc.setFont(undefined, 'bold'); doc.text(payTitle, margin + 8, y + 9);
+  pay.forEach((ln, i) => {
+    doc.setTextColor(...text); doc.setFontSize(9.5); doc.setFont(undefined, i === 0 ? 'bold' : 'normal');
+    doc.text(ln, margin + 8, y + 16 + i * 6);
+  });
+  y += boxH + 8;
+  doc.setTextColor(...muted); doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
+  doc.text('Beleg für Ihre Versicherung. Vielen Dank für Ihr Vertrauen.', margin, y);
+  footer(pageNo);
+
+  const safe = s => String(s || '').replace(/[^\wäöüÄÖÜéèàç-]+/g, '_').replace(/^_+|_+$/g, '');
+  return { blob: doc.output('blob'), nr, name: 'Rechnung_' + nr + '_' + safe(inv.kunde) + '.pdf' };
+}
+function invoiceOpenPdf(invId){
+  const inv = load(INVOICES_KEY, []).find(i => i.id === invId); if (!inv) return;
+  const r = buildInvoicePdf(inv); if (!r) return;
+  showFilePreview(URL.createObjectURL(r.blob), r.name, 'application/pdf');
+}
+async function invoiceSharePdf(invId){
+  const inv = load(INVOICES_KEY, []).find(i => i.id === invId); if (!inv) return;
+  const r = buildInvoicePdf(inv); if (!r) return;
+  const file = new File([r.blob], r.name, { type: 'application/pdf' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'Rechnung ' + r.nr, text: 'Rechnung ' + r.nr + ' – BlueFix' });
+      return;
+    }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  showFilePreview(URL.createObjectURL(r.blob), r.name, 'application/pdf');
+}
 
 const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
 
@@ -3279,6 +3499,10 @@ function renderInvoices(){
           ? `<button class="btn btn-primary btn-sm" data-paid-inv="${inv.id}" style="flex:1;">Als bezahlt markieren</button>`
           : `<button class="btn btn-ghost btn-sm" data-unpaid-inv="${inv.id}" style="flex:1;">Rückgängig</button>`}
       </div>
+      <div class="modal-actions" style="margin-top:8px;">
+        <button class="btn btn-ghost btn-sm" data-pdf-inv="${inv.id}" style="flex:1;">📄 Rechnung (PDF)</button>
+        <button class="btn btn-primary btn-sm" data-send-inv="${inv.id}" style="flex:1;">📤 Senden</button>
+      </div>
       ${isOverdue(inv) ? `<button class="btn btn-danger btn-sm" data-mahn-inv="${inv.id}" style="width:100%;margin-top:8px;">📨 ${mahnCount(inv) ? 'Nächste Mahnung senden' : 'Zahlungserinnerung senden'}</button>` : ''}
     `;
     list.appendChild(card);
@@ -3294,17 +3518,19 @@ function renderInvoices(){
   list.querySelectorAll('[data-paid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.paidInv);
-    if (inv) { inv.bezahlt = true; save(INVOICES_KEY, invoices); logInvoiceState(inv, true); renderInvoices(); }
+    if (inv) { inv.bezahlt = true; inv.paidAt = Date.now(); save(INVOICES_KEY, invoices); logInvoiceState(inv, true); renderInvoices(); }
   }));
   list.querySelectorAll('[data-unpaid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.unpaidInv);
-    if (inv) { inv.bezahlt = false; save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
+    if (inv) { inv.bezahlt = false; delete inv.paidAt; save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
   }));
   list.querySelectorAll('[data-view-inv]').forEach(btn => btn.addEventListener('click', () => {
     const inv = load(INVOICES_KEY, []).find(i => i.id === btn.dataset.viewInv);
     if (inv) showInvoiceDetail(inv);
   }));
+  list.querySelectorAll('[data-pdf-inv]').forEach(btn => btn.addEventListener('click', () => invoiceOpenPdf(btn.dataset.pdfInv)));
+  list.querySelectorAll('[data-send-inv]').forEach(btn => btn.addEventListener('click', () => invoiceSharePdf(btn.dataset.sendInv)));
   list.querySelectorAll('[data-mahn-inv]').forEach(btn => btn.addEventListener('click', () => openMahnModal(btn.dataset.mahnInv)));
 }
 
@@ -3367,13 +3593,20 @@ function showInvoiceDetail(inv){
       : `<button class="btn btn-ghost btn-sm" id="invDetailTogglePaid" style="flex:1;">Als offen markieren (rückgängig)</button>`}
   </div>`;
 
+  html += `<div class="modal-actions" style="margin-top:8px;">
+    <button class="btn btn-ghost btn-sm" id="invDetailPdf" style="flex:1;">📄 Rechnung (PDF)</button>
+    <button class="btn btn-primary btn-sm" id="invDetailSend" style="flex:1;">📤 Senden</button>
+  </div>`;
   content.innerHTML = html;
   document.getElementById('invoiceDetailModal').classList.add('show');
+  document.getElementById('invDetailPdf').addEventListener('click', () => invoiceOpenPdf(inv.id));
+  document.getElementById('invDetailSend').addEventListener('click', () => invoiceSharePdf(inv.id));
   document.getElementById('invDetailTogglePaid').addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const current = invoices.find(i => i.id === inv.id);
     if (current) {
       current.bezahlt = !current.bezahlt;
+      if (current.bezahlt) current.paidAt = Date.now(); else delete current.paidAt;
       save(INVOICES_KEY, invoices);
       logInvoiceState(current, current.bezahlt);
       renderInvoices();
