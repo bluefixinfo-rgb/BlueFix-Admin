@@ -932,7 +932,6 @@ input,select,textarea{font-family:var(--sans);}
   <div class="tabs">
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
     <button class="tab-btn" data-tab="meinestunden" id="myHoursTabBtn" style="display:none;">⏱ Meine Stunden</button>
-    <button class="tab-btn" data-tab="offers">📝 Offerten</button>
     <button class="tab-btn" data-tab="orders">🧾 Aufträge</button>
     <button class="tab-btn" data-tab="calendar">📅 Termine</button>
     <button class="tab-btn" data-tab="invoices">💳 Rechnungen</button>
@@ -963,22 +962,6 @@ input,select,textarea{font-family:var(--sans);}
         </button>
       </div>
     </div>
-  </div>
-
-  <!-- OFFERTEN -->
-  <div class="tab-content" id="tab-offers">
-    <div class="section-head-row">
-      <div><h2>Offerten</h2><div style="color:var(--muted);font-size:12px;margin-top:2px;">Kostenvoranschlag, Auftrag, Rechnung</div></div>
-    </div>
-    <div class="orders-toolbar">
-      <div class="order-type-buttons">
-        <button class="btn btn-ghost" type="button" data-offer-filter="offen">Offen</button>
-        <button class="btn btn-ghost" type="button" data-offer-filter="angenommen">Angenommen</button>
-        <button class="btn btn-ghost" type="button" data-offer-filter="abgelehnt">Abgelehnt</button>
-      </div>
-      <div class="order-search"><span class="search-icon">⌕</span><input id="offerSearch" type="search" placeholder="Suche: Name, Gerät, Telefon oder Offerten-Nr…" autocomplete="off"></div>
-    </div>
-    <div id="offersList"></div>
   </div>
 
   <!-- ORDERS -->
@@ -1407,34 +1390,6 @@ input,select,textarea{font-family:var(--sans);}
 </div>
 
 <!-- ==================== MODAL: Neue Rechnung ==================== -->
-<div class="modal-overlay" id="offerModal">
-  <div class="modal modern-modal">
-    <h3 id="offerModalTitle">📝 Neue Offerte</h3>
-    <input type="hidden" id="editingOfferId" value="">
-    <div class="order-section">
-      <div class="order-section-title">Kundendaten & Gerät</div>
-      <div class="field"><label>Vorname Kunde</label><input type="text" id="offVorname" placeholder="Max"></div>
-      <div class="field"><label>Nachname Kunde</label><input type="text" id="offNachname" placeholder="Muster"></div>
-      <div class="field"><label>Handynummer Kunde (optional)</label><input type="tel" id="offTelefon" inputmode="tel" placeholder="z.B. 079 123 45 67"></div>
-      <div class="field"><label>E-Mail Kunde (optional)</label><input type="email" id="offEmail" inputmode="email" autocapitalize="off" placeholder="z.B. max@muster.ch"></div>
-      <div class="field"><label>Modell</label><input type="text" id="offModell" placeholder="z.B. iPhone 13 Pro"></div>
-      <div class="field"><label>IMEI (optional, kann beim Auftrag ergänzt werden)</label><input type="text" id="offImei" inputmode="numeric" maxlength="16" placeholder="14–16 Ziffern"></div>
-    </div>
-    <div class="order-section">
-      <div class="order-section-title">Kostenvoranschlag</div>
-      <div class="field"><label>Was muss repariert werden</label><select id="offAuftrag"><option>Display</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
-      <div class="field"><label>Beschreibung / Bemerkungen (optional)</label><textarea id="offNotizen" placeholder="Was wird gemacht, Zustand des Geräts…"></textarea></div>
-      <div class="field"><label>Preis (CHF)</label><input type="number" id="offPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
-      <div class="field"><label>Garantie-Dauer (optional)</label><input type="text" id="offGarantie" placeholder="z.B. 12 Monate"></div>
-      <div class="field"><label>Offerte gültig (Tage)</label><input type="number" id="offTage" min="1" step="1" placeholder="14"></div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" type="button" id="offCancel">Abbrechen</button>
-      <button class="btn btn-primary" type="button" id="offSave">Offerte speichern</button>
-    </div>
-  </div>
-</div>
-
 <div class="modal-overlay" id="invoiceModal">
   <div class="modal">
     <h3>Neue Rechnung</h3>
@@ -1647,7 +1602,6 @@ const ORDERS_KEY = 'bluefix_team_orders';
 const WB_TPL_KEY = 'bluefix_werbung_vorlagen';
 let orderTypeFilter = null;
 const INVOICES_KEY = 'bluefix_team_invoices';
-const OFFERTEN_KEY = 'bluefix_team_offerten';
 const LOHN_KEY = 'bluefix_team_lohn';
 const TERMINE_KEY = 'bluefix_team_termine';
 
@@ -1753,7 +1707,7 @@ try {
   }
 } catch (e) { console.warn('Firebase konnte nicht initialisiert werden:', e); }
 
-const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, LOHN_KEY, TERMINE_KEY, OFFERTEN_KEY];
+const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, LOHN_KEY, TERMINE_KEY];
 const MSG_COLLECTION = 'bluefix_sync_msgs';
 let ignoreNextSnapshot = {};
 
@@ -1803,7 +1757,6 @@ function requestNotifyPermission(){
 function titleFor(key, otherName){
   if (key === MSG_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Nachricht geschrieben';
   if (key === ORDERS_KEY) return 'BlueFix – ' + otherName + ' hat einen neuen Team/Kunden Auftrag erstellt';
-  if (key === OFFERTEN_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Offerte erstellt';
   if (key === INVOICES_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Rechnung erstellt';
   if (key === WB_TPL_KEY) return 'BlueFix – ' + otherName + ' hat eine Werbe-Vorlage gespeichert';
   if (key === TERMINE_KEY) return 'BlueFix – ' + otherName + ' hat einen Termin eingetragen';
@@ -1820,7 +1773,6 @@ function bodyFor(key, remoteArr, otherName){
   if (key === MSG_KEY) {
     return otherName + ' hat im Chat geschrieben.';
   }
-  if (key === OFFERTEN_KEY) return otherName + ' hat eine Offerte erstellt.';
   if (key === INVOICES_KEY) {
     return otherName + ' hat eine Rechnung erstellt.';
   }
@@ -1860,8 +1812,7 @@ function startFirebaseSync(){
         // Im Hintergrund alle synchronisierten Garantiescheine lokal sichern.
         syncSignedFilesToLocal(remoteArr);
       }
-      if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); try { renderOrders(); } catch (e) {} }
-      if (key === OFFERTEN_KEY) { try { renderOffers(); } catch (e) {} }
+      if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
       if (key === WB_TPL_KEY) { try { wbRenderTemplates(); } catch (e) {} }
       if (key === TERMINE_KEY) { try { renderTermine(); } catch (e) {} }
       if (key === LOHN_KEY) { try { renderLohn(); } catch (e) {} try { renderMyHours(); } catch (e) {} try { refreshChatPdfButtons(); } catch (e) {} }
@@ -2176,7 +2127,6 @@ function enterTeamApp(u, uKey){
   renderChat();
   renderOrders();
   renderInvoices();
-  try { renderOffers(); } catch (e) {}
   try { renderTermine(); } catch (e) {}
   try { reviewLinkSync(); } catch (e) {}
   requestNotifyPermission();
@@ -3169,7 +3119,6 @@ function renderOrders(){
       ${o.notizen?`<div style="grid-column:1/-1;"><div class="k">Notizen</div><div class="v">${linkify(o.notizen)}</div></div>`:''}
     </div>
     ${isCustomer?`
-      ${(o.offerNr && !o.agbAccepted) ? `<div class="rep-info">📝 Aus Offerte ${esc(o.offerNr)}: Bitte IMEI, Garantie und AGB-Bestätigung über „Auftrag bearbeiten“ ergänzen.</div>` : ''}
       ${repBoxHtml(o)}
       ${fotoBoxHtml(o)}
       ${reviewBoxHtml(o)}
@@ -3182,7 +3131,6 @@ function renderOrders(){
         </div>
         <div class="order-edit-actions order-pdf-bottom">
           <button class="btn btn-ghost btn-sm" type="button" data-pdf="${esc(o.id)}">📄 Garantie-PDF</button>
-          ${orderInvoice(o) ? `<button class="btn btn-ghost btn-sm" type="button" data-view-order-inv="${esc(o.id)}">💳 Rechnung ansehen</button>` : `<button class="btn btn-primary btn-sm" type="button" data-invoice-from-order="${esc(o.id)}">💳 Rechnung erstellen</button>`}
         </div>
         <input type="file" id="signedFile-${esc(o.id)}" data-file-input="${esc(o.id)}" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none">
         <div class="upload-progress" id="uploadProgress-${esc(o.id)}" hidden>
@@ -3223,8 +3171,6 @@ function renderOrders(){
   }));
   list.querySelectorAll('[data-status-for]').forEach(sel=>sel.addEventListener('change',()=>{const arr=load(ORDERS_KEY,[]),o=arr.find(x=>x.id===sel.dataset.statusFor);if(o){if(o.status!==sel.value) logActivity('📦','beim Team Auftrag von '+o.vorname+' '+o.nachname+' den Status auf „'+(STATUS_LABELS[sel.value]||sel.value)+'“ gesetzt');o.status=sel.value;o.updatedBy=currentUser();o.updatedAt=Date.now();save(ORDERS_KEY,arr);renderOrders();}}));
   list.querySelectorAll('[data-pdf]').forEach(btn=>btn.addEventListener('click',()=>{const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.pdf);if(o)generateWarrantyPDF(o);}));
-  list.querySelectorAll('[data-invoice-from-order]').forEach(btn=>btn.addEventListener('click',()=>{const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.invoiceFromOrder);if(o)createInvoiceFromOrder(o);}));
-  list.querySelectorAll('[data-view-order-inv]').forEach(btn=>btn.addEventListener('click',()=>{const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.viewOrderInv);const inv=o&&orderInvoice(o);if(inv){switchToTab('invoices');showInvoiceDetail(inv);}}));
   list.querySelectorAll('[data-open-file]').forEach(btn=>btn.addEventListener('click',()=>{const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.openFile);if(o)openSignedFile(o.signedFile);}));
   list.querySelectorAll('[data-upload-file]').forEach(btn=>btn.addEventListener('click',()=>{
     const input=document.getElementById(`signedFile-${CSS.escape(btn.dataset.uploadFile)}`);
@@ -3246,311 +3192,13 @@ document.getElementById('ordersList').addEventListener('click',e=>{
   else { expandedOrders.add(id); card.classList.remove('collapsed'); }
 });
 
-/* ===================== OFFERTEN (Kostenvoranschlag -> Auftrag -> Rechnung) =====================
-   Ablauf: Offerte erstellen -> Kunde nimmt an -> ein Tipp erstellt den Kunden-Auftrag ->
-   später im Auftrag ein Tipp auf "Rechnung erstellen" (Dialog ist schon vorausgefüllt). */
-const OFFER_VALID_DAYS = 14;
-const OFFER_LABELS = { offen:'Offen', angenommen:'Angenommen', abgelehnt:'Abgelehnt' };
-const OFFER_BADGE = { offen:'badge-offen', angenommen:'badge-bezahlt', abgelehnt:'badge-ueberfaellig' };
-let offerFilter = null;
-let pendingInvoiceOrder = null;
-
-function offerDate(ts){ return new Date(ts).toLocaleDateString('de-CH'); }
-function nextOfferNr(){
-  const prefix = 'KV-' + new Date().getFullYear() + '-';
-  const max = load(OFFERTEN_KEY, []).reduce((m, o) => {
-    if (o.nr && o.nr.indexOf(prefix) === 0) { const n = parseInt(o.nr.slice(prefix.length), 10); if (n > m) m = n; }
-    return m;
-  }, 0);
-  return prefix + String(max + 1).padStart(3, '0');
-}
-function offerValidUntil(o){ return (o.createdAt || Date.now()) + (o.gueltigTage || OFFER_VALID_DAYS) * 864e5; }
-function offerExpired(o){ return o.status === 'offen' && Date.now() > offerValidUntil(o); }
-
-function openOfferModal(offer){
-  const g = id => document.getElementById(id);
-  const o = offer || {};
-  g('editingOfferId').value = o.id || '';
-  g('offerModalTitle').textContent = o.id ? '✏️ Offerte bearbeiten' : '📝 Neue Offerte';
-  g('offSave').textContent = o.id ? 'Änderungen speichern' : 'Offerte speichern';
-  g('offVorname').value = o.vorname || '';
-  g('offNachname').value = o.nachname || '';
-  g('offTelefon').value = o.telefon || '';
-  g('offEmail').value = o.email || '';
-  g('offModell').value = o.modell || '';
-  g('offImei').value = o.imei || '';
-  g('offAuftrag').value = o.auftrag || 'Display';
-  g('offNotizen').value = o.notizen || '';
-  g('offPreis').value = o.preis ?? '';
-  g('offGarantie').value = o.garantie || '';
-  g('offTage').value = o.gueltigTage || OFFER_VALID_DAYS;
-  g('offerModal').classList.add('show');
-}
-document.getElementById('offCancel').addEventListener('click', () => document.getElementById('offerModal').classList.remove('show'));
-document.getElementById('fabBtn').addEventListener('click', () => {
-  const a = document.querySelector('.tab-btn.active');
-  if (a && a.dataset.tab === 'offers') openOfferModal();
-});
-
-document.getElementById('offSave').addEventListener('click', () => {
-  const v = id => document.getElementById(id).value.trim();
-  const vorname = v('offVorname'), nachname = v('offNachname'), modell = v('offModell'), imei = v('offImei');
-  const preis = parseFloat(document.getElementById('offPreis').value) || 0;
-  const tage = parseInt(document.getElementById('offTage').value, 10) || OFFER_VALID_DAYS;
-  if (!vorname || !nachname || !modell || preis <= 0) { alert('Bitte Vorname, Nachname, Modell und einen gültigen Preis eingeben.'); return; }
-  if (imei && !/^\d{14,16}$/.test(imei)) { alert('Bitte eine gültige IMEI-Nummer mit 14–16 Ziffern eingeben oder das Feld leer lassen.'); return; }
-  const fields = {
-    vorname, nachname, modell, imei, preis, gueltigTage: tage,
-    garantie: v('offGarantie'), telefon: v('offTelefon'), email: v('offEmail'),
-    auftrag: document.getElementById('offAuftrag').value, notizen: v('offNotizen')
-  };
-  const arr = load(OFFERTEN_KEY, []);
-  const editingId = document.getElementById('editingOfferId').value;
-  if (editingId) {
-    const o = arr.find(x => x.id === editingId);
-    if (!o) { alert('Offerte wurde nicht gefunden.'); return; }
-    Object.assign(o, fields);
-    o.updatedBy = currentUser(); o.updatedAt = Date.now();
-    save(OFFERTEN_KEY, arr);
-    logActivity('📝', 'die Offerte ' + o.nr + ' bearbeitet: ' + vorname + ' ' + nachname);
-    document.getElementById('offerModal').classList.remove('show');
-    renderOffers();
-    return;
-  }
-  const offer = Object.assign({ id: uid(), nr: nextOfferNr(), status: 'offen', createdBy: currentUser(), createdAt: Date.now() }, fields);
-  arr.unshift(offer);
-  save(OFFERTEN_KEY, arr);
-  logActivity('📝', 'eine Offerte erstellt: ' + vorname + ' ' + nachname + ' · ' + modell + ' · CHF ' + preis.toFixed(2));
-  {
-    const me = currentUser();
-    const myName = USERS[me] ? USERS[me].displayName : me;
-    sendPushToOther(titleFor(OFFERTEN_KEY, myName), myName + ' hat eine Offerte erstellt.');
-  }
-  document.getElementById('offerModal').classList.remove('show');
-  renderOffers();
-  generateOfferPDF(offer);
-});
-
-function setOfferStatus(id, status){
-  const arr = load(OFFERTEN_KEY, []);
-  const o = arr.find(x => x.id === id);
-  if (!o) return;
-  o.status = status;
-  o.updatedBy = currentUser(); o.updatedAt = Date.now();
-  save(OFFERTEN_KEY, arr);
-  const txt = status === 'abgelehnt' ? ' als abgelehnt markiert' : ' wieder geöffnet';
-  logActivity(status === 'abgelehnt' ? '✖️' : '↩️', 'die Offerte ' + o.nr + ' von ' + o.vorname + ' ' + o.nachname + txt);
-  renderOffers();
-}
-
-/* Ein Tipp: Offerte angenommen -> Kunden-Auftrag wird mit allen Daten erstellt */
-function createOrderFromOffer(offerId){
-  const offers = load(OFFERTEN_KEY, []);
-  const o = offers.find(x => x.id === offerId);
-  if (!o) return;
-  const order = {
-    id: uid(), typ: 'kunde',
-    vorname: o.vorname, nachname: o.nachname, modell: o.modell,
-    imei: o.imei || '', preis: Number(o.preis) || 0, garantie: o.garantie || '',
-    telefon: o.telefon || '', email: o.email || '',
-    repStatus: 'angenommen', statusToken: newStatusToken(), statusUpdatedAt: Date.now(),
-    auftrag: o.auftrag || 'Sonstiges', notizen: o.notizen || '',
-    agbAccepted: false,
-    offerId: o.id, offerNr: o.nr || '',
-    createdBy: currentUser(), createdAt: Date.now()
-  };
-  const orders = load(ORDERS_KEY, []);
-  orders.unshift(order);
-  save(ORDERS_KEY, orders);
-  o.status = 'angenommen'; o.orderId = order.id; o.acceptedAt = Date.now();
-  o.updatedBy = currentUser(); o.updatedAt = Date.now();
-  save(OFFERTEN_KEY, offers);
-  logActivity('✅', 'die Offerte ' + o.nr + ' von ' + o.vorname + ' ' + o.nachname + ' angenommen und den Kunden Auftrag erstellt');
-  publishStatus(order);
-  {
-    const me = currentUser();
-    const myName = USERS[me] ? USERS[me].displayName : me;
-    sendPushToOther(titleFor(ORDERS_KEY, myName), myName + ' hat einen Kunde Auftrag erstellt.');
-  }
-  expandedOrders.add(order.id);
-  renderOffers();
-  switchToTab('orders');
-  renderOrders();
-}
-
-/* Auftrag -> Rechnung: Dialog ist mit Kunde, Betrag und Beschreibung vorausgefüllt */
-function orderInvoice(o){ return load(INVOICES_KEY, []).find(i => i.orderId === o.id) || null; }
-function createInvoiceFromOrder(o){
-  openInvoiceModal({
-    orderId: o.id, offerNr: o.offerNr || '',
-    vorname: o.vorname || '', nachname: o.nachname || '',
-    betrag: o.preis, beschreibung: [o.modell, o.auftrag].filter(Boolean).join(' · ')
-  });
-}
-
-function renderOffers(){
-  const list = document.getElementById('offersList');
-  if (!list) return;
-  document.querySelectorAll('[data-offer-filter]').forEach(b => b.classList.toggle('active', offerFilter === b.dataset.offerFilter));
-  const all = load(OFFERTEN_KEY, []), orders = load(ORDERS_KEY, []);
-  const q = (document.getElementById('offerSearch')?.value || '').trim().toLowerCase();
-  const filtered = all.filter(o => (!offerFilter || o.status === offerFilter) &&
-    (!q || [o.nr, o.vorname, o.nachname, o.modell, o.telefon, o.auftrag].join(' ').toLowerCase().includes(q)));
-  list.innerHTML = '';
-  if (!filtered.length) {
-    list.innerHTML = '<div class="empty-state">' + (all.length ? 'Keine Offerten für diese Auswahl.' : 'Noch keine Offerten. Tippe unten rechts auf + um einen Kostenvoranschlag zu erstellen.') + '</div>';
-    return;
-  }
-  filtered.forEach(o => {
-    const order = o.orderId ? orders.find(x => x.id === o.orderId) : null;
-    const card = document.createElement('div');
-    card.className = 'card';
-    let actions = '';
-    if (o.status === 'offen') {
-      actions = `<button class="btn btn-primary" type="button" data-offer-accept="${esc(o.id)}" style="width:100%;margin-top:14px;">✅ Angenommen – Auftrag erstellen</button>
-        <div class="modal-actions" style="margin-top:8px;">
-          <button class="btn btn-ghost btn-sm" type="button" data-offer-pdf="${esc(o.id)}">📄 PDF</button>
-          <button class="btn btn-ghost btn-sm" type="button" data-offer-edit="${esc(o.id)}">✏️ Bearbeiten</button>
-          <button class="btn btn-danger btn-sm" type="button" data-offer-reject="${esc(o.id)}">Abgelehnt</button>
-        </div>`;
-    } else if (o.status === 'angenommen') {
-      actions = `<div class="modal-actions" style="margin-top:14px;">
-          <button class="btn btn-ghost btn-sm" type="button" data-offer-pdf="${esc(o.id)}">📄 PDF</button>
-          ${order
-            ? `<button class="btn btn-primary btn-sm" type="button" data-offer-goto="${esc(o.orderId)}">Zum Auftrag ›</button>`
-            : `<button class="btn btn-primary btn-sm" type="button" data-offer-accept="${esc(o.id)}">Auftrag neu erstellen</button>`}
-        </div>`;
-    } else {
-      actions = `<div class="modal-actions" style="margin-top:14px;">
-          <button class="btn btn-ghost btn-sm" type="button" data-offer-pdf="${esc(o.id)}">📄 PDF</button>
-          <button class="btn btn-ghost btn-sm" type="button" data-offer-reopen="${esc(o.id)}">↩ Wieder öffnen</button>
-        </div>`;
-    }
-    card.innerHTML = `
-      <div class="card-top">
-        <div>
-          <p class="card-title"><button type="button" class="cust-link" data-cust="${esc(o.vorname + ' ' + o.nachname)}" data-cust-phone="${esc(o.telefon || '')}">${esc(o.vorname)} ${esc(o.nachname)}</button>${o.status === 'offen' ? '<span class="order-live-dot" title="Offerte offen"></span>' : ''}</p>
-          <p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)} · ${esc(o.nr)}</p>
-        </div>
-        <div class="card-actions">
-          <button class="icon-btn-sm" data-offer-del="${esc(o.id)}" title="Löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
-        </div>
-      </div>
-      <span class="badge ${OFFER_BADGE[o.status] || 'badge-nicht'}">${OFFER_LABELS[o.status] || esc(o.status)}</span>${offerExpired(o) ? '<span class="badge badge-ueberfaellig" style="margin-left:6px;">Abgelaufen</span>' : ''}
-      <div class="card-grid">
-        <div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis || 0).toFixed(2)}</div></div>
-        <div><div class="k">Gültig bis</div><div class="v">${offerDate(offerValidUntil(o))}</div></div>
-        <div><div class="k">Erstellt</div><div class="v">${fmtTime(o.createdAt)}</div></div>
-        <div><div class="k">Von</div><div class="v">${USERS[o.createdBy] ? USERS[o.createdBy].displayName : ''}</div></div>
-        ${o.notizen ? `<div style="grid-column:1/-1;"><div class="k">Bemerkungen</div><div class="v">${linkify(o.notizen)}</div></div>` : ''}
-      </div>
-      ${actions}`;
-    list.appendChild(card);
-  });
-
-  const byId = id => load(OFFERTEN_KEY, []).find(x => x.id === id);
-  list.querySelectorAll('[data-offer-accept]').forEach(btn => btn.addEventListener('click', () => {
-    const o = byId(btn.dataset.offerAccept); if (!o) return;
-    showConfirm('Der Kunde hat die Offerte ' + o.nr + ' (CHF ' + Number(o.preis || 0).toFixed(2) + ') angenommen? Es wird sofort ein Kunden Auftrag mit allen Daten erstellt.',
-      () => createOrderFromOffer(o.id), { title: 'Offerte angenommen?', ok: 'Auftrag erstellen' });
-  }));
-  list.querySelectorAll('[data-offer-reject]').forEach(btn => btn.addEventListener('click', () => {
-    const o = byId(btn.dataset.offerReject); if (!o) return;
-    showConfirm('Offerte ' + o.nr + ' als abgelehnt markieren?', () => setOfferStatus(o.id, 'abgelehnt'), { title: 'Offerte abgelehnt?', ok: 'Abgelehnt' });
-  }));
-  list.querySelectorAll('[data-offer-reopen]').forEach(btn => btn.addEventListener('click', () => setOfferStatus(btn.dataset.offerReopen, 'offen')));
-  list.querySelectorAll('[data-offer-edit]').forEach(btn => btn.addEventListener('click', () => { const o = byId(btn.dataset.offerEdit); if (o) openOfferModal(o); }));
-  list.querySelectorAll('[data-offer-pdf]').forEach(btn => btn.addEventListener('click', () => { const o = byId(btn.dataset.offerPdf); if (o) generateOfferPDF(o); }));
-  list.querySelectorAll('[data-offer-goto]').forEach(btn => btn.addEventListener('click', () => {
-    expandedOrders.add(btn.dataset.offerGoto);
-    switchToTab('orders');
-    renderOrders();
-  }));
-  list.querySelectorAll('[data-offer-del]').forEach(btn => btn.addEventListener('click', () => {
-    const o = byId(btn.dataset.offerDel); if (!o) return;
-    showConfirm('Diese Offerte wirklich löschen?', () => {
-      logActivity('🗑️', 'die Offerte ' + o.nr + ' von ' + o.vorname + ' ' + o.nachname + ' gelöscht');
-      save(OFFERTEN_KEY, load(OFFERTEN_KEY, []).filter(x => x.id !== o.id));
-      renderOffers();
-    });
-  }));
-}
-document.getElementById('offerSearch').addEventListener('input', renderOffers);
-document.querySelectorAll('[data-offer-filter]').forEach(b => b.addEventListener('click', () => {
-  offerFilter = offerFilter === b.dataset.offerFilter ? null : b.dataset.offerFilter;
-  renderOffers();
-}));
-
-function generateOfferPDF(o){
-  if (!window.jspdf || !window.jspdf.jsPDF) { alert('PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung prüfen. Die Offerte wurde trotzdem gespeichert.'); return; }
-  const { jsPDF } = window.jspdf, doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const navy = [6,16,31], blue = [30,111,239], text = [18,27,43], muted = [92,105,125], soft = [244,248,255], line = [218,226,238];
-  const pageW = 210, margin = 18;
-  const logoData = document.querySelector('.brand-logo-img')?.src;
-
-  doc.setFillColor(...navy); doc.rect(0, 0, pageW, 42, 'F');
-  doc.setFillColor(...blue); doc.rect(0, 40, pageW, 2, 'F');
-  if (logoData) { try { doc.addImage(logoData, 'PNG', 18, 6, 64, 20); } catch (e) { doc.setTextColor(255,255,255); doc.setFontSize(22); doc.setFont(undefined, 'bold'); doc.text('BlueFix', 18, 19); } }
-  doc.setTextColor(220,230,245); doc.setFontSize(8.5); doc.setFont(undefined, 'normal'); doc.text('HANDY REPARATUR', 190, 14, { align: 'right' });
-  doc.setTextColor(255,255,255); doc.setFontSize(15); doc.setFont(undefined, 'bold'); doc.text('KOSTENVORANSCHLAG', 190, 24, { align: 'right' });
-  doc.setTextColor(160,177,202); doc.setFontSize(8); doc.setFont(undefined, 'normal'); doc.text('Offerte · BlueFix', 190, 31, { align: 'right' });
-
-  let y = 54;
-  doc.setTextColor(...muted); doc.setFontSize(8); doc.text('OFFERTEN-NR.', margin, y); doc.text('AUSGESTELLT AM', 85, y); doc.text('GÜLTIG BIS', 150, y);
-  doc.setTextColor(...text); doc.setFontSize(10); doc.setFont(undefined, 'bold');
-  doc.text(String(o.nr || '—'), margin, y + 6); doc.text(offerDate(o.createdAt), 85, y + 6); doc.text(offerDate(offerValidUntil(o)), 150, y + 6);
-
-  y = 72;
-  const rows = [
-    ['Kunde', o.vorname + ' ' + o.nachname], ['Gerät', o.modell],
-    ['Reparatur', o.auftrag], ['Preis', 'CHF ' + Number(o.preis || 0).toFixed(2)]
-  ];
-  if (o.imei) rows.push(['IMEI', o.imei]);
-  if (o.garantie) rows.push(['Garantiedauer', o.garantie]);
-  const boxH = 22 + (Math.ceil(rows.length / 2) - 1) * 17 + 14;
-  doc.setFillColor(...soft); doc.setDrawColor(...line); doc.roundedRect(margin, y, pageW - margin * 2, boxH, 5, 5, 'FD');
-  doc.setTextColor(...blue); doc.setFontSize(10); doc.setFont(undefined, 'bold'); doc.text('ANGEBOT', margin + 8, y + 11);
-  const colX = [margin + 8, 108];
-  rows.forEach(([k, val], i) => {
-    const col = i % 2, row = Math.floor(i / 2), yy = y + 22 + row * 17;
-    doc.setTextColor(...muted); doc.setFontSize(7.5); doc.setFont(undefined, 'bold'); doc.text(k.toUpperCase(), colX[col], yy);
-    doc.setTextColor(...text); doc.setFontSize(10); doc.setFont(undefined, 'normal'); doc.text(String(val || '—'), colX[col], yy + 6);
-  });
-
-  y = y + boxH + 12;
-  if (o.notizen) {
-    doc.setTextColor(...text); doc.setFontSize(11.5); doc.setFont(undefined, 'bold'); doc.text('Beschreibung / Bemerkungen', margin, y);
-    doc.setTextColor(...muted); doc.setFontSize(9); doc.setFont(undefined, 'normal');
-    let ty = y + 8;
-    doc.splitTextToSize(String(o.notizen), pageW - margin * 2).slice(0, 7).forEach(l => { doc.text(l, margin, ty); ty += 4.8; });
-  }
-
-  y = 222;
-  doc.setTextColor(...text); doc.setFontSize(11.5); doc.setFont(undefined, 'bold'); doc.text('Annahme des Kostenvoranschlags', margin, y);
-  doc.setTextColor(...muted); doc.setFontSize(8.5); doc.setFont(undefined, 'normal');
-  let ty2 = y + 8;
-  doc.splitTextToSize('Mit der Unterschrift nimmt der Kunde diesen Kostenvoranschlag an und beauftragt BlueFix mit der oben beschriebenen Reparatur zum genannten Preis.', pageW - margin * 2).forEach(l => { doc.text(l, margin, ty2); ty2 += 4.6; });
-
-  const sigY = 265;
-  doc.setDrawColor(...line); doc.setLineWidth(.6); doc.line(margin, sigY, 92, sigY); doc.line(118, sigY, 192, sigY);
-  doc.setTextColor(...text); doc.setFontSize(8.5); doc.setFont(undefined, 'bold');
-  doc.text('Ort, Datum, Unterschrift Kunde', margin, sigY + 7); doc.text('BlueFix', 118, sigY + 7);
-
-  doc.setDrawColor(...line); doc.setLineWidth(.3); doc.line(margin, 282, pageW - margin, 282);
-  doc.setTextColor(...muted); doc.setFontSize(7.5); doc.setFont(undefined, 'normal');
-  doc.text('BlueFix · Kostenvoranschlag', margin, 288); doc.text('Offerten-Nr. ' + String(o.nr || '—'), pageW - margin, 288, { align: 'right' });
-  showFilePreview(doc.output('bloburl'), 'Kostenvoranschlag · ' + (o.nr || ''), 'application/pdf');
-}
-
 /* ===================== INVOICES ===================== */
 let selectedPay = 'twint';
-function openInvoiceModal(prefill){
-  pendingInvoiceOrder = (prefill && prefill.orderId) ? prefill : null;
-  const p = pendingInvoiceOrder || {};
-  document.getElementById('invVorname').value = p.vorname || '';
-  document.getElementById('invNachname').value = p.nachname || '';
-  document.getElementById('invBetrag').value = p.betrag ? Number(p.betrag).toFixed(2) : '';
-  document.getElementById('invBeschreibung').value = p.beschreibung || '';
+function openInvoiceModal(){
+  document.getElementById('invVorname').value = '';
+  document.getElementById('invNachname').value = '';
+  document.getElementById('invBetrag').value = '';
+  document.getElementById('invBeschreibung').value = '';
   selectedPay = 'twint';
   document.querySelectorAll('.pay-opt').forEach(p => p.classList.toggle('active', p.dataset.pay === 'twint'));
   document.getElementById('invoiceModal').classList.add('show');
@@ -3560,7 +3208,7 @@ document.querySelectorAll('.pay-opt').forEach(opt => opt.addEventListener('click
   opt.classList.add('active');
   selectedPay = opt.dataset.pay;
 }));
-document.getElementById('invCancel').addEventListener('click', () => { pendingInvoiceOrder = null; document.getElementById('invoiceModal').classList.remove('show'); });
+document.getElementById('invCancel').addEventListener('click', () => document.getElementById('invoiceModal').classList.remove('show'));
 
 document.getElementById('invSave').addEventListener('click', () => {
   const vorname = document.getElementById('invVorname').value.trim();
@@ -3569,7 +3217,7 @@ document.getElementById('invSave').addEventListener('click', () => {
   if (!vorname || !nachname || !betrag || betrag <= 0) { alert('Bitte Vorname, Nachname und einen gültigen Betrag eingeben.'); return; }
   const kunde = vorname + ' ' + nachname;
   const invoices = load(INVOICES_KEY, []);
-  const newInv = {
+  invoices.unshift({
     id: uid(),
     kunde, betrag,
     beschreibung: document.getElementById('invBeschreibung').value.trim(),
@@ -3577,9 +3225,7 @@ document.getElementById('invSave').addEventListener('click', () => {
     bezahlt: false,
     createdBy: currentUser(),
     createdAt: Date.now()
-  };
-  if (pendingInvoiceOrder) { newInv.orderId = pendingInvoiceOrder.orderId; if (pendingInvoiceOrder.offerNr) newInv.offerNr = pendingInvoiceOrder.offerNr; }
-  invoices.unshift(newInv);
+  });
   save(INVOICES_KEY, invoices);
   logActivity('💳', 'eine Rechnung erstellt: ' + kunde + ' · CHF ' + betrag.toFixed(2));
   {
@@ -3587,11 +3233,8 @@ document.getElementById('invSave').addEventListener('click', () => {
     const myName = USERS[me] ? USERS[me].displayName : me;
     sendPushToOther(titleFor(INVOICES_KEY, myName), myName + ' hat eine Rechnung erstellt.');
   }
-  const fromOrder = !!pendingInvoiceOrder;
-  pendingInvoiceOrder = null;
   document.getElementById('invoiceModal').classList.remove('show');
   renderInvoices();
-  if (fromOrder) { try { renderOrders(); } catch (e) {} }
 });
 
 const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
@@ -3628,7 +3271,6 @@ function renderInvoices(){
       <div class="card-grid">
         <div><div class="k">Erstellt</div><div class="v">${fmtTime(inv.createdAt)}</div></div>
         <div><div class="k">Von</div><div class="v">${USERS[inv.createdBy] ? USERS[inv.createdBy].displayName : ''}</div></div>
-        ${inv.offerNr ? `<div><div class="k">Offerte</div><div class="v">${esc(inv.offerNr)}</div></div>` : ''}
         ${mahnLast(inv) ? `<div><div class="k">Letzte Mahnung</div><div class="v">${esc(MAHN_STUFEN[mahnLast(inv).stufe].label)} · ${fmtTime(mahnLast(inv).ts)}</div></div>` : ''}
       </div>
       <div class="modal-actions" style="margin-top:14px;">
