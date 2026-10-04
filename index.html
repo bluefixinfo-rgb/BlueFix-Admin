@@ -813,6 +813,20 @@ input,select,textarea{font-family:var(--sans);}
 .mahn-info{font-size:13.5px; margin:0 0 14px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border-soft);}
 .mahn-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
 .badge-mahn{background:rgba(245,166,35,0.16); color:#ffcf7a; margin-left:6px;}
+
+/* ---------------- FOTOS & BEWERTUNG ---------------- */
+.foto-box,.rev-box{margin-top:14px; padding:14px; border-radius:var(--radius); border:1px solid var(--glass-border-soft); background:rgba(255,255,255,0.04);}
+.foto-cols{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+.foto-col-head{display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; font-size:13px; font-weight:600;}
+.foto-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(64px,1fr)); gap:6px; min-height:24px;}
+.foto-thumb{padding:0; border:1px solid var(--glass-border-soft); border-radius:10px; overflow:hidden; background:#000; cursor:pointer; aspect-ratio:1/1;}
+.foto-thumb img{width:100%; height:100%; object-fit:cover; display:block;}
+.foto-hint{grid-column:1/-1; font-size:12px; color:var(--muted);}
+.foto-status{font-size:12px; color:var(--warn); margin-top:8px; min-height:0;}
+.foto-full{width:100%; max-height:60vh; object-fit:contain; border-radius:12px; background:#000; display:block;}
+.rev-box .rep-info{margin-bottom:10px;}
+.rev-bar{border-color:rgba(245,166,35,0.5); background:rgba(245,166,35,0.08);}
+@media (max-width:420px){ .foto-cols{grid-template-columns:1fr;} }
 </style>
 </head>
 <body>
@@ -962,6 +976,7 @@ input,select,textarea{font-family:var(--sans);}
       </div>
       <div class="order-search"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     </div>
+    <div id="reviewBar"></div>
     <div id="ordersList"></div>
   </div>
 
@@ -1259,6 +1274,39 @@ input,select,textarea{font-family:var(--sans);}
     </div>
     <button class="btn btn-ghost btn-sm" id="mhMark" style="width:100%;margin-top:8px;">Nur als gesendet markieren</button>
     <button class="btn btn-ghost btn-sm" id="mhClose" style="width:100%;margin-top:8px;">Schliessen</button>
+  </div>
+</div>
+
+<!-- ==================== MODAL: Foto ansehen ==================== -->
+<input type="file" id="fotoInput" accept="image/*" multiple hidden>
+<div class="modal-overlay" id="fotoViewModal">
+  <div class="modal modern-modal">
+    <h3 id="fvTitle">📷 Foto</h3>
+    <img id="fvImg" class="foto-full" alt="Foto zur Reparatur">
+    <div class="mahn-grid" style="margin-top:14px;">
+      <a class="btn btn-ghost btn-sm" id="fvSave" download="foto.jpg">⬇ Speichern</a>
+      <button class="btn btn-danger btn-sm" id="fvDel" type="button">🗑 Löschen</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="fvClose" type="button" style="width:100%;margin-top:8px;">Schliessen</button>
+  </div>
+</div>
+
+<!-- ==================== MODAL: Bewertung anfragen ==================== -->
+<div class="modal-overlay" id="reviewModal">
+  <div class="modal modern-modal">
+    <h3>⭐ Bewertung anfragen</h3>
+    <div class="mahn-info" id="rvInfo"></div>
+    <div class="field"><label>Google-Bewertungslink von BlueFix</label><input type="url" id="rvLink" inputmode="url" autocapitalize="off" placeholder="https://g.page/r/…/review"></div>
+    <div class="field"><label>Handynummer Kunde</label><input type="tel" id="rvPhone" inputmode="tel" placeholder="z.B. 079 123 45 67"></div>
+    <div class="field"><label>E-Mail Kunde</label><input type="email" id="rvMail" inputmode="email" autocapitalize="off" placeholder="z.B. max@muster.ch"></div>
+    <div class="field"><label>Nachricht (WhatsApp / SMS, du kannst den Text anpassen)</label><textarea id="rvMsg" rows="6"></textarea></div>
+    <div class="status-send">
+      <button class="btn btn-primary" type="button" id="rvWa">WhatsApp</button>
+      <button class="btn btn-ghost" type="button" id="rvSms">SMS</button>
+      <button class="btn btn-ghost" type="button" id="rvMailBtn">E-Mail</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="rvMark" type="button" style="width:100%;margin-top:10px;">Nur als angefragt markieren</button>
+    <button class="btn btn-ghost btn-sm" id="rvClose" type="button" style="width:100%;margin-top:8px;">Schliessen</button>
   </div>
 </div>
 
@@ -2080,6 +2128,7 @@ function enterTeamApp(u, uKey){
   renderOrders();
   renderInvoices();
   try { renderTermine(); } catch (e) {}
+  try { reviewLinkSync(); } catch (e) {}
   requestNotifyPermission();
   startFirebaseSync();
   startChatCollectionSync();
@@ -3040,10 +3089,11 @@ const expandedOrders = new Set();
 function renderOrders(){
   renderDashboard();
   syncStatusWatchers();
+  try{ renderReviewBar(); }catch(e){}
   const orders=load(ORDERS_KEY,[]), list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
   list.innerHTML='';
-  const filtered=orders.filter(o=>(!orderTypeFilter||o.typ===orderTypeFilter)&&orderMatchesSearch(o,q));
+  const filtered=orders.filter(o=>(!orderTypeFilter||o.typ===orderTypeFilter)&&orderMatchesSearch(o,q)&&(!reviewFilter||reviewDue(o)));
   if(!filtered.length){
     list.innerHTML=`<div class="empty-state">${orders.length?'Keine Aufträge für diese Suche.':'Noch keine Aufträge. Wähle „Kunden Auftrag“ oder „Team Auftrag“.'}</div>`;
     return;
@@ -3070,6 +3120,8 @@ function renderOrders(){
     </div>
     ${isCustomer?`
       ${repBoxHtml(o)}
+      ${fotoBoxHtml(o)}
+      ${reviewBoxHtml(o)}
       <div class="order-file-box">
         <div class="order-section-title">📄 Unterschriebene Datei</div>
         ${signedFile?`<div class="order-file-row"><div class="order-file-name">✓ ${esc(signedFile.name)}</div><button class="btn btn-ghost btn-sm" data-open-file="${esc(o.id)}">📄 Datei öffnen ↗</button></div><div class="order-file-meta">${formatFileSize(signedFile.size)} · gespeichert ${fmtTime(signedFile.uploadedAt)}${signedFile.localId?' · auf diesem Gerät':''}</div>`:`<div class="order-file-meta">Noch keine unterschriebene Datei hochgeladen.</div>`}
@@ -3108,7 +3160,7 @@ function renderOrders(){
     if(o.signedFile) cacheSignedFile(o.signedFile);
   });
 
-  list.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',()=>showConfirm('Diesen Auftrag wirklich löschen?',()=>{{const _d=load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del); if(_d) logActivity('🗑️','den Auftrag gelöscht: '+_d.vorname+' '+_d.nachname+' · '+_d.modell);} removeStatusDoc(load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del));save(ORDERS_KEY,load(ORDERS_KEY,[]).filter(o=>o.id!==btn.dataset.del));renderOrders();})));
+  list.querySelectorAll('[data-del]').forEach(btn=>btn.addEventListener('click',()=>showConfirm('Diesen Auftrag wirklich löschen?',()=>{{const _d=load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del); if(_d) logActivity('🗑️','den Auftrag gelöscht: '+_d.vorname+' '+_d.nachname+' · '+_d.modell);} removeStatusDoc(load(ORDERS_KEY,[]).find(o=>o.id===btn.dataset.del));try{deleteOrderPhotos(btn.dataset.del);}catch(e){}save(ORDERS_KEY,load(ORDERS_KEY,[]).filter(o=>o.id!==btn.dataset.del));renderOrders();})));
   list.querySelectorAll('[data-edit-customer]').forEach(btn=>btn.addEventListener('click',()=>{
     const o=load(ORDERS_KEY,[]).find(x=>x.id===btn.dataset.editCustomer);
     if(o) openCustomerOrderModal(o);
@@ -3129,6 +3181,7 @@ function renderOrders(){
     if(file) await uploadSignedOrderFile(input.dataset.fileInput,file);
     e.target.value='';
   }));
+  try{ hydrateOrderPhotos(); }catch(e){}
 }
 document.getElementById('orderSearch').addEventListener('input',renderOrders);
 document.getElementById('ordersList').addEventListener('click',e=>{
@@ -5299,6 +5352,253 @@ function renderMahnBar(all){
     '<button type="button" class="btn btn-ghost btn-sm' + (invOverdueOnly ? ' active' : '') + '" id="mahnFilterBtn">Nur überfällige</button></div>';
   document.getElementById('mahnFilterBtn').addEventListener('click', () => { invOverdueOnly = !invOverdueOnly; renderInvoices(); });
 }
+</script>
+<script>
+/* ===================== FOTOS VOR / NACH DER REPARATUR =====================
+   Die Bilder liegen NICHT im Auftrag (das Auftrags-Dokument in Firestore hat nur 1 MB Platz),
+   sondern als eigenes, verkleinertes Dokument pro Foto in der Sammlung bluefix_order_photos. */
+const PHOTO_COLLECTION = 'bluefix_order_photos';
+const FOTO_PHASEN = { vorher: 'Vorher', nachher: 'Nachher' };
+const photoCache = {};
+const photoLoading = {};
+let fotoTarget = null, fotoViewing = null;
+
+function fotoBoxHtml(o){
+  const id = esc(o.id);
+  const col = ph => '<div><div class="foto-col-head"><span>' + FOTO_PHASEN[ph] + '</span>' +
+    '<button type="button" class="btn btn-ghost btn-sm" data-foto-add="' + id + '|' + ph + '">＋ Foto</button></div>' +
+    '<div class="foto-grid" data-foto-grid="' + ph + '"></div></div>';
+  return '<div class="foto-box" data-foto-box="' + id + '"><div class="order-section-title">📷 Fotos vor und nach der Reparatur</div>' +
+    '<div class="foto-cols">' + col('vorher') + col('nachher') + '</div><div class="foto-status" data-foto-status></div></div>';
+}
+function fotoBoxEl(id){ return document.querySelector('[data-foto-box="' + CSS.escape(id) + '"]'); }
+function fotoStatus(id, text){ const b = fotoBoxEl(id); if (b) b.querySelector('[data-foto-status]').textContent = text || ''; }
+function fotoRenderBox(id){
+  const box = fotoBoxEl(id); if (!box) return;
+  const list = photoCache[id];
+  Object.keys(FOTO_PHASEN).forEach(ph => {
+    const grid = box.querySelector('[data-foto-grid="' + ph + '"]');
+    if (list === undefined) { grid.innerHTML = '<span class="foto-hint">Lädt…</span>'; return; }
+    const items = list.filter(p => p.phase === ph);
+    grid.innerHTML = items.map(p => '<button type="button" class="foto-thumb" data-foto-open="' + esc(p.id) + '" data-foto-order="' + esc(id) + '"><img src="' + p.data + '" alt="' + FOTO_PHASEN[ph] + '-Foto"></button>').join('') ||
+      '<span class="foto-hint">Noch keine</span>';
+  });
+}
+function fotoLoad(id){
+  if (photoCache[id] !== undefined || photoLoading[id]) return;
+  if (!fbReady || !fbDb) { photoCache[id] = []; fotoRenderBox(id); fotoStatus(id, 'Keine Verbindung zu Firebase – Fotos können nicht geladen werden.'); return; }
+  photoLoading[id] = true;
+  fbDb.collection(PHOTO_COLLECTION).where('orderId', '==', id).get().then(snap => {
+    photoCache[id] = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+    fotoRenderBox(id);
+  }).catch(e => {
+    console.warn('Fotos laden:', e);
+    fotoStatus(id, 'Fotos konnten nicht geladen werden. Internet prüfen oder später nochmals öffnen.');
+    const b = fotoBoxEl(id); if (b) b.querySelectorAll('[data-foto-grid]').forEach(g => { g.innerHTML = ''; });
+  }).finally(() => { delete photoLoading[id]; });
+}
+function hydrateOrderPhotos(){
+  document.querySelectorAll('[data-foto-box]').forEach(box => {
+    const id = box.dataset.fotoBox;
+    if (photoCache[id] !== undefined) fotoRenderBox(id);
+    else if (expandedOrders.has(id)) fotoLoad(id);
+  });
+}
+function fotoCompress(file){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error('Datei nicht lesbar'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error('Bild nicht lesbar'));
+      img.onload = () => {
+        let max = 1280, q = 0.72, out = '';
+        for (let i = 0; i < 5; i++) {
+          const sc = Math.min(1, max / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          out = c.toDataURL('image/jpeg', q);
+          if (out.length < 700000) break;
+          max *= 0.8; q = Math.max(0.5, q - 0.07);
+        }
+        res(out);
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+async function fotoUpload(files){
+  const t = fotoTarget; fotoTarget = null;
+  if (!t || !files.length) return;
+  if (!fbReady || !fbDb) { alert('Fotos brauchen die Verbindung zu Firebase. Bitte Internet prüfen.'); return; }
+  const o = load(ORDERS_KEY, []).find(x => x.id === t.id);
+  if (photoCache[t.id] === undefined) photoCache[t.id] = [];
+  let ok = 0;
+  for (let i = 0; i < files.length; i++) {
+    fotoStatus(t.id, 'Foto ' + (i + 1) + ' von ' + files.length + ' wird gespeichert…');
+    try {
+      const data = await fotoCompress(files[i]);
+      const doc = { orderId: t.id, phase: t.phase, data, ts: Date.now(), by: currentUser() || '' };
+      const pid = uid();
+      await fbDb.collection(PHOTO_COLLECTION).doc(pid).set(doc);
+      photoCache[t.id].push(Object.assign({ id: pid }, doc));
+      ok++; fotoRenderBox(t.id);
+    } catch (e) {
+      console.warn('Foto speichern:', e);
+      alert('Ein Foto konnte nicht gespeichert werden. Bitte Internet prüfen und nochmals versuchen.');
+    }
+  }
+  fotoStatus(t.id, '');
+  if (ok) logActivity('📷', ok + ' Foto' + (ok > 1 ? 's' : '') + ' (' + FOTO_PHASEN[t.phase] + ') zum Auftrag von ' + (o ? o.vorname + ' ' + o.nachname : '') + ' hinzugefügt');
+}
+function fotoOpen(orderId, pid){
+  const p = (photoCache[orderId] || []).find(x => x.id === pid); if (!p) return;
+  const o = load(ORDERS_KEY, []).find(x => x.id === orderId);
+  fotoViewing = { orderId, pid };
+  document.getElementById('fvTitle').textContent = '📷 ' + FOTO_PHASEN[p.phase] + (o ? ' · ' + o.vorname + ' ' + o.nachname : '');
+  document.getElementById('fvImg').src = p.data;
+  const a = document.getElementById('fvSave');
+  a.href = p.data;
+  a.download = 'BlueFix_' + (o ? (o.nachname || 'Auftrag') + '_' : '') + FOTO_PHASEN[p.phase] + '_' + ymd(new Date(p.ts || Date.now())) + '.jpg';
+  document.getElementById('fotoViewModal').classList.add('show');
+}
+function deleteOrderPhotos(orderId){
+  delete photoCache[orderId];
+  if (!fbReady || !fbDb) return;
+  fbDb.collection(PHOTO_COLLECTION).where('orderId', '==', orderId).get()
+    .then(snap => snap.docs.forEach(d => d.ref.delete().catch(() => {}))).catch(() => {});
+}
+document.getElementById('fotoInput').addEventListener('change', e => { const f = Array.from(e.target.files || []); e.target.value = ''; fotoUpload(f); });
+document.getElementById('fvClose').addEventListener('click', () => document.getElementById('fotoViewModal').classList.remove('show'));
+document.getElementById('fvDel').addEventListener('click', () => {
+  const v = fotoViewing; if (!v) return;
+  document.getElementById('fotoViewModal').classList.remove('show');
+  showConfirm('Dieses Foto wirklich löschen?', () => {
+    const list = photoCache[v.orderId] || [], p = list.find(x => x.id === v.pid);
+    if (fbReady && fbDb) fbDb.collection(PHOTO_COLLECTION).doc(v.pid).delete().catch(e => console.warn('Foto löschen:', e));
+    photoCache[v.orderId] = list.filter(x => x.id !== v.pid);
+    fotoRenderBox(v.orderId);
+    if (p) logActivity('🗑️', 'ein Foto (' + FOTO_PHASEN[p.phase] + ') gelöscht');
+  });
+});
+document.getElementById('ordersList').addEventListener('click', e => {
+  const add = e.target.closest('[data-foto-add]');
+  if (add) { const a = add.dataset.fotoAdd.split('|'); fotoTarget = { id: a[0], phase: a[1] }; document.getElementById('fotoInput').click(); return; }
+  const open = e.target.closest('[data-foto-open]');
+  if (open) { fotoOpen(open.dataset.fotoOrder, open.dataset.fotoOpen); return; }
+  const top = e.target.closest('[data-toggle]');
+  if (top && !e.target.closest('button,a,select,input')) setTimeout(hydrateOrderPhotos, 0);
+});
+
+/* ===================== BEWERTUNGSANFRAGE ===================== */
+const REVIEW_LINK_KEY = 'bluefix_review_link';
+const REVIEW_LINK_DEFAULT = 'https://g.page/r/CSmWMWadV5iNECE/review';
+const REVIEW_WAIT_DAYS = 2;
+let reviewFilter = false, reviewOrderId = null, reviewEdited = false;
+
+function getReviewLink(){ return localStorage.getItem(REVIEW_LINK_KEY) || REVIEW_LINK_DEFAULT; }
+function setReviewLink(link){
+  localStorage.setItem(REVIEW_LINK_KEY, link);
+  if (fbReady && fbDb) fbDb.collection('bluefix_sync').doc('bluefix_review_link')
+    .set({ link, updatedBy: currentUser() || '', updatedAt: Date.now() }).catch(e => console.warn('Bewertungslink nicht synchronisiert:', e));
+}
+function reviewLinkSync(){
+  if (!fbReady || !fbDb) return;
+  fbDb.collection('bluefix_sync').doc('bluefix_review_link').get().then(d => {
+    if (d.exists && d.data().link) localStorage.setItem(REVIEW_LINK_KEY, d.data().link);
+  }).catch(() => {});
+}
+function reviewDue(o){
+  if (!o || o.typ !== 'kunde' || o.repStatus !== 'fertig' || o.bewertung) return false;
+  if (!o.telefon && !o.email) return false;
+  const age = Date.now() - (o.statusUpdatedAt || 0);
+  return age >= REVIEW_WAIT_DAYS * 864e5 && age < 60 * 864e5;
+}
+function reviewBoxHtml(o){
+  if ((o.repStatus || 'angenommen') !== 'fertig') return '';
+  const id = esc(o.id), b = o.bewertung;
+  const info = b
+    ? 'Angefragt am ' + fmtTime(b.ts) + ' (' + esc(b.kanal || '') + ')' + (USERS[b.by] ? ' von ' + esc(USERS[b.by].displayName) : '')
+    : 'Noch nicht angefragt';
+  return '<div class="rev-box"><div class="order-section-title">⭐ Google-Bewertung</div><div class="rep-info">' + info + '</div>' +
+    '<button class="btn ' + (b ? 'btn-ghost' : 'btn-primary') + ' btn-sm" type="button" data-review-open="' + id + '">' + (b ? 'Nochmals anfragen' : '⭐ Bewertung anfragen') + '</button></div>';
+}
+function renderReviewBar(){
+  const el = document.getElementById('reviewBar'); if (!el) return;
+  const due = load(ORDERS_KEY, []).filter(reviewDue);
+  if (!due.length) { el.innerHTML = ''; reviewFilter = false; return; }
+  el.innerHTML = '<div class="mahn-bar rev-bar"><div><div class="mahn-title" style="color:#ffcf7a;">⭐ ' + due.length + (due.length === 1 ? ' Kunde' : ' Kunden') + ' bereit für eine Bewertung</div>' +
+    '<div class="mahn-sub">Gerät seit mindestens ' + REVIEW_WAIT_DAYS + ' Tagen fertig, noch nicht angefragt</div></div>' +
+    '<button type="button" class="btn btn-ghost btn-sm' + (reviewFilter ? ' active' : '') + '" id="reviewFilterBtn">' + (reviewFilter ? 'Alle zeigen' : 'Anzeigen') + '</button></div>';
+  document.getElementById('reviewFilterBtn').addEventListener('click', () => { reviewFilter = !reviewFilter; renderOrders(); });
+}
+function reviewMsgDu(o, link){
+  return (o.vorname ? 'Hallo ' + o.vorname + ', ' : 'Hallo, ') + 'vielen Dank für dein Vertrauen in BlueFix! 😊\n\n' +
+    'Wenn du zufrieden warst, freuen wir uns über eine kurze Google-Bewertung. Das dauert nur eine Minute:\n' + (link || '[Link]') + '\n\nDein BlueFix-Team';
+}
+function reviewMsgSie(o, link){
+  return 'vielen Dank für Ihr Vertrauen in BlueFix!\n\nWenn Sie zufrieden waren, freuen wir uns über eine kurze Google-Bewertung. Das dauert nur eine Minute:\n' + (link || '[Link]');
+}
+function reviewRefreshMsg(){
+  if (reviewEdited) return;
+  const o = load(ORDERS_KEY, []).find(x => x.id === reviewOrderId); if (!o) return;
+  document.getElementById('rvMsg').value = reviewMsgDu(o, document.getElementById('rvLink').value.trim());
+}
+function openReviewModal(id){
+  const o = load(ORDERS_KEY, []).find(x => x.id === id); if (!o) return;
+  reviewOrderId = id; reviewEdited = false;
+  document.getElementById('rvInfo').innerHTML = '<strong>' + esc(o.vorname) + ' ' + esc(o.nachname) + '</strong> · ' + esc(o.modell || '') +
+    (o.bewertung ? '<br><span style="color:var(--muted);font-size:12.5px;">Schon angefragt am ' + fmtTime(o.bewertung.ts) + '</span>' : '');
+  document.getElementById('rvLink').value = getReviewLink();
+  document.getElementById('rvPhone').value = o.telefon || '';
+  document.getElementById('rvMail').value = o.email || '';
+  reviewRefreshMsg();
+  document.getElementById('reviewModal').classList.add('show');
+}
+function reviewRecord(kanal){
+  const arr = load(ORDERS_KEY, []), o = arr.find(x => x.id === reviewOrderId); if (!o) return;
+  o.bewertung = { ts: Date.now(), by: currentUser(), kanal };
+  const phone = document.getElementById('rvPhone').value.trim(), mail = document.getElementById('rvMail').value.trim();
+  if (phone !== (o.telefon || '')) o.telefon = phone;
+  if (mail !== (o.email || '')) o.email = mail;
+  o.updatedBy = currentUser(); o.updatedAt = Date.now();
+  save(ORDERS_KEY, arr);
+  logActivity('⭐', 'eine Bewertung bei ' + o.vorname + ' ' + o.nachname + ' angefragt (' + kanal + ')');
+  document.getElementById('reviewModal').classList.remove('show');
+  renderOrders();
+  return o;
+}
+function reviewSend(kind){
+  const o0 = load(ORDERS_KEY, []).find(x => x.id === reviewOrderId); if (!o0) return;
+  const link = document.getElementById('rvLink').value.trim();
+  const phoneRaw = document.getElementById('rvPhone').value.trim(), mailRaw = document.getElementById('rvMail').value.trim();
+  if (kind !== 'mark') {
+    if (!/^https:\/\/\S+$/i.test(link)) { alert('Bitte zuerst den Google-Bewertungslink von BlueFix eintragen (muss mit https:// beginnen).'); return; }
+    if ((kind === 'wa' || kind === 'sms') && !normPhone(phoneRaw)) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
+    if (kind === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailRaw)) { alert('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+  }
+  if (/^https:\/\/\S+$/i.test(link)) setReviewLink(link);
+  const msg = document.getElementById('rvMsg').value;
+  const num = normPhone(phoneRaw);
+  const kanal = { wa: 'WhatsApp', sms: 'SMS', mail: 'E-Mail', mark: 'manuell' }[kind];
+  const o = reviewRecord(kanal) || o0;
+  if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+  else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
+  else if (kind === 'mail') openGmailCompose(mailRaw, 'BlueFix - Ihre Meinung ist uns wichtig', buildMailBody(o, reviewMsgSie(o, link)));
+}
+document.getElementById('rvLink').addEventListener('input', reviewRefreshMsg);
+document.getElementById('rvMsg').addEventListener('input', () => { reviewEdited = true; });
+document.getElementById('rvWa').addEventListener('click', () => reviewSend('wa'));
+document.getElementById('rvSms').addEventListener('click', () => reviewSend('sms'));
+document.getElementById('rvMailBtn').addEventListener('click', () => reviewSend('mail'));
+document.getElementById('rvMark').addEventListener('click', () => reviewSend('mark'));
+document.getElementById('rvClose').addEventListener('click', () => document.getElementById('reviewModal').classList.remove('show'));
+document.getElementById('ordersList').addEventListener('click', e => {
+  const b = e.target.closest('[data-review-open]');
+  if (b) openReviewModal(b.dataset.reviewOpen);
+});
 </script>
 <script src="login-splash.js"></script>
 </body>
