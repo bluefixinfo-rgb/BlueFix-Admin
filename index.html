@@ -785,6 +785,34 @@ input,select,textarea{font-family:var(--sans);}
 .lohn-row .lohn-left{min-width:0; flex:1;}
 
 .btn.is-locked,.btn:disabled{opacity:.6;cursor:not-allowed;filter:grayscale(.3);}
+
+/* ---------------- TERMINE & MAHNWESEN ---------------- */
+.cal-nav{display:flex; align-items:center; gap:8px; margin:0 0 12px;}
+.cal-month{flex:1; text-align:center; font-family:var(--serif); font-weight:600; font-size:15px;}
+.cal-arrow{width:38px; height:38px; border-radius:50%; border:1px solid var(--glass-border-soft); background:rgba(255,255,255,0.05); color:var(--white); font-size:20px; line-height:1; cursor:pointer;}
+.cal-arrow:hover{border-color:rgba(255,255,255,0.32); background:rgba(255,255,255,0.09);}
+.cal-strip{display:grid; grid-template-columns:repeat(7,1fr); gap:6px; margin-bottom:18px;}
+.cal-day{display:flex; flex-direction:column; align-items:center; gap:3px; padding:9px 0 8px; border-radius:14px; border:1px solid var(--glass-border-soft); background:rgba(255,255,255,0.04); color:var(--muted); cursor:pointer; font-size:11.5px; font-family:inherit;}
+.cal-day b{font-size:16px; color:var(--white); font-family:var(--serif);}
+.cal-day i{width:5px; height:5px; border-radius:50%; background:transparent;}
+.cal-day.has i{background:var(--blue-light);}
+.cal-day.today{border-color:var(--blue-light);}
+.cal-day.sel{background:linear-gradient(135deg,var(--blue-light),var(--blue)); border-color:transparent; color:#fff; box-shadow:var(--glow-sm);}
+.cal-day.sel b{color:#fff;}
+.cal-day.sel.has i{background:#fff;}
+.cal-heading{font-family:var(--serif); font-size:16px; font-weight:600; margin:0 2px 12px;}
+.cal-time-row{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+.termin-card{border-left:3px solid var(--tc, var(--blue-light));}
+.termin-time{color:var(--tc, var(--blue-light)); font-variant-numeric:tabular-nums; margin-right:8px;}
+.termin-done{opacity:.55;}
+.termin-done .card-title{text-decoration:line-through;}
+.termin-note{font-size:13px; color:var(--muted); margin:8px 0 0; white-space:pre-wrap;}
+.mahn-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; margin-bottom:14px; border-radius:var(--radius); border:1px solid rgba(227,72,72,0.45); background:rgba(227,72,72,0.08);}
+.mahn-title{font-weight:600; font-size:14px; color:#ff9a9a;}
+.mahn-sub{font-size:12px; color:var(--muted); margin-top:2px;}
+.mahn-info{font-size:13.5px; margin:0 0 14px; padding:10px 12px; border-radius:12px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border-soft);}
+.mahn-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px;}
+.badge-mahn{background:rgba(245,166,35,0.16); color:#ffcf7a; margin-left:6px;}
 </style>
 </head>
 <body>
@@ -891,6 +919,7 @@ input,select,textarea{font-family:var(--sans);}
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
     <button class="tab-btn" data-tab="meinestunden" id="myHoursTabBtn" style="display:none;">⏱ Meine Stunden</button>
     <button class="tab-btn" data-tab="orders">🧾 Aufträge</button>
+    <button class="tab-btn" data-tab="calendar">📅 Termine</button>
     <button class="tab-btn" data-tab="invoices">💳 Rechnungen</button>
     <button class="tab-btn" data-tab="revenue">📈 Umsatz</button>
     <button class="tab-btn" data-tab="activity" id="activityTabBtn" style="display:none;">🕘 Verlauf</button>
@@ -936,11 +965,28 @@ input,select,textarea{font-family:var(--sans);}
     <div id="ordersList"></div>
   </div>
 
+  <!-- TERMINE / KALENDER -->
+  <div class="tab-content" id="tab-calendar">
+    <div class="section-head-row">
+      <div><h2>Termine</h2><div style="color:var(--muted);font-size:12px;margin-top:2px;">Abholungen, Reparaturen und Sonstiges</div></div>
+    </div>
+    <div class="cal-nav">
+      <button type="button" class="cal-arrow" id="calPrev" aria-label="Vorherige Woche">‹</button>
+      <div class="cal-month" id="calMonth"></div>
+      <button type="button" class="btn btn-ghost btn-sm" id="calToday">Heute</button>
+      <button type="button" class="cal-arrow" id="calNext" aria-label="Nächste Woche">›</button>
+    </div>
+    <div class="cal-strip" id="calStrip"></div>
+    <div class="cal-heading" id="calHeading"></div>
+    <div id="calList"></div>
+  </div>
+
   <!-- INVOICES -->
   <div class="tab-content" id="tab-invoices">
     <div class="section-head-row">
       <h2>Rechnungen</h2>
     </div>
+    <div id="mahnBar"></div>
     <div class="order-search" style="margin-bottom:14px;"><span class="search-icon">⌕</span><input id="invoiceSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     <div id="invoicesList"></div>
   </div>
@@ -1167,6 +1213,52 @@ input,select,textarea{font-family:var(--sans);}
       <button class="btn btn-ghost" id="custCancel">Abbrechen</button>
       <button class="btn btn-primary" id="custSave">Auftrag speichern & PDF erstellen</button>
     </div>
+  </div>
+</div>
+
+<!-- ==================== MODAL: Termin ==================== -->
+<div class="modal-overlay" id="terminModal">
+  <div class="modal modern-modal">
+    <h3 id="terminModalTitle">📅 Neuer Termin</h3>
+    <input type="hidden" id="tmEditId" value="">
+    <div class="field"><label>Art</label><select id="tmTyp"><option value="reparatur">Reparatur</option><option value="abholung">Abholung</option><option value="sonstiges">Sonstiges</option></select></div>
+    <div class="field"><label>Zu welchem Auftrag? (optional)</label><select id="tmAuftrag"></select></div>
+    <div class="field"><label>Titel (optional)</label><input type="text" id="tmTitel" placeholder="z.B. Abholung iPhone 13"></div>
+    <div class="field"><label>Datum</label><input type="date" id="tmDatum"></div>
+    <div class="cal-time-row">
+      <div class="field"><label>Von</label><input type="time" id="tmVon"></div>
+      <div class="field"><label>Bis</label><input type="time" id="tmBis"></div>
+    </div>
+    <div class="field"><label>Wer ist zuständig?</label><select id="tmWer"><option value="beide">Beide</option><option value="jerome">Jerome</option><option value="thierry">Thierry</option></select></div>
+    <div class="field"><label>Notiz (optional)</label><textarea id="tmNotiz" placeholder="Was muss vorbereitet werden?"></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="tmCancel">Abbrechen</button>
+      <button class="btn btn-primary" id="tmSave">Termin speichern</button>
+    </div>
+    <button class="btn btn-danger btn-sm" id="tmDelete" style="display:none;width:100%;margin-top:10px;">Termin löschen</button>
+  </div>
+</div>
+
+<!-- ==================== MODAL: Mahnung ==================== -->
+<div class="modal-overlay" id="mahnModal">
+  <div class="modal modern-modal">
+    <h3>📨 Zahlung anmahnen</h3>
+    <div class="mahn-info" id="mhInfo"></div>
+    <div class="field"><label>Mahnstufe</label><select id="mhStufe"><option value="1">Zahlungserinnerung</option><option value="2">1. Mahnung</option><option value="3">Letzte Mahnung</option></select></div>
+    <div class="cal-time-row">
+      <div class="field"><label>Mahngebühr (CHF, optional)</label><input type="number" id="mhGebuehr" min="0" step="0.05" placeholder="0.00"></div>
+      <div class="field"><label>Zahlungsfrist (Tage)</label><input type="number" id="mhTage" min="1" step="1" value="10"></div>
+    </div>
+    <div class="field"><label>Nachricht (du kannst den Text anpassen)</label><textarea id="mhText" rows="9"></textarea></div>
+    <div class="card-sub" id="mhContact" style="margin-bottom:12px;"></div>
+    <div class="mahn-grid">
+      <button class="btn btn-primary btn-sm" id="mhSms">📱 SMS</button>
+      <button class="btn btn-primary btn-sm" id="mhMail">✉️ E-Mail</button>
+      <button class="btn btn-ghost btn-sm" id="mhPdf">📄 PDF</button>
+      <button class="btn btn-ghost btn-sm" id="mhCopy">📋 Kopieren</button>
+    </div>
+    <button class="btn btn-ghost btn-sm" id="mhMark" style="width:100%;margin-top:8px;">Nur als gesendet markieren</button>
+    <button class="btn btn-ghost btn-sm" id="mhClose" style="width:100%;margin-top:8px;">Schliessen</button>
   </div>
 </div>
 
@@ -1463,6 +1555,7 @@ const WB_TPL_KEY = 'bluefix_werbung_vorlagen';
 let orderTypeFilter = null;
 const INVOICES_KEY = 'bluefix_team_invoices';
 const LOHN_KEY = 'bluefix_team_lohn';
+const TERMINE_KEY = 'bluefix_team_termine';
 
 /* ===================== LIVE-SYNC + BENACHRICHTIGUNGEN (Firebase) =====================
    Firestore wird weiterhin für Auftrags-/Nachrichtensynchronisation verwendet.
@@ -1566,7 +1659,7 @@ try {
   }
 } catch (e) { console.warn('Firebase konnte nicht initialisiert werden:', e); }
 
-const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, LOHN_KEY];
+const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, LOHN_KEY, TERMINE_KEY];
 const MSG_COLLECTION = 'bluefix_sync_msgs';
 let ignoreNextSnapshot = {};
 
@@ -1618,6 +1711,7 @@ function titleFor(key, otherName){
   if (key === ORDERS_KEY) return 'BlueFix – ' + otherName + ' hat einen neuen Team/Kunden Auftrag erstellt';
   if (key === INVOICES_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Rechnung erstellt';
   if (key === WB_TPL_KEY) return 'BlueFix – ' + otherName + ' hat eine Werbe-Vorlage gespeichert';
+  if (key === TERMINE_KEY) return 'BlueFix – ' + otherName + ' hat einen Termin eingetragen';
   return 'BlueFix – ' + otherName + ' hat ein Update erstellt';
 }
 
@@ -1672,6 +1766,7 @@ function startFirebaseSync(){
       }
       if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
       if (key === WB_TPL_KEY) { try { wbRenderTemplates(); } catch (e) {} }
+      if (key === TERMINE_KEY) { try { renderTermine(); } catch (e) {} }
       if (key === LOHN_KEY) { try { renderLohn(); } catch (e) {} try { renderMyHours(); } catch (e) {} try { refreshChatPdfButtons(); } catch (e) {} }
 
       if (isNewFromOther) {
@@ -1984,6 +2079,7 @@ function enterTeamApp(u, uKey){
   renderChat();
   renderOrders();
   renderInvoices();
+  try { renderTermine(); } catch (e) {}
   requestNotifyPermission();
   startFirebaseSync();
   startChatCollectionSync();
@@ -3094,12 +3190,13 @@ function renderInvoices(){
   renderDashboard();
   renderRevenue();
   const allInvoices = load(INVOICES_KEY, []);
+  try { renderMahnBar(allInvoices); } catch (e) {}
   const list = document.getElementById('invoicesList');
   list.innerHTML = '';
   if (!allInvoices.length) { list.innerHTML = '<div class="empty-state">Noch keine Rechnungen. Tippe unten rechts auf + um eine zu erstellen.</div>'; return; }
   const iq = (document.getElementById('invoiceSearch')?.value || '').trim().toLowerCase();
   const custIdx = iq ? buildCustomerIndex() : null;
-  const invoices = allInvoices.filter(i => invoiceMatchesSearch(i, iq, custIdx));
+  const invoices = allInvoices.filter(i => invoiceMatchesSearch(i, iq, custIdx)).filter(i => !invOverdueOnly || isOverdue(i));
   if (!invoices.length) { list.innerHTML = '<div class="empty-state">Keine Rechnungen für diese Suche.</div>'; return; }
   invoices.forEach(inv => {
     const card = document.createElement('div');
@@ -3116,11 +3213,12 @@ function renderInvoices(){
           </button>
         </div>
       </div>
-      ${invoiceBadgeHtml(inv)}
+      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}
       <span class="badge badge-nicht" style="margin-left:6px;">${PAY_LABELS[inv.zahlungsart]}</span>
       <div class="card-grid">
         <div><div class="k">Erstellt</div><div class="v">${fmtTime(inv.createdAt)}</div></div>
         <div><div class="k">Von</div><div class="v">${USERS[inv.createdBy] ? USERS[inv.createdBy].displayName : ''}</div></div>
+        ${mahnLast(inv) ? `<div><div class="k">Letzte Mahnung</div><div class="v">${esc(MAHN_STUFEN[mahnLast(inv).stufe].label)} · ${fmtTime(mahnLast(inv).ts)}</div></div>` : ''}
       </div>
       <div class="modal-actions" style="margin-top:14px;">
         <button class="btn btn-ghost btn-sm" data-view-inv="${inv.id}" style="flex:1;">Details / QR</button>
@@ -3128,6 +3226,7 @@ function renderInvoices(){
           ? `<button class="btn btn-primary btn-sm" data-paid-inv="${inv.id}" style="flex:1;">Als bezahlt markieren</button>`
           : `<button class="btn btn-ghost btn-sm" data-unpaid-inv="${inv.id}" style="flex:1;">Rückgängig</button>`}
       </div>
+      ${isOverdue(inv) ? `<button class="btn btn-danger btn-sm" data-mahn-inv="${inv.id}" style="width:100%;margin-top:8px;">📨 ${mahnCount(inv) ? 'Nächste Mahnung senden' : 'Zahlungserinnerung senden'}</button>` : ''}
     `;
     list.appendChild(card);
   });
@@ -3153,6 +3252,7 @@ function renderInvoices(){
     const inv = load(INVOICES_KEY, []).find(i => i.id === btn.dataset.viewInv);
     if (inv) showInvoiceDetail(inv);
   }));
+  list.querySelectorAll('[data-mahn-inv]').forEach(btn => btn.addEventListener('click', () => openMahnModal(btn.dataset.mahnInv)));
 }
 
 function buildSwissQRPayload(amount, message){
@@ -4866,6 +4966,340 @@ requestNotifyPermission();
 
 </div>
 
+<script>
+/* ===================== TERMINE / KALENDER ===================== */
+const TERMIN_TYPEN = {
+  reparatur: { l: 'Reparatur', c: 'var(--blue-light)' },
+  abholung:  { l: 'Abholung',  c: 'var(--good)' },
+  sonstiges: { l: 'Sonstiges', c: 'var(--warn)' }
+};
+const TERMIN_WER = { beide: 'Beide', jerome: 'Jerome', thierry: 'Thierry' };
+const WTAGE_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+
+function ymd(d){ const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
+function parseYmd(s){ const a = String(s).split('-').map(Number); return new Date(a[0], a[1] - 1, a[2]); }
+function calWeekStart(s){ const d = parseYmd(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
+function termineOn(day){
+  return load(TERMINE_KEY, []).filter(t => t.datum === day)
+    .sort((a, b) => (a.von || '99:99').localeCompare(b.von || '99:99'));
+}
+let calSel = ymd(new Date());
+
+function calHeadingText(day){
+  const d = parseYmd(day), today = parseYmd(ymd(new Date()));
+  const diff = Math.round((d - today) / 864e5);
+  const lang = d.toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
+  if (diff === 0) return 'Heute · ' + lang;
+  if (diff === 1) return 'Morgen · ' + lang;
+  if (diff === -1) return 'Gestern · ' + lang;
+  return lang;
+}
+
+function renderTermine(){
+  const strip = document.getElementById('calStrip');
+  if (!strip) return;
+  const ws = calWeekStart(calSel), todayKey = ymd(new Date());
+  document.getElementById('calMonth').textContent = parseYmd(calSel).toLocaleDateString('de-CH', { month: 'long', year: 'numeric' });
+  const all = load(TERMINE_KEY, []);
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(ws); d.setDate(ws.getDate() + i);
+    const key = ymd(d);
+    const has = all.some(t => t.datum === key && !t.erledigt);
+    html += '<button type="button" class="cal-day' + (key === calSel ? ' sel' : '') + (key === todayKey ? ' today' : '') + (has ? ' has' : '') + '" data-day="' + key + '">' +
+      '<span>' + WTAGE_KURZ[d.getDay()] + '</span><b>' + d.getDate() + '</b><i></i></button>';
+  }
+  strip.innerHTML = html;
+  strip.querySelectorAll('[data-day]').forEach(b => b.addEventListener('click', () => { calSel = b.dataset.day; renderTermine(); }));
+
+  document.getElementById('calHeading').textContent = calHeadingText(calSel);
+  const list = document.getElementById('calList');
+  const items = termineOn(calSel);
+  if (!items.length) {
+    list.innerHTML = '<div class="empty-state">Kein Termin an diesem Tag. Tippe unten rechts auf + um einen einzutragen.</div>';
+    return;
+  }
+  list.innerHTML = '';
+  items.forEach(t => {
+    const typ = TERMIN_TYPEN[t.typ] || TERMIN_TYPEN.sonstiges;
+    const zeit = t.von ? (t.von + (t.bis ? '–' + t.bis : '')) : 'Ganztägig';
+    const card = document.createElement('div');
+    card.className = 'card termin-card' + (t.erledigt ? ' termin-done' : '');
+    card.style.setProperty('--tc', typ.c);
+    card.innerHTML =
+      '<div class="card-top"><div>' +
+        '<p class="card-title"><span class="termin-time">' + esc(zeit) + '</span>' + esc(t.titel || typ.l) + '</p>' +
+        '<p class="card-sub">' + esc(typ.l) + (t.kunde ? ' · ' + esc(t.kunde) : '') + ' · ' + esc(TERMIN_WER[t.wer] || 'Beide') + '</p>' +
+      '</div></div>' +
+      (t.notiz ? '<p class="termin-note">' + esc(t.notiz) + '</p>' : '') +
+      '<div class="modal-actions" style="margin-top:14px;">' +
+        '<button class="btn btn-ghost btn-sm" data-tm-done="' + t.id + '" style="flex:1;">' + (t.erledigt ? 'Wieder öffnen' : '✓ Erledigt') + '</button>' +
+        '<button class="btn btn-ghost btn-sm" data-tm-edit="' + t.id + '" style="flex:1;">Bearbeiten</button>' +
+        (t.telefon ? '<button class="btn btn-ghost btn-sm" data-tm-sms="' + t.id + '" style="flex:1;">📱 SMS</button>' : '') +
+      '</div>';
+    list.appendChild(card);
+  });
+  list.querySelectorAll('[data-tm-done]').forEach(b => b.addEventListener('click', () => {
+    const arr = load(TERMINE_KEY, []), t = arr.find(x => x.id === b.dataset.tmDone);
+    if (!t) return;
+    t.erledigt = !t.erledigt; save(TERMINE_KEY, arr); renderTermine();
+  }));
+  list.querySelectorAll('[data-tm-edit]').forEach(b => b.addEventListener('click', () => {
+    const t = load(TERMINE_KEY, []).find(x => x.id === b.dataset.tmEdit);
+    if (t) openTerminModal(t);
+  }));
+  list.querySelectorAll('[data-tm-sms]').forEach(b => b.addEventListener('click', () => {
+    const t = load(TERMINE_KEY, []).find(x => x.id === b.dataset.tmSms);
+    if (t) terminSms(t);
+  }));
+}
+
+function terminSms(t){
+  const o = t.orderId ? load(ORDERS_KEY, []).find(x => x.id === t.orderId) : null;
+  const name = (o && o.vorname) || '';
+  const was = t.typ === 'abholung' ? 'Abholtermin' : 'Termin';
+  const datum = parseYmd(t.datum).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
+  const text = 'Guten Tag' + (name ? ' ' + name : '') + ', wir erinnern Sie an Ihren ' + was + ' bei BlueFix am ' + datum +
+    (t.von ? ' um ' + t.von + ' Uhr' : '') + '. Bei Fragen melden Sie sich gerne. Freundliche Grüsse, BlueFix';
+  window.location.href = 'sms:' + String(t.telefon).replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(text);
+}
+
+let tmTitelTouched = false;
+function tmVal(id){ return document.getElementById(id).value.trim(); }
+function tmFillOrders(selectedId){
+  const sel = document.getElementById('tmAuftrag');
+  const orders = load(ORDERS_KEY, []).filter(o => o.typ === 'kunde').sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 80);
+  sel.innerHTML = '<option value="">Kein Auftrag verknüpft</option>' + orders.map(o =>
+    '<option value="' + esc(o.id) + '"' + (o.id === selectedId ? ' selected' : '') + '>' +
+    esc(((o.vorname || '') + ' ' + (o.nachname || '')).trim() + ' · ' + (o.modell || '')) + '</option>').join('');
+}
+function tmAutoTitle(){
+  if (tmTitelTouched) return;
+  const typ = TERMIN_TYPEN[document.getElementById('tmTyp').value] || TERMIN_TYPEN.sonstiges;
+  const id = document.getElementById('tmAuftrag').value;
+  const o = id ? load(ORDERS_KEY, []).find(x => x.id === id) : null;
+  document.getElementById('tmTitel').value = o ? typ.l + ': ' + ((o.vorname || '') + ' ' + (o.nachname || '')).trim() + ' · ' + (o.modell || '') : '';
+}
+function openTerminModal(t){
+  tmTitelTouched = !!(t && t.titel);
+  document.getElementById('tmEditId').value = t ? t.id : '';
+  document.getElementById('terminModalTitle').textContent = t ? '✏️ Termin bearbeiten' : '📅 Neuer Termin';
+  document.getElementById('tmSave').textContent = t ? 'Änderungen speichern' : 'Termin speichern';
+  document.getElementById('tmDelete').style.display = t ? 'inline-flex' : 'none';
+  tmFillOrders(t ? t.orderId : '');
+  document.getElementById('tmTyp').value = t ? (t.typ || 'sonstiges') : 'reparatur';
+  document.getElementById('tmTitel').value = t ? (t.titel || '') : '';
+  document.getElementById('tmDatum').value = t ? t.datum : calSel;
+  document.getElementById('tmVon').value = t ? (t.von || '') : '';
+  document.getElementById('tmBis').value = t ? (t.bis || '') : '';
+  document.getElementById('tmWer').value = t ? (t.wer || 'beide') : 'beide';
+  document.getElementById('tmNotiz').value = t ? (t.notiz || '') : '';
+  document.getElementById('terminModal').classList.add('show');
+}
+document.getElementById('tmTitel').addEventListener('input', () => { tmTitelTouched = true; });
+document.getElementById('tmTyp').addEventListener('change', tmAutoTitle);
+document.getElementById('tmAuftrag').addEventListener('change', tmAutoTitle);
+document.getElementById('tmCancel').addEventListener('click', () => document.getElementById('terminModal').classList.remove('show'));
+document.getElementById('tmSave').addEventListener('click', () => {
+  const datum = tmVal('tmDatum');
+  if (!datum) { alert('Bitte ein Datum wählen.'); return; }
+  const von = tmVal('tmVon'), bis = tmVal('tmBis');
+  if (von && bis && bis < von) { alert('Das Ende liegt vor dem Beginn.'); return; }
+  const typ = tmVal('tmTyp'), orderId = tmVal('tmAuftrag');
+  const o = orderId ? load(ORDERS_KEY, []).find(x => x.id === orderId) : null;
+  const kunde = o ? ((o.vorname || '') + ' ' + (o.nachname || '')).trim() : '';
+  const titel = tmVal('tmTitel') || (TERMIN_TYPEN[typ] || TERMIN_TYPEN.sonstiges).l + (kunde ? ': ' + kunde : '');
+  const arr = load(TERMINE_KEY, []);
+  const editId = tmVal('tmEditId');
+  const felder = { typ, titel, datum, von, bis, wer: tmVal('tmWer'), notiz: tmVal('tmNotiz'), orderId: orderId || '', kunde, telefon: (o && o.telefon) || '' };
+  if (editId) {
+    const t = arr.find(x => x.id === editId);
+    if (!t) { alert('Termin wurde nicht gefunden.'); return; }
+    Object.assign(t, felder, { updatedBy: currentUser(), updatedAt: Date.now() });
+    logActivity('📅', 'den Termin bearbeitet: ' + titel);
+  } else {
+    arr.push(Object.assign({ id: uid(), erledigt: false, createdBy: currentUser(), createdAt: Date.now() }, felder));
+    logActivity('📅', 'einen Termin eingetragen: ' + titel + ' (' + parseYmd(datum).toLocaleDateString('de-CH') + ')');
+    try {
+      const me = currentUser(), myName = USERS[me] ? USERS[me].displayName : me;
+      sendPushToOther('BlueFix – Neuer Termin', myName + ' hat einen Termin eingetragen: ' + titel + ' am ' + parseYmd(datum).toLocaleDateString('de-CH') + (von ? ' um ' + von : ''));
+    } catch (e) {}
+  }
+  save(TERMINE_KEY, arr);
+  calSel = datum;
+  document.getElementById('terminModal').classList.remove('show');
+  renderTermine();
+});
+document.getElementById('tmDelete').addEventListener('click', () => {
+  const id = tmVal('tmEditId');
+  document.getElementById('terminModal').classList.remove('show');
+  showConfirm('Diesen Termin wirklich löschen?', () => {
+    const t = load(TERMINE_KEY, []).find(x => x.id === id);
+    if (t) logActivity('🗑️', 'den Termin gelöscht: ' + (t.titel || ''));
+    save(TERMINE_KEY, load(TERMINE_KEY, []).filter(x => x.id !== id));
+    renderTermine();
+  });
+});
+document.getElementById('calPrev').addEventListener('click', () => { const d = parseYmd(calSel); d.setDate(d.getDate() - 7); calSel = ymd(d); renderTermine(); });
+document.getElementById('calNext').addEventListener('click', () => { const d = parseYmd(calSel); d.setDate(d.getDate() + 7); calSel = ymd(d); renderTermine(); });
+document.getElementById('calToday').addEventListener('click', () => { calSel = ymd(new Date()); renderTermine(); });
+document.querySelector('.tab-btn[data-tab="calendar"]').addEventListener('click', () => { calSel = ymd(new Date()); renderTermine(); });
+document.getElementById('fabBtn').addEventListener('click', () => {
+  const active = document.querySelector('.tab-btn.active');
+  if (active && active.dataset.tab === 'calendar') openTerminModal();
+});
+
+/* ===================== MAHNWESEN ===================== */
+const MAHN_STUFEN = {
+  1: { label: 'Zahlungserinnerung' },
+  2: { label: '1. Mahnung' },
+  3: { label: 'Letzte Mahnung' }
+};
+function mahnCount(inv){ return (inv.mahnungen || []).length; }
+function mahnLast(inv){ const m = inv.mahnungen || []; return m.length ? m[m.length - 1] : null; }
+function mahnNextStufe(inv){ return Math.min(3, Math.max.apply(null, [0].concat((inv.mahnungen || []).map(m => m.stufe))) + 1); }
+function mahnBadgeHtml(inv){
+  const l = mahnLast(inv);
+  return (l && !inv.bezahlt) ? '<span class="badge badge-mahn">📨 ' + esc((MAHN_STUFEN[l.stufe] || {}).label || 'Gemahnt') + '</span>' : '';
+}
+function mahnContact(inv){
+  const n = normName(inv.kunde);
+  const orders = load(ORDERS_KEY, []).filter(o => normName((o.vorname || '') + ' ' + (o.nachname || '')) === n);
+  return {
+    tel: (orders.find(o => o.telefon) || {}).telefon || '',
+    mail: (orders.find(o => o.email) || {}).email || '',
+    vorname: (orders[0] || {}).vorname || ''
+  };
+}
+function mahnPaymentText(inv){
+  if (inv.zahlungsart === 'twint') return 'Zahlung per Twint an ' + BANK_INFO.twintNumber + '.';
+  if (inv.zahlungsart === 'bar') return 'Die Zahlung ist auch bar bei uns im Geschäft möglich.';
+  return 'Zahlung an: ' + BANK_INFO.name + ', IBAN ' + BANK_INFO.iban + ' (' + BANK_INFO.bank + ').';
+}
+function mahnText(inv, stufe, gebuehr, tage){
+  const c = mahnContact(inv);
+  const betrag = Number(inv.betrag) || 0, geb = Number(gebuehr) || 0, total = betrag + geb;
+  const fr = new Date(Date.now() + (Number(tage) || 10) * 864e5).toLocaleDateString('de-CH');
+  const datum = new Date(inv.createdAt || Date.now()).toLocaleDateString('de-CH');
+  const was = inv.beschreibung ? ' (' + String(inv.beschreibung).replace(/\s+/g, ' ').slice(0, 80) + ')' : '';
+  const chf = n => 'CHF ' + n.toFixed(2);
+  const gebZeile = geb > 0 ? ' Darin sind ' + chf(geb) + ' Mahngebühren enthalten.' : '';
+  let body;
+  if (stufe === 1) {
+    body = 'unsere Rechnung vom ' + datum + was + ' über ' + chf(betrag) + ' ist noch offen. Vielleicht ist sie untergegangen. Bitte begleichen Sie den Betrag von ' + chf(total) + ' bis am ' + fr + '.' + gebZeile;
+  } else if (stufe === 2) {
+    body = 'trotz unserer Zahlungserinnerung ist die Rechnung vom ' + datum + was + ' über ' + chf(betrag) + ' noch offen. Wir bitten Sie, den Betrag von ' + chf(total) + ' bis am ' + fr + ' zu überweisen.' + gebZeile;
+  } else {
+    body = 'die Rechnung vom ' + datum + was + ' über ' + chf(betrag) + ' ist trotz Erinnerung und Mahnung weiterhin offen. Bitte zahlen Sie ' + chf(total) + ' bis spätestens am ' + fr + '.' + gebZeile + ' Sonst müssen wir weitere Schritte einleiten, zum Beispiel eine Betreibung.';
+  }
+  return 'Guten Tag' + (c.vorname ? ' ' + c.vorname : '') + '\n\n' + body + '\n\n' + mahnPaymentText(inv) +
+    '\n\nFalls Sie bereits bezahlt haben, ist diese Nachricht gegenstandslos.\n\nFreundliche Grüsse\nBlueFix';
+}
+
+let mahnInvId = null, mahnEdited = false;
+function mahnCurrentInv(){ return load(INVOICES_KEY, []).find(i => i.id === mahnInvId); }
+function mahnRefreshText(force){
+  if (mahnEdited && !force) return;
+  const inv = mahnCurrentInv(); if (!inv) return;
+  document.getElementById('mhText').value = mahnText(inv, Number(document.getElementById('mhStufe').value), document.getElementById('mhGebuehr').value, document.getElementById('mhTage').value);
+  mahnEdited = false;
+}
+function openMahnModal(invId){
+  mahnInvId = invId;
+  const inv = mahnCurrentInv(); if (!inv) return;
+  const c = mahnContact(inv), l = mahnLast(inv);
+  document.getElementById('mhInfo').innerHTML = '<strong>' + esc(inv.kunde) + '</strong> · CHF ' + Number(inv.betrag).toFixed(2) + '<br><span style="color:var(--muted);font-size:12.5px;">' +
+    invoiceAgeDays(inv) + ' Tage offen' + (l ? ' · zuletzt ' + esc(MAHN_STUFEN[l.stufe].label) + ' am ' + new Date(l.ts).toLocaleDateString('de-CH') : ' · noch keine Erinnerung gesendet') + '</span>';
+  document.getElementById('mhStufe').value = String(mahnNextStufe(inv));
+  document.getElementById('mhGebuehr').value = '';
+  document.getElementById('mhTage').value = '10';
+  document.getElementById('mhContact').textContent = (c.tel || c.mail)
+    ? 'Kontakt aus dem Auftrag: ' + [c.tel, c.mail].filter(Boolean).join(' · ')
+    : 'Keine Handynummer oder E-Mail im Auftrag gefunden. Du kannst den Text kopieren oder als PDF speichern.';
+  document.getElementById('mhSms').disabled = !c.tel;
+  document.getElementById('mhMail').disabled = !c.mail;
+  mahnEdited = false;
+  mahnRefreshText(true);
+  document.getElementById('mahnModal').classList.add('show');
+}
+function mahnRecord(kanal){
+  const arr = load(INVOICES_KEY, []), inv = arr.find(i => i.id === mahnInvId);
+  if (!inv) return;
+  const stufe = Number(document.getElementById('mhStufe').value);
+  inv.mahnungen = (inv.mahnungen || []).concat([{ stufe, ts: Date.now(), by: currentUser(), kanal, gebuehr: Number(document.getElementById('mhGebuehr').value) || 0 }]);
+  save(INVOICES_KEY, arr);
+  logActivity('📨', 'die ' + MAHN_STUFEN[stufe].label + ' an ' + inv.kunde + ' gesendet (' + kanal + ')');
+  document.getElementById('mahnModal').classList.remove('show');
+  renderInvoices();
+}
+function mahnPdf(inv, text, stufe){
+  const jsPDF = window.jspdf && window.jspdf.jsPDF;
+  if (!jsPDF) { alert('PDF-Bibliothek ist nicht geladen. Bitte Internetverbindung prüfen.'); return false; }
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text('BlueFix', 20, 22);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+  doc.text(BANK_INFO.name, 20, 29);
+  doc.text(BANK_INFO.strasse + ' ' + BANK_INFO.hausnr + ', ' + BANK_INFO.plz + ' ' + BANK_INFO.ort, 20, 34);
+  doc.setFontSize(11);
+  doc.text(String(inv.kunde || ''), 20, 58);
+  doc.text(BANK_INFO.ort + ', ' + new Date().toLocaleDateString('de-CH'), 190, 58, { align: 'right' });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(14);
+  doc.text(MAHN_STUFEN[stufe].label, 20, 80);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11);
+  let y = 92;
+  doc.splitTextToSize(text, 170).forEach(line => {
+    if (y > 280) { doc.addPage(); y = 20; }
+    doc.text(line, 20, y); y += 5.5;
+  });
+  doc.save(MAHN_STUFEN[stufe].label.replace(/[^\wäöüÄÖÜ]+/g, '_') + '_' + String(inv.kunde || 'Kunde').replace(/[^\wäöüÄÖÜ]+/g, '_') + '.pdf');
+  return true;
+}
+document.getElementById('mhStufe').addEventListener('change', () => mahnRefreshText(true));
+document.getElementById('mhGebuehr').addEventListener('input', () => mahnRefreshText(false));
+document.getElementById('mhTage').addEventListener('input', () => mahnRefreshText(false));
+document.getElementById('mhText').addEventListener('input', () => { mahnEdited = true; });
+document.getElementById('mhClose').addEventListener('click', () => document.getElementById('mahnModal').classList.remove('show'));
+document.getElementById('mhSms').addEventListener('click', () => {
+  const inv = mahnCurrentInv(); if (!inv) return;
+  const c = mahnContact(inv); if (!c.tel) return;
+  const text = document.getElementById('mhText').value;
+  mahnRecord('SMS');
+  window.location.href = 'sms:' + String(c.tel).replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(text);
+});
+document.getElementById('mhMail').addEventListener('click', () => {
+  const inv = mahnCurrentInv(); if (!inv) return;
+  const c = mahnContact(inv); if (!c.mail) return;
+  const stufe = Number(document.getElementById('mhStufe').value);
+  const text = document.getElementById('mhText').value;
+  mahnRecord('E-Mail');
+  window.location.href = 'mailto:' + encodeURIComponent(c.mail) + '?subject=' + encodeURIComponent(MAHN_STUFEN[stufe].label + ' – Rechnung BlueFix') + '&body=' + encodeURIComponent(text);
+});
+document.getElementById('mhPdf').addEventListener('click', () => {
+  const inv = mahnCurrentInv(); if (!inv) return;
+  const stufe = Number(document.getElementById('mhStufe').value);
+  if (mahnPdf(inv, document.getElementById('mhText').value, stufe)) mahnRecord('PDF');
+});
+document.getElementById('mhCopy').addEventListener('click', () => {
+  const ta = document.getElementById('mhText');
+  const done = () => { const b = document.getElementById('mhCopy'); b.textContent = '✓ Kopiert'; setTimeout(() => { b.textContent = '📋 Kopieren'; }, 1500); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(ta.value).then(done).catch(() => { ta.select(); document.execCommand('copy'); done(); });
+  else { ta.select(); document.execCommand('copy'); done(); }
+});
+document.getElementById('mhMark').addEventListener('click', () => mahnRecord('manuell'));
+
+let invOverdueOnly = false;
+function renderMahnBar(all){
+  const el = document.getElementById('mahnBar'); if (!el) return;
+  const od = all.filter(isOverdue);
+  if (!od.length) { el.innerHTML = ''; invOverdueOnly = false; return; }
+  const sum = od.reduce((s, i) => s + (Number(i.betrag) || 0), 0);
+  const ohne = od.filter(i => !mahnCount(i)).length;
+  el.innerHTML = '<div class="mahn-bar"><div><div class="mahn-title">⚠ ' + od.length + ' überfällig · ' + revChf(sum) + '</div>' +
+    '<div class="mahn-sub">' + (ohne ? ohne + ' noch ohne Erinnerung' : 'Bei allen wurde schon erinnert') + '</div></div>' +
+    '<button type="button" class="btn btn-ghost btn-sm' + (invOverdueOnly ? ' active' : '') + '" id="mahnFilterBtn">Nur überfällige</button></div>';
+  document.getElementById('mahnFilterBtn').addEventListener('click', () => { invOverdueOnly = !invOverdueOnly; renderInvoices(); });
+}
+</script>
 <script src="login-splash.js"></script>
 </body>
 </html>
