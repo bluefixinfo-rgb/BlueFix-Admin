@@ -1401,6 +1401,7 @@ input,select,textarea{font-family:var(--sans);}
       <label>Nachname Kunde</label>
       <input type="text" id="invNachname" placeholder="Muster">
     </div>
+    <div id="invSuggest" style="display:none; margin:-4px 0 14px; text-align:left;"></div>
     <div class="field">
       <label>Gerät (optional)</label>
       <input type="text" id="invGeraet" placeholder="z.B. iPhone 13">
@@ -3213,6 +3214,8 @@ function openInvoiceModal(){
   document.getElementById('invItems').innerHTML = '';
   invAddItemRow('', '');
   invUpdateTotal();
+  invCtx = null; invAutoId = null;
+  document.getElementById('invSuggest').style.display = 'none';
   selectedPay = 'twint';
   document.querySelectorAll('.pay-opt').forEach(p => p.classList.toggle('active', p.dataset.pay === 'twint'));
   document.getElementById('invoiceModal').classList.add('show');
@@ -3223,6 +3226,62 @@ document.querySelectorAll('.pay-opt').forEach(opt => opt.addEventListener('click
   selectedPay = opt.dataset.pay;
 }));
 document.getElementById('invCancel').addEventListener('click', () => document.getElementById('invoiceModal').classList.remove('show'));
+
+/* ---------- Automatisch aus Kundenauftrag übernehmen ---------- */
+let invCtx = null, invAutoId = null;
+function invCustomerOrders(){
+  return load(ORDERS_KEY, []).filter(o => o && (o.vorname || o.nachname) && (o.typ === 'kunde' || o.nachname));
+}
+function invFillFromOrder(o, onlyEmpty){
+  const setIf = (id, val) => { const el = document.getElementById(id); if (!onlyEmpty || !el.value.trim()) el.value = val || ''; };
+  document.getElementById('invVorname').value = o.vorname || '';
+  document.getElementById('invNachname').value = o.nachname || '';
+  setIf('invGeraet', o.modell);
+  setIf('invImei', o.imei);
+  const hasItems = invReadItems().length > 0 || Array.from(document.querySelectorAll('#invItems .inv-item-desc')).some(i => i.value.trim());
+  if (!onlyEmpty || !hasItems) {
+    document.getElementById('invItems').innerHTML = '';
+    const label = [o.auftrag, o.modell].filter(Boolean).join(' – ') || 'Reparatur';
+    invAddItemRow(label, Number(o.preis) > 0 ? Number(o.preis) : '');
+    invUpdateTotal();
+  }
+  invCtx = { name: normName((o.vorname || '') + ' ' + (o.nachname || '')), orderId: o.id, telefon: o.telefon || '', email: o.email || '' };
+  invAutoId = o.id;
+}
+function invRefreshSuggest(){
+  const box = document.getElementById('invSuggest');
+  const vn = document.getElementById('invVorname').value, nn = document.getElementById('invNachname').value;
+  const full = normName(vn + ' ' + nn);
+  const tokens = full.split(' ').filter(Boolean);
+  if (!tokens.length || full.length < 2) { box.style.display = 'none'; return; }
+  const matches = invCustomerOrders()
+    .filter(o => { const h = normName((o.vorname || '') + ' ' + (o.nachname || '')); return tokens.every(tk => h.includes(tk)); })
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  if (!matches.length) { box.style.display = 'none'; return; }
+  const exact = matches.filter(o => normName((o.vorname || '') + ' ' + (o.nachname || '')) === full);
+  if (normName(vn) && normName(nn) && exact.length === 1) {
+    if (invAutoId !== exact[0].id) invFillFromOrder(exact[0], true);
+    box.style.display = '';
+    box.innerHTML = '<div style="font-size:12.5px; color:var(--blue-light);">✓ Daten aus dem Kundenauftrag übernommen (' + esc([exact[0].auftrag, exact[0].modell].filter(Boolean).join(' – ')) + ')</div>';
+    return;
+  }
+  invAutoId = null;
+  const shown = matches.slice(0, 6);
+  box.style.display = '';
+  box.innerHTML = '<div style="font-size:12px; color:var(--muted); margin-bottom:6px;">' + (exact.length > 1 ? 'Mehrere Aufträge gefunden – bitte wählen:' : 'Kundenaufträge – zum Übernehmen antippen:') + '</div>'
+    + shown.map(o => '<button type="button" class="btn btn-ghost btn-sm" data-inv-pick="' + esc(o.id) + '" style="width:100%; text-align:left; margin-bottom:6px; display:block;">'
+      + '<strong>' + esc((o.vorname || '') + ' ' + (o.nachname || '')) + '</strong><br>'
+      + '<span style="color:var(--muted); font-size:12px;">' + esc([o.auftrag, o.modell].filter(Boolean).join(' – ')) + (Number(o.preis) > 0 ? ' · CHF ' + Number(o.preis).toFixed(2) : '') + (o.createdAt ? ' · ' + new Date(o.createdAt).toLocaleDateString('de-CH') : '') + '</span></button>').join('');
+  box.querySelectorAll('[data-inv-pick]').forEach(b => b.addEventListener('click', () => {
+    const o = invCustomerOrders().find(x => x.id === b.dataset.invPick);
+    if (!o) return;
+    invFillFromOrder(o, false);
+    box.style.display = '';
+    box.innerHTML = '<div style="font-size:12.5px; color:var(--blue-light);">✓ Daten aus dem Kundenauftrag übernommen (' + esc([o.auftrag, o.modell].filter(Boolean).join(' – ')) + ')</div>';
+  }));
+}
+document.getElementById('invVorname').addEventListener('input', invRefreshSuggest);
+document.getElementById('invNachname').addEventListener('input', invRefreshSuggest);
 
 /* ---------- Positionen (Rechnung mit mehreren Posten) ---------- */
 function invRound2(n){ return Math.round((Number(n) || 0) * 100) / 100; }
@@ -3282,6 +3341,7 @@ document.getElementById('invSave').addEventListener('click', () => {
     geraet,
     imei: document.getElementById('invImei').value.trim(),
     adresse: document.getElementById('invAdresse').value.trim(),
+    ...((invCtx && invCtx.name === normName(kunde)) ? { orderId: invCtx.orderId, telefon: invCtx.telefon, email: invCtx.email } : {}),
     zahlungsart: selectedPay,
     bezahlt: false,
     createdBy: currentUser(),
