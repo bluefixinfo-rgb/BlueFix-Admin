@@ -807,6 +807,11 @@ input,select,textarea{font-family:var(--sans);}
 .termin-done{opacity:.55;}
 .termin-done .card-title{text-decoration:line-through;}
 .termin-note{font-size:13px; color:var(--muted); margin:8px 0 0; white-space:pre-wrap;}
+.termin-who-row{margin:0 0 10px;}
+.termin-who{display:inline-flex; align-items:center; gap:8px; padding:4px 14px 4px 4px; border-radius:999px; font-size:14px; font-weight:700; white-space:nowrap; color:var(--wc); background:var(--wbg); border:1px solid var(--wb);}
+.termin-who .wd{width:24px; height:24px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; color:#04101f; background:var(--wc);}
+.termin-who .wd + .wd{margin-left:-14px; box-shadow:0 0 0 2px #0b1626;}
+.who-jerome,.who-thierry,.who-beide{--wc:#5aa8ff; --wb:rgba(90,168,255,.55); --wbg:rgba(90,168,255,.14);}
 .mahn-bar{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; margin-bottom:14px; border-radius:var(--radius); border:1px solid rgba(227,72,72,0.45); background:rgba(227,72,72,0.08);}
 .mahn-title{font-weight:600; font-size:14px; color:#ff9a9a;}
 .mahn-sub{font-size:12px; color:var(--muted); margin-top:2px;}
@@ -1830,7 +1835,13 @@ function startFirebaseSync(){
 
       if (isNewFromOther) {
         const otherName = USERS[remote.updatedBy] ? USERS[remote.updatedBy].displayName : remote.updatedBy;
-        notifyOther(titleFor(key, otherName), bodyFor(key, remoteArr, otherName));
+        if (key === TERMINE_KEY) {
+          const bekannt = new Set(localArr.map(x => x.id));
+          const neu = remoteArr.filter(x => !bekannt.has(x.id)).pop();
+          if (neu && terminIstFuerMich(neu)) notifyOther('BlueFix – Neuer Termin', terminPushText(neu, otherName), 'termin-' + neu.id);
+        } else {
+          notifyOther(titleFor(key, otherName), bodyFor(key, remoteArr, otherName));
+        }
       }
     }, err => console.warn('Firestore-Sync-Fehler (' + key + '):', err));
     syncUnsubs.push(unsub);
@@ -5320,6 +5331,20 @@ const TERMIN_TYPEN = {
   sonstiges: { l: 'Sonstiges', c: 'var(--warn)' }
 };
 const TERMIN_WER = { beide: 'Beide', jerome: 'Jerome', thierry: 'Thierry' };
+function terminWerBadge(wer){
+  const w = TERMIN_WER[wer] ? wer : 'beide';
+  const dots = w === 'beide' ? '<span class="wd">J</span><span class="wd">T</span>' : '<span class="wd">' + TERMIN_WER[w].charAt(0) + '</span>';
+  const label = w === 'beide' ? 'Für beide' : 'Für ' + TERMIN_WER[w];
+  return '<div class="termin-who-row"><span class="termin-who who-' + w + '">' + dots + esc(label) + '</span></div>';
+}
+function terminIstFuerMich(t){
+  return !t.wer || t.wer === 'beide' || t.wer === currentUser();
+}
+function terminPushText(t, vonName){
+  const datum = parseYmd(t.datum).toLocaleDateString('de-CH');
+  return vonName + ' hat einen Termin ' + (t.wer === 'beide' ? 'für euch beide' : 'für dich') + ' eingetragen: ' +
+    (t.titel || 'Termin') + ' am ' + datum + (t.von ? ' um ' + t.von + ' Uhr' : '');
+}
 const WTAGE_KURZ = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 
 function ymd(d){ const p = n => String(n).padStart(2, '0'); return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()); }
@@ -5374,14 +5399,13 @@ function renderTermine(){
     card.style.setProperty('--tc', typ.c);
     card.innerHTML =
       '<div class="card-top"><div>' +
-        '<p class="card-title"><span class="termin-time">' + esc(zeit) + '</span>' + esc(t.titel || typ.l) + '</p>' +
-        '<p class="card-sub">' + esc(typ.l) + (t.kunde ? ' · ' + esc(t.kunde) : '') + ' · ' + esc(TERMIN_WER[t.wer] || 'Beide') + '</p>' +
+        terminWerBadge(t.wer) + '<p class="card-title"><span class="termin-time">' + esc(zeit) + '</span>' + esc(t.titel || typ.l) + '</p>' +
+        '<p class="card-sub">' + esc(typ.l) + (t.kunde ? ' · ' + esc(t.kunde) : '') + '</p>' +
       '</div></div>' +
       (t.notiz ? '<p class="termin-note">' + esc(t.notiz) + '</p>' : '') +
       '<div class="modal-actions" style="margin-top:14px;">' +
         '<button class="btn btn-ghost btn-sm" data-tm-done="' + t.id + '" style="flex:1;">' + (t.erledigt ? 'Wieder öffnen' : '✓ Erledigt') + '</button>' +
         '<button class="btn btn-ghost btn-sm" data-tm-edit="' + t.id + '" style="flex:1;">Bearbeiten</button>' +
-        (t.telefon ? '<button class="btn btn-ghost btn-sm" data-tm-sms="' + t.id + '" style="flex:1;">📱 SMS</button>' : '') +
       '</div>';
     list.appendChild(card);
   });
@@ -5394,20 +5418,6 @@ function renderTermine(){
     const t = load(TERMINE_KEY, []).find(x => x.id === b.dataset.tmEdit);
     if (t) openTerminModal(t);
   }));
-  list.querySelectorAll('[data-tm-sms]').forEach(b => b.addEventListener('click', () => {
-    const t = load(TERMINE_KEY, []).find(x => x.id === b.dataset.tmSms);
-    if (t) terminSms(t);
-  }));
-}
-
-function terminSms(t){
-  const o = t.orderId ? load(ORDERS_KEY, []).find(x => x.id === t.orderId) : null;
-  const name = (o && o.vorname) || '';
-  const was = t.typ === 'abholung' ? 'Abholtermin' : 'Termin';
-  const datum = parseYmd(t.datum).toLocaleDateString('de-CH', { weekday: 'long', day: 'numeric', month: 'long' });
-  const text = 'Guten Tag' + (name ? ' ' + name : '') + ', wir erinnern Sie an Ihren ' + was + ' bei BlueFix am ' + datum +
-    (t.von ? ' um ' + t.von + ' Uhr' : '') + '. Bei Fragen melden Sie sich gerne. Freundliche Grüsse, BlueFix';
-  window.location.href = 'sms:' + String(t.telefon).replace(/[^\d+]/g, '') + '?&body=' + encodeURIComponent(text);
 }
 
 let tmTitelTouched = false;
@@ -5468,7 +5478,8 @@ document.getElementById('tmSave').addEventListener('click', () => {
     logActivity('📅', 'einen Termin eingetragen: ' + titel + ' (' + parseYmd(datum).toLocaleDateString('de-CH') + ')');
     try {
       const me = currentUser(), myName = USERS[me] ? USERS[me].displayName : me;
-      sendPushToOther('BlueFix – Neuer Termin', myName + ' hat einen Termin eingetragen: ' + titel + ' am ' + parseYmd(datum).toLocaleDateString('de-CH') + (von ? ' um ' + von : ''));
+      const empf = (felder.wer === 'beide' ? ['jerome', 'thierry'] : [felder.wer]).filter(k => k && k !== me && USERS[k]);
+      if (empf.length) sendPushToUsers(empf, 'BlueFix – Neuer Termin', terminPushText(felder, myName));
     } catch (e) {}
   }
   save(TERMINE_KEY, arr);
