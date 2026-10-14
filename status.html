@@ -197,8 +197,32 @@ const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 
 let db = null, token = '', cur = null, ui = 'auto', errMsg = '', viewLogged = false;
 
+/* Vorschau-Roboter (WhatsApp, iMessage, Google …) rufen Links selbst auf – die zählen nicht als Kunde */
+const IS_BOT = /facebookexternalhit|facebot|whatsapp|twitterbot|slackbot|telegrambot|discordbot|linkedinbot|googlebot|bingbot|bingpreview|applebot|yandexbot|duckduckbot|baiduspider|skypeuripreview|embedly|pinterest|headlesschrome|lighthouse|python-requests|curl\/|preview/i.test(navigator.userAgent || '');
+const READ_SECONDS = 5;
+
+/* «Gelesen»: Die Seite war zusammengerechnet länger als 5 Sekunden sichtbar (Tab/App im Vordergrund). Zählt einmal pro Seitenaufruf. */
+function watchRead(tok){
+  if (IS_BOT) return;
+  let visible = 0;
+  const timer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    visible += 0.5;
+    if (visible < READ_SECONDS) return;
+    clearInterval(timer);
+    try {
+      db.collection(COL).doc(tok).set({
+        readCount: firebase.firestore.FieldValue.increment(1),
+        lastReadAt: Date.now(),
+        reads: firebase.firestore.FieldValue.arrayUnion(Date.now())
+      }, { merge: true }).catch(e => console.warn('Lesen konnte nicht gezählt werden:', e));
+    } catch (e) {}
+  }, 500);
+}
+
 /* Zählt einen Linkaufruf (nur einmal pro Seitenaufruf), sichtbar im Admin-Bereich beim Status-Link */
 function logView(tok){
+  if (IS_BOT) return;
   try {
     db.collection(COL).doc(tok).set({
       viewCount: firebase.firestore.FieldValue.increment(1),
@@ -354,7 +378,7 @@ function showMessage(title, text){
     db.collection(COL).doc(token).onSnapshot(doc => {
       if (!doc.exists) { showMessage('Auftrag nicht gefunden', 'Bitte prüfe den Link oder melde dich direkt bei BlueFix.'); return; }
       cur = doc.data();
-      if (!viewLogged) { viewLogged = true; logView(token); }
+      if (!viewLogged) { viewLogged = true; logView(token); watchRead(token); }
       if (ui === 'form' && document.activeElement && document.activeElement.tagName === 'INPUT') return; // nicht beim Tippen überschreiben
       render();
     }, err => { console.warn(err); showMessage('Status gerade nicht verfügbar', 'Bitte versuche es in ein paar Minuten noch einmal.'); });

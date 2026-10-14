@@ -113,17 +113,34 @@ function show(d){
 }
 /* Meldet dem BlueFix-Team, dass genau diese Person (Empfänger-Kennung "r" aus dem Link)
    die Werbe-Seite geöffnet hat. Läuft im Hintergrund und blockiert die Anzeige nie. */
+const IS_BOT = /facebookexternalhit|facebot|whatsapp|twitterbot|slackbot|telegrambot|discordbot|linkedinbot|googlebot|bingbot|bingpreview|applebot|yandexbot|duckduckbot|baiduspider|skypeuripreview|embedly|pinterest|headlesschrome|lighthouse|python-requests|curl\/|preview/i.test(navigator.userAgent || '');
+const READ_SECONDS = 5;
 function recordOpen(db, token, recipient){
-  if (!recipient || !/^[0-9]{4,20}$/.test(recipient)) return;
+  if (IS_BOT || !recipient || !/^[0-9]{4,20}$/.test(recipient)) return;
   try {
-    const field = 'opens.' + recipient;
     db.collection('bluefix_status').doc(token).set({
-      [field]: {
+      opens: { [recipient]: {
         count: firebase.firestore.FieldValue.increment(1),
         last: Date.now()
-      }
+      } }
     }, { merge: true }).catch(() => {});
   } catch (e) {}
+  /* «Gelesen»: Seite war zusammengerechnet länger als 5 Sekunden sichtbar. Zählt einmal pro Seitenaufruf. */
+  let visible = 0;
+  const timer = setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
+    visible += 0.5;
+    if (visible < READ_SECONDS) return;
+    clearInterval(timer);
+    try {
+      db.collection('bluefix_status').doc(token).set({
+        opens: { [recipient]: {
+          reads: firebase.firestore.FieldValue.increment(1),
+          lastRead: Date.now()
+        } }
+      }, { merge: true }).catch(() => {});
+    } catch (e) {}
+  }, 500);
 }
 (function start(){
   const params = new URLSearchParams(location.search);

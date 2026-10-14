@@ -3111,6 +3111,7 @@ const expandedOrders = new Set();
 function renderOrders(){
   renderDashboard();
   syncStatusWatchers();
+  syncViewWatchers();
   try{ renderReviewBar(); }catch(e){}
   const orders=load(ORDERS_KEY,[]), list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
@@ -3814,6 +3815,7 @@ function repBoxHtml(o){
     <div class="order-section-title">📱 Status für den Kunden</div>
     <div class="rep-steps">${steps}</div>
     ${info}
+    ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
       <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link / QR</button>
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Kundenauswahl zurücksetzen</button>` : ''}
@@ -3881,18 +3883,49 @@ function buildMailBody(o, anliegen){
 }
 function mailSubject(o){ return 'BlueFix - Handy Reparatur'; }
 
+/* ---- Aufrufe/«Gelesen» pro Status-Link: Auswertung + Live-Anzeige direkt in der Auftragskarte ---- */
+function statusViewStats(data){
+  const views = (data && data.views) || [], reads = (data && data.reads) || [];
+  const count = (data && data.viewCount) || views.length || 0;
+  const readN = (data && data.readCount) || reads.length || 0;
+  const lastRead = (data && data.lastReadAt) || (reads.length ? reads[reads.length - 1] : 0);
+  const last = (data && data.lastViewedAt) || (views.length ? views[views.length - 1] : 0);
+  return { count, reads: readN, lastRead, last, times: views.length ? views.slice(-5).reverse() : (last ? [last] : []) };
+}
+const statusViewCache = {}, statusViewUnsubs = {};
+function viewBadgeInner(token){
+  const st = statusViewStats(statusViewCache[token]);
+  if (!st.count) return '👀 Link noch nicht geöffnet';
+  return '👀 <b>' + st.count + '×</b> geöffnet · ' + (st.reads ? '📖 <b>gelesen</b>' : '📭 noch nicht gelesen') + (st.last ? '<br><span style="opacity:.75;">zuletzt ' + esc(fmtTime(st.last)) + '</span>' : '');
+}
+function syncViewWatchers(){
+  if (!fbReady || !fbDb) return;
+  const now = Date.now(), want = {};
+  load(ORDERS_KEY, []).forEach(o => {
+    if (o.typ === 'kunde' && o.statusToken && now - (o.statusUpdatedAt || o.updatedAt || now) < 90 * 864e5) want[o.statusToken] = 1;
+  });
+  Object.keys(statusViewUnsubs).forEach(t => { if (!want[t]) { statusViewUnsubs[t](); delete statusViewUnsubs[t]; } });
+  Object.keys(want).forEach(t => {
+    if (statusViewUnsubs[t]) return;
+    statusViewUnsubs[t] = fbDb.collection(STATUS_COLLECTION).doc(t).onSnapshot(doc => {
+      statusViewCache[t] = doc.exists ? doc.data() : null;
+      document.querySelectorAll('[data-view-badge="' + t + '"]').forEach(n => { n.innerHTML = viewBadgeInner(t); });
+    }, err => console.warn('Aufrufe-Watcher:', err));
+  });
+}
+
 let statusModalOrderId = null;
 let statusViewsUnsub = null;
 /* Zeigt im Status-Link-Fenster, ob/wie oft/wann der Kunde seinen Link schon geöffnet hat */
 function renderStatusViews(data){
   const el = document.getElementById('stViews');
   if (!el) return;
-  const views = (data && data.views) || [];
-  const count = (data && data.viewCount) || views.length || 0;
-  if (!count) { el.textContent = '👀 Link wurde vom Kunden noch nicht geöffnet.'; return; }
-  const last = views.length ? views.slice(-5).reverse() : (data.lastViewedAt ? [data.lastViewedAt] : []);
-  const timesHtml = last.map(ts => fmtTime(ts)).join(' · ');
-  el.innerHTML = '👀 <b>' + count + '×</b> geöffnet' + (timesHtml ? '<br><span style="opacity:.75;">Zuletzt: ' + esc(timesHtml) + '</span>' : '');
+  const st = statusViewStats(data);
+  if (!st.count) { el.textContent = '👀 Link wurde vom Kunden noch nicht geöffnet.'; return; }
+  const timesHtml = st.times.map(ts => fmtTime(ts)).join(' · ');
+  el.innerHTML = '👀 <b>' + st.count + '×</b> geöffnet' +
+    (st.reads ? '<br>📖 <b>Gelesen</b> (' + st.reads + '×, über ' + 5 + ' Sek.) · zuletzt ' + esc(fmtTime(st.lastRead)) : '<br>📭 Noch nicht gelesen (Seite war nie 5 Sek. offen)') +
+    (timesHtml ? '<br><span style="opacity:.75;">Geöffnet: ' + esc(timesHtml) + '</span>' : '');
 }
 function watchStatusViews(token){
   if (statusViewsUnsub) { statusViewsUnsub(); statusViewsUnsub = null; }
@@ -4254,7 +4287,7 @@ function wbRenderRecipients(){
     ? '⚠️ ' + r.noPhone + (r.noPhone === 1 ? ' Auftrag hat' : ' Aufträge haben') + ' keine gültige Handynummer und fehlen in der Liste. Nummer im Auftrag ergänzen.' : '';
   box.innerHTML = list.map(x => {
     const op = wbOpensCache[x.num];
-    const openInfo = op && op.count ? '<br>👀 <b>' + op.count + '×</b> geöffnet' + (op.last ? ' · zuletzt ' + esc(fmtTime(op.last)) : '') : (sent[x.num] ? '<br>👀 noch nicht geöffnet' : '');
+    const openInfo = op && op.count ? '<br>👀 <b>' + op.count + '×</b> geöffnet' + (op.reads ? ' · 📖 <b>gelesen</b>' : ' · 📭 noch nicht gelesen') + (op.last ? ' · zuletzt ' + esc(fmtTime(op.last)) : '') : (sent[x.num] ? '<br>👀 noch nicht geöffnet' : '');
     return '<div class="wb-rec' + (sent[x.num] ? ' done' : '') + '"><div><b>' + esc(x.name) + '</b><small><a href="tel:+' + esc(x.num) + '">' + esc(wbFmtNum(x.num)) + '</a>' +
     (x.modell ? ' · ' + esc(x.modell) : '') + (x.n > 1 ? ' (+' + (x.n - 1) + ' weitere)' : '') + (sent[x.num] ? ' · ✓ gesendet' : '') + openInfo + '</small></div>' +
     '<button class="btn btn-ghost btn-sm" type="button" data-wb-send="' + esc(x.num) + '">✉️ ' + (sent[x.num] ? 'Nochmals' : 'SMS') + '</button></div>';
