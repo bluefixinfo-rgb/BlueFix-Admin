@@ -42,13 +42,19 @@ module.exports = async (req, res) => {
     const sRes = await fetch(`${FS}/livechat_sessions/${sid}`);
     if (!sRes.ok) return res.status(404).json({ error: 'chat not found' });
     const f = (await sRes.json()).fields || {};
+    const isOpen = !!(body && body.event === 'open');
     const lastFrom = val(f.lastFrom);
     const lastAt = val(f.lastMessageAt) || 0;
-    if (lastFrom !== 'visitor' || Date.now() - lastAt > 60000) return res.status(200).json({ skipped: true });
+    if (isOpen) {
+      // Besucher hat nur den Chat geöffnet (noch nichts geschrieben)
+      if (val(f.lastEventKind) !== 'open' || Date.now() - (val(f.lastEventAt) || 0) > 60000) return res.status(200).json({ skipped: true });
+    } else if (lastFrom !== 'visitor' || Date.now() - lastAt > 60000) {
+      return res.status(200).json({ skipped: true });
+    }
 
     const name = (val(f.name) || 'Besucher').slice(0, 40);
     const short = val(f.short) || '';
-    const text = (val(f.lastText) || '').slice(0, 140);
+    const text = isOpen ? ('Besucher #' + short + ' schaut gerade im Chat' + (val(f.page) ? ' (Seite ' + val(f.page) + ')' : '')) : (val(f.lastText) || '').slice(0, 140);
 
     // Empfänger: gespeicherte OneSignal-IDs von Jerome und Thierry (wie im Admin-Panel)
     let ids = [];
@@ -62,9 +68,9 @@ module.exports = async (req, res) => {
 
     const payload = {
       app_id: ONESIGNAL_APP_ID,
-      headings: { en: `💬 Kunden-Chat: ${name}${short ? ' #' + short : ''}` },
+      headings: { en: isOpen ? '👀 Jemand hat den Chat geöffnet' : `💬 Kunden-Chat: ${name}${short ? ' #' + short : ''}` },
       contents: { en: text || 'Neue Nachricht' },
-      data: { type: 'livechat', sid }
+      data: { type: 'livechat', sid, event: isOpen ? 'open' : 'message' }
     };
     if (ids.length) payload.include_subscription_ids = ids;
     else payload.included_segments = ['Total Subscriptions'];

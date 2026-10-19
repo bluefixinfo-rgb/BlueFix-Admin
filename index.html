@@ -6042,15 +6042,19 @@ document.getElementById('ordersList').addEventListener('click', e => {
 
   /* ---------- Banner bei neuer Nachricht ---------- */
   function lcAlert(s, isNew){
-    if (lcOpenSid === s.id && lcViewActive()) return;
-    var title = (isNew ? '💬 Neuer Kunden-Chat: ' : '💬 ') + (s.name || 'Besucher');
-    var text = s.lastText || '';
+    lcShow((isNew ? '💬 Neuer Kunden-Chat: ' : '💬 ') + (s.name || 'Besucher'), s.lastText || '', s.id);
+  }
+  function lcLoggedIn(){ return typeof appScreen !== 'undefined' && !!appScreen && appScreen.style.display === 'flex'; }
+  function lcShow(title, text, sid){
+    if (lcOpenSid === sid && lcViewActive()) return;
+    var s = { id: sid };
     if (document.visibilityState === 'visible') {
       var t = $('lcToast');
       if (!t) {
         t = document.createElement('div'); t.id = 'lcToast'; document.body.appendChild(t);
         t.addEventListener('click', function(){
           t.style.display = 'none';
+          if (!lcLoggedIn()) return;
           switchToTab('livechats');
           if (t.dataset.sid) lcOpenConv(t.dataset.sid);
         });
@@ -6070,6 +6074,34 @@ document.getElementById('ordersList').addEventListener('click', e => {
     }
   }
 
+  /* ---------- Benachrichtigung schon VOR dem Login ----------
+     Dieser Listener läuft sobald die Seite offen ist (auch auf Startauswahl / Login-Bildschirm).
+     Er meldet: Chat geöffnet, neue Nachricht (solange niemand eingeloggt ist) und "Mitarbeiter gefragt" der KI. */
+  var preUnsub = null, preKnown = {}, preInit = false;
+  function lcPreStart(){
+    if (preUnsub || typeof fbReady === 'undefined' || !fbReady || !fbDb) return;
+    preUnsub = fbDb.collection('livechat_sessions').orderBy('lastEventAt', 'desc').limit(15).onSnapshot(function(snap){
+      if (snap.metadata.fromCache) {
+        snap.docs.forEach(function(d){ var o = d.data(); preKnown[d.id] = { ev: o.lastEventAt || 0, nh: o.needsHumanAt || 0 }; });
+        return;
+      }
+      snap.docs.forEach(function(d){
+        var s = d.data(), id = d.id, prev = preKnown[id] || { ev: 0, nh: 0 };
+        var ev = s.lastEventAt || 0, nh = s.needsHumanAt || 0, nm = s.name || 'Besucher';
+        if (preInit) {
+          if (nh > prev.nh) lcShow('🙋 Mitarbeiter gefragt: ' + nm, s.needsHumanReason || s.lastText || '', id);
+          else if (ev > prev.ev) {
+            if (s.lastEventKind === 'open') lcShow('👀 Jemand hat den Chat geöffnet', 'Besucher #' + (s.short || id.slice(0,4).toUpperCase()) + (s.page ? ' · ' + s.page : ''), id);
+            else if (s.lastEventKind === 'msg' && s.lastFrom === 'visitor' && !lcLoggedIn()) lcShow('💬 Neue Nachricht: ' + nm, s.lastText || '', id);
+          }
+        }
+        preKnown[id] = { ev: ev, nh: nh };
+      });
+      preInit = true;
+    }, function(err){ console.warn('Chat-Benachrichtigung (vor Login) Fehler:', err); });
+  }
+  lcPreStart(); setTimeout(lcPreStart, 800); setTimeout(lcPreStart, 2500); setTimeout(lcPreStart, 6000);
+
   /* ---------- Chat-Liste ---------- */
   function lcRenderList(){
     var box = $('lcList'); if (!box) return;
@@ -6081,7 +6113,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
       var un = s.unreadTeam || 0, nm = s.name || 'Besucher';
       return '<div class="lc-item' + (un ? ' unread' : '') + '" data-sid="' + esc(s.id) + '">' +
         '<div class="lc-avatar">' + esc(nm.charAt(0).toUpperCase()) + '</div>' +
-        '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small></div>' +
+        '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>' + (s.needsHuman && !s.aiPaused ? ' <span title="KI hat an das Team übergeben">🙋 Mitarbeiter gefragt</span>' : '') + '</div>' +
         '<div class="lc-last">' + (s.lastFrom === 'team' ? esc((s.lastAgent || 'Team') + ': ') : '') + esc(s.lastText || '') + '</div></div>' +
         '<div class="lc-side"><span>' + lcWhen(s.lastMessageAt) + '</span>' + (un ? '<span class="lc-badge" style="margin:0;">' + un + '</span>' : '') + '</div></div>';
     }).join('');
@@ -6091,7 +6123,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
   function lcHeader(){
     var s = lcCur(); if (!s) return;
     $('lcConvName').innerHTML = esc(s.name || 'Besucher') + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>';
-    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '');
+    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (s.aiPaused ? ' · KI pausiert' : ' · KI antwortet') + (s.needsHuman && !s.aiPaused ? ' · 🙋 Mitarbeiter gefragt' : '');
   }
   function lcRenderConv(){
     var box = $('lcMsgs'); if (!box) return;
@@ -6101,7 +6133,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
     var lastTeam = -1; lcMsgs.forEach(function(m,i){ if (m.from === 'team') lastTeam = i; });
     box.innerHTML = lcMsgs.map(function(m,i){
       var mine = m.from === 'team';
-      var who = mine ? (m.agent || 'Team') : (s.name || 'Besucher');
+      var who = mine ? (m.ai ? '🤖 KI-Assistent' : (m.agent || 'Team')) : (s.name || 'Besucher');
       var meta = '<span>' + esc(who) + ' · ' + fmtTime(m.ts) + '</span>';
       if (mine && i === lastTeam) {
         var seen = s.visitorSeenAt && s.visitorSeenAt >= m.ts;
@@ -6144,7 +6176,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
     var me = currentUser(), agent = (typeof USERS !== 'undefined' && USERS[me] && USERS[me].displayName) || me || 'BlueFix';
     var now = Date.now(), sRef = fbDb.collection('livechat_sessions').doc(lcOpenSid), b = fbDb.batch();
     b.set(sRef, { lastMessageAt: now, lastText: t.slice(0, 140), lastFrom: 'team', lastAgent: agent,
-      unreadVisitor: firebase.firestore.FieldValue.increment(1), unreadTeam: 0, teamReadAt: now }, { merge: true });
+      unreadVisitor: firebase.firestore.FieldValue.increment(1), unreadTeam: 0, teamReadAt: now, aiPaused: true, needsHuman: false }, { merge: true });
     b.set(sRef.collection('messages').doc(), { from: 'team', agent: agent, text: t, ts: now });
     inp.value = ''; inp.style.height = 'auto';
     try { await b.commit(); } catch(e) { inp.value = t; alert('Antwort konnte nicht gesendet werden. Bitte Verbindung prüfen.'); }
@@ -6185,6 +6217,32 @@ document.getElementById('ordersList').addEventListener('click', e => {
     try { if (typeof currentUser === 'function' && currentUser() && typeof appScreen !== 'undefined' && appScreen && appScreen.style.display === 'flex') window.startLiveChatSync(); } catch(e){}
   }
   tryStart(); setTimeout(tryStart, 1500); setTimeout(tryStart, 4000);
+})();
+</script>
+<script id="kbFitScript">
+/* Handy-Tastatur: Das Panel passt sich dem sichtbaren Bereich an, damit der Chat sichtbar bleibt
+   und nichts nach oben aus dem Bild geschoben wird. */
+(function(){
+  var vv = window.visualViewport; if (!vv) return;
+  var app = document.getElementById('appScreen'), active = false;
+  function kbOpen(){ return (window.innerHeight - vv.height) > 90; }
+  function fit(){
+    if (!app || app.style.display !== 'flex') return;
+    if (kbOpen()) {
+      active = true;
+      app.style.position = 'fixed'; app.style.left = '0'; app.style.right = '0';
+      app.style.top = vv.offsetTop + 'px'; app.style.height = vv.height + 'px';
+      if (window.scrollY) window.scrollTo(0, 0);
+      var box = document.querySelector('.tab-content.active .chat-messages');
+      if (box) box.scrollTop = box.scrollHeight;
+    } else if (active) {
+      active = false;
+      app.style.position = ''; app.style.left = ''; app.style.right = ''; app.style.top = ''; app.style.height = '';
+    }
+  }
+  vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+  document.addEventListener('focusin', function(e){ if (e.target && e.target.tagName === 'TEXTAREA') { setTimeout(fit, 80); setTimeout(fit, 350); } });
+  document.addEventListener('focusout', function(){ setTimeout(fit, 120); });
 })();
 </script>
 </body>
