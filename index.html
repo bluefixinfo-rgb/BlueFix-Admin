@@ -854,7 +854,7 @@ input,select,textarea{font-family:var(--sans);}
 .lc-head{display:flex; align-items:center; gap:10px; padding:2px 2px 10px;}
 .lc-head .lc-title{flex:1; min-width:0;}
 #lcMsgs .bubble{white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;}
-#lcToast{position:fixed; top:calc(env(safe-area-inset-top,0px) + 10px); left:12px; right:12px; max-width:480px; margin:0 auto; z-index:99999; display:none; padding:12px 14px; border-radius:14px; background:rgba(14,26,46,.96); border:1px solid var(--blue-light); color:var(--white); box-shadow:var(--glow-md); cursor:pointer; font-size:14px;}
+#lcToast{touch-action:none; user-select:none; -webkit-user-select:none; position:fixed; top:calc(env(safe-area-inset-top,0px) + 10px); left:12px; right:12px; max-width:480px; margin:0 auto; z-index:99999; display:none; padding:12px 14px; border-radius:14px; background:rgba(14,26,46,.96); border:1px solid var(--blue-light); color:var(--white); box-shadow:var(--glow-md); cursor:pointer; font-size:14px;}
 #lcToast b{display:block; margin-bottom:2px;}
 #lcToast span{color:var(--muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 </style>
@@ -6054,7 +6054,42 @@ document.getElementById('ordersList').addEventListener('click', e => {
       var t = $('lcToast');
       if (!t) {
         t = document.createElement('div'); t.id = 'lcToast'; document.body.appendChild(t);
+        /* Hochwischen schliesst das Banner */
+        var sy = 0, dy = 0, drag = false, moved = false;
+        function lcHideToast(fly){
+          clearTimeout(lcToastTimer);
+          if (fly) {
+            t.style.transition = 'transform .18s ease, opacity .18s ease';
+            t.style.transform = 'translateY(-130%)'; t.style.opacity = '0';
+            setTimeout(function(){ t.style.display = 'none'; }, 190);
+          } else t.style.display = 'none';
+        }
+        t._hide = lcHideToast;
+        t.addEventListener('pointerdown', function(e){
+          drag = true; moved = false; sy = e.clientY; dy = 0;
+          t.style.transition = 'none';
+          clearTimeout(lcToastTimer);
+          try { t.setPointerCapture(e.pointerId); } catch(_){}
+        });
+        t.addEventListener('pointermove', function(e){
+          if (!drag) return;
+          dy = Math.min(0, e.clientY - sy);
+          if (dy < -4) moved = true;
+          t.style.transform = 'translateY(' + dy + 'px)';
+          t.style.opacity = String(Math.max(0.2, 1 + dy / 160));
+        });
+        function lcEnd(){
+          if (!drag) return;
+          drag = false;
+          if (dy < -35) { lcHideToast(true); return; }
+          t.style.transition = 'transform .15s ease, opacity .15s ease';
+          t.style.transform = 'translateY(0)'; t.style.opacity = '1';
+          clearTimeout(lcToastTimer); lcToastTimer = setTimeout(function(){ lcHideToast(true); }, 3000);
+        }
+        t.addEventListener('pointerup', lcEnd);
+        t.addEventListener('pointercancel', lcEnd);
         t.addEventListener('click', function(){
+          if (moved) { moved = false; return; }
           t.style.display = 'none';
           if (!lcLoggedIn()) return;
           switchToTab('livechats');
@@ -6063,8 +6098,9 @@ document.getElementById('ordersList').addEventListener('click', e => {
       }
       t.dataset.sid = s.id;
       t.innerHTML = '<b>' + esc(title) + '</b><span>' + esc(text) + '</span>';
+      t.style.transition = 'none'; t.style.transform = 'translateY(0)'; t.style.opacity = '1';
       t.style.display = 'block';
-      clearTimeout(lcToastTimer); lcToastTimer = setTimeout(function(){ t.style.display = 'none'; }, 7000);
+      clearTimeout(lcToastTimer); lcToastTimer = setTimeout(function(){ if (t._hide) t._hide(true); else t.style.display = 'none'; }, 3000);
       try {
         var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain();
         o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05;
