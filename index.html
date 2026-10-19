@@ -5998,6 +5998,8 @@ document.getElementById('ordersList').addEventListener('click', e => {
   var lcUnsub = null, lcMsgUnsub = null, lcSessions = [], lcOpenSid = null, lcMsgs = [], lcKnown = {}, lcInit = false, lcToastTimer = null;
   var $ = function(id){ return document.getElementById(id); };
 
+  /* KI ist pausiert, solange ein Mitarbeiter in den letzten 30 Min. geantwortet hat (danach antwortet sie wieder) */
+  function lcAiPaused(s){ return !!(s && s.humanAt && (Date.now() - s.humanAt) < 30*60*1000); }
   function lcCur(){ return lcSessions.find(function(s){ return s.id === lcOpenSid; }) || null; }
   function lcViewActive(){
     var b = document.querySelector('.tab-btn.active');
@@ -6113,7 +6115,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
       var un = s.unreadTeam || 0, nm = s.name || 'Besucher';
       return '<div class="lc-item' + (un ? ' unread' : '') + '" data-sid="' + esc(s.id) + '">' +
         '<div class="lc-avatar">' + esc(nm.charAt(0).toUpperCase()) + '</div>' +
-        '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>' + (s.needsHuman && !s.aiPaused ? ' <span title="KI hat an das Team übergeben">🙋 Mitarbeiter gefragt</span>' : '') + '</div>' +
+        '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>' + (s.needsHuman && !lcAiPaused(s) ? ' <span title="KI hat an das Team übergeben">🙋 Mitarbeiter gefragt</span>' : '') + '</div>' +
         '<div class="lc-last">' + (s.lastFrom === 'team' ? esc((s.lastAgent || 'Team') + ': ') : '') + esc(s.lastText || '') + '</div></div>' +
         '<div class="lc-side"><span>' + lcWhen(s.lastMessageAt) + '</span>' + (un ? '<span class="lc-badge" style="margin:0;">' + un + '</span>' : '') + '</div></div>';
     }).join('');
@@ -6123,7 +6125,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
   function lcHeader(){
     var s = lcCur(); if (!s) return;
     $('lcConvName').innerHTML = esc(s.name || 'Besucher') + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>';
-    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (s.aiPaused ? ' · KI pausiert' : ' · KI antwortet') + (s.needsHuman && !s.aiPaused ? ' · 🙋 Mitarbeiter gefragt' : '');
+    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (lcAiPaused(s) ? ' · KI pausiert (30 Min.)' : ' · KI antwortet') + (s.needsHuman && !lcAiPaused(s) ? ' · 🙋 Mitarbeiter gefragt' : '');
   }
   function lcRenderConv(){
     var box = $('lcMsgs'); if (!box) return;
@@ -6176,7 +6178,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
     var me = currentUser(), agent = (typeof USERS !== 'undefined' && USERS[me] && USERS[me].displayName) || me || 'BlueFix';
     var now = Date.now(), sRef = fbDb.collection('livechat_sessions').doc(lcOpenSid), b = fbDb.batch();
     b.set(sRef, { lastMessageAt: now, lastText: t.slice(0, 140), lastFrom: 'team', lastAgent: agent,
-      unreadVisitor: firebase.firestore.FieldValue.increment(1), unreadTeam: 0, teamReadAt: now, aiPaused: true, needsHuman: false }, { merge: true });
+      unreadVisitor: firebase.firestore.FieldValue.increment(1), unreadTeam: 0, teamReadAt: now, humanAt: now, aiPaused: false, needsHuman: false }, { merge: true });
     b.set(sRef.collection('messages').doc(), { from: 'team', agent: agent, text: t, ts: now });
     inp.value = ''; inp.style.height = 'auto';
     try { await b.commit(); } catch(e) { inp.value = t; alert('Antwort konnte nicht gesendet werden. Bitte Verbindung prüfen.'); }
