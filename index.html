@@ -647,6 +647,21 @@ input,select,textarea{font-family:var(--sans);}
 .twint-number{font-family:var(--serif); font-size:24px; font-weight:700; color:var(--blue-light); margin:10px 0;}
 
 /* Modernes BlueFix Auftrags-UI */
+.orders-seg{display:flex;gap:6px;padding:4px;margin-bottom:14px;background:var(--bg-panel-2);border:1px solid var(--line);border-radius:14px;}
+.orders-seg .seg-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:8px;min-height:42px;border:0;border-radius:10px;background:transparent;color:var(--muted);font:inherit;font-size:14px;font-weight:600;cursor:pointer;}
+.orders-seg .seg-btn.active{background:rgba(30,111,239,.22);color:var(--white);box-shadow:inset 0 0 0 1px rgba(74,156,255,.35);}
+.seg-badge{min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#e34848;color:#fff;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;}
+.seg-badge[hidden]{display:none;}
+.ai-intro{font-size:12.5px;color:var(--muted);line-height:1.45;margin-bottom:12px;}
+#aiFilterBtns .btn.active{border-color:var(--blue-light);color:var(--white);}
+.ai-card .ai-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:rgba(74,156,255,.14);color:var(--blue-light);font-size:11.5px;font-weight:600;margin-right:6px;}
+.badge-ai-neu{background:rgba(245,166,35,0.15);color:var(--warn);}
+.badge-ai-kontaktiert{background:rgba(74,156,255,0.15);color:var(--blue-light);}
+.badge-ai-uebernommen{background:rgba(47,191,113,0.15);color:var(--good);}
+.badge-ai-abgesagt{background:rgba(138,153,184,0.15);color:var(--muted);}
+.ai-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+.ai-actions .btn{flex:1;min-width:120px;text-decoration:none;text-align:center;}
+.ai-card a.link-glow{word-break:break-all;}
 .app-brand{display:flex;align-items:center;gap:10px;min-width:0;}
 .app-brand img{height:38px;width:auto;display:block;object-fit:contain;}
 .orders-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
@@ -1022,6 +1037,11 @@ input,select,textarea{font-family:var(--sans);}
     <div class="section-head-row">
       <div><h2>Aufträge</h2><div style="color:var(--muted);font-size:12px;margin-top:2px;">Kunden- und interne Team-Aufträge</div></div>
     </div>
+    <div class="orders-seg" id="ordersSeg">
+      <button type="button" class="seg-btn active" data-seg="own">📋 Eigene Aufträge</button>
+      <button type="button" class="seg-btn" data-seg="ai">🤖 KI-Aufträge<span class="seg-badge" id="aiNewBadge" hidden>0</span></button>
+    </div>
+    <div id="ownOrdersWrap">
     <div class="orders-toolbar">
       <div class="order-type-buttons">
         <button class="btn btn-ghost" id="customerOrderBtn">👤 Kunden Auftrag</button>
@@ -1031,6 +1051,18 @@ input,select,textarea{font-family:var(--sans);}
     </div>
     <div id="reviewBar"></div>
     <div id="ordersList"></div>
+    </div>
+    <div id="aiOrdersWrap" hidden>
+      <div class="ai-intro">Diese Aufträge hat der KI-Assistent im Kunden-Chat selbst aufgenommen. Das Team meldet sich beim Kunden, danach kannst du daraus mit einem Klick einen normalen Kunden Auftrag erfassen.</div>
+      <div class="orders-toolbar">
+        <div class="order-type-buttons" id="aiFilterBtns">
+          <button type="button" class="btn btn-ghost active" data-aifilter="open">Offen</button>
+          <button type="button" class="btn btn-ghost" data-aifilter="all">Alle</button>
+        </div>
+        <div class="order-search"><span class="search-icon">⌕</span><input id="aiOrderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
+      </div>
+      <div id="aiOrdersList"></div>
+    </div>
   </div>
 
   <!-- TERMINE / KALENDER -->
@@ -1668,6 +1700,7 @@ let orderTypeFilter = null;
 const INVOICES_KEY = 'bluefix_team_invoices';
 const LOHN_KEY = 'bluefix_team_lohn';
 const TERMINE_KEY = 'bluefix_team_termine';
+const AI_ORDERS_KEY = 'bluefix_ai_orders';
 
 /* ===================== LIVE-SYNC + BENACHRICHTIGUNGEN (Firebase) =====================
    Firestore wird weiterhin für Auftrags-/Nachrichtensynchronisation verwendet.
@@ -1771,7 +1804,7 @@ try {
   }
 } catch (e) { console.warn('Firebase konnte nicht initialisiert werden:', e); }
 
-const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, LOHN_KEY, TERMINE_KEY];
+const SYNC_KEYS = [ORDERS_KEY, INVOICES_KEY, WB_TPL_KEY, LOHN_KEY, TERMINE_KEY, AI_ORDERS_KEY];
 const MSG_COLLECTION = 'bluefix_sync_msgs';
 let ignoreNextSnapshot = {};
 
@@ -1824,6 +1857,7 @@ function titleFor(key, otherName){
   if (key === INVOICES_KEY) return 'BlueFix – ' + otherName + ' hat eine neue Rechnung erstellt';
   if (key === WB_TPL_KEY) return 'BlueFix – ' + otherName + ' hat eine Werbe-Vorlage gespeichert';
   if (key === TERMINE_KEY) return 'BlueFix – ' + otherName + ' hat einen Termin eingetragen';
+  if (key === AI_ORDERS_KEY) return '🤖 BlueFix – Neuer KI-Auftrag';
   return 'BlueFix – ' + otherName + ' hat ein Update erstellt';
 }
 
@@ -1841,6 +1875,7 @@ function bodyFor(key, remoteArr, otherName){
     return otherName + ' hat eine Rechnung erstellt.';
   }
   if (key === WB_TPL_KEY) return otherName + ' hat eine Werbe-Vorlage gespeichert.';
+  if (key === AI_ORDERS_KEY && neu) return [neu.vorname, neu.nachname].filter(Boolean).join(' ') + ': ' + [neu.modell, neu.auftrag].filter(Boolean).join(' · ');
   return otherName + ' hat etwas Neues erstellt.';
 }
 
@@ -1876,6 +1911,7 @@ function startFirebaseSync(){
         // Im Hintergrund alle synchronisierten Garantiescheine lokal sichern.
         syncSignedFilesToLocal(remoteArr);
       }
+      if (key === AI_ORDERS_KEY) { try { renderAiOrders(); renderDashboard(); } catch (e) {} }
       if (key === INVOICES_KEY) { renderInvoices(); checkOverdueInvoices(); }
       if (key === WB_TPL_KEY) { try { wbRenderTemplates(); } catch (e) {} }
       if (key === TERMINE_KEY) { try { renderTermine(); } catch (e) {} }
@@ -2265,7 +2301,8 @@ function renderDashboard(){
   if (!dashOrders || !dashInv) return;
 
   const orders = load(ORDERS_KEY, []);
-  const openOrders = orders.filter(o => o.typ === 'kunde' ? !o.signedFile : o.status !== 'erledigt').length;
+  const aiNew = load(AI_ORDERS_KEY, []).filter(o => o && (o.status || 'neu') === 'neu').length;
+  const openOrders = orders.filter(o => o.typ === 'kunde' ? !o.signedFile : o.status !== 'erledigt').length + aiNew;
 
   const invoices = load(INVOICES_KEY, []);
   const openInvoices = invoices.filter(i => !i.bezahlt).length;
@@ -2586,6 +2623,7 @@ function resetCustomerOrderModal(){
   bluefixSig.clear();
 }
 function openCustomerOrderModal(order=null){
+  pendingAiOrderId=null;
   resetCustomerOrderModal();
   if(order){
     document.getElementById('editingCustomerOrderId').value=order.id;
@@ -2619,7 +2657,7 @@ function updateOrderFilterButtons(){
   document.getElementById('customerOrderBtn').classList.toggle('active', orderTypeFilter==='kunde');
   document.getElementById('teamOrderBtn').classList.toggle('active', orderTypeFilter==='team');
 }
-document.getElementById('custCancel').addEventListener('click', () => document.getElementById('customerOrderModal').classList.remove('show'));
+document.getElementById('custCancel').addEventListener('click', () => { pendingAiOrderId=null; document.getElementById('customerOrderModal').classList.remove('show'); });
 
 document.getElementById('custSave').addEventListener('click', () => {
   const vorname=document.getElementById('custVorname').value.trim();
@@ -2667,7 +2705,9 @@ document.getElementById('custSave').addEventListener('click', () => {
     bluefixSignature:bluefixSig.getData(),
     createdBy:currentUser(),createdAt:Date.now()
   };
+  if(pendingAiOrderId){ order.fromAiOrder=pendingAiOrderId; }
   orders.unshift(order); save(ORDERS_KEY,orders);
+  if(pendingAiOrderId){ const _aid=pendingAiOrderId; pendingAiOrderId=null; aiOrdersMutate(arr=>{ const x=arr.find(o=>o.id===_aid); if(x){ x.status='uebernommen'; x.orderId=order.id; x.updatedBy=currentUser(); x.updatedAt=Date.now(); } return arr; }); }
   logActivity('🧾','einen Kunden Auftrag erstellt: '+vorname+' '+nachname+' · '+modell);
   publishStatus(order);
   {
@@ -3160,6 +3200,7 @@ function trackingHtml(t, carrier){
 const expandedOrders = new Set();
 function renderOrders(){
   renderDashboard();
+  try{ renderAiOrders(); }catch(e){}
   syncStatusWatchers();
   syncViewWatchers();
   try{ renderReviewBar(); }catch(e){}
@@ -3264,6 +3305,175 @@ document.getElementById('ordersList').addEventListener('click',e=>{
   if(expandedOrders.has(id)){ expandedOrders.delete(id); card.classList.add('collapsed'); }
   else { expandedOrders.add(id); card.classList.remove('collapsed'); }
 });
+
+/* ===================== KI-AUFTRÄGE =====================
+   Der KI-Assistent im Kunden-Chat nimmt Reparaturaufträge selbst auf und legt sie serverseitig
+   (api/chat-ai.js) im Dokument bluefix_sync/bluefix_ai_orders ab. Hier werden sie in einem eigenen
+   Bereich angezeigt, getrennt von den Aufträgen, die das Team selbst erfasst.
+   Änderungen laufen über eine Transaktion, damit sich Panel und Server nie gegenseitig überschreiben. */
+const AI_STATUS_LABELS = { neu:'Neu', kontaktiert:'Kunde kontaktiert', uebernommen:'Als Auftrag erfasst', abgesagt:'Abgesagt' };
+let aiOrdersSeg = 'own';
+let aiOrdersFilter = 'open';
+let pendingAiOrderId = null;
+
+function aiOrdersMutate(mutator){
+  const done = arr => {
+    localStorage.setItem(AI_ORDERS_KEY, JSON.stringify(arr));
+    renderAiOrders(); renderDashboard();
+  };
+  if (!fbReady || !fbDb) {
+    const arr = load(AI_ORDERS_KEY, []);
+    done(mutator(arr) || arr);
+    return Promise.resolve();
+  }
+  const ref = fbDb.collection('bluefix_sync').doc(AI_ORDERS_KEY);
+  return fbDb.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    let arr = snap.exists ? ((snap.data() || {}).data || []) : [];
+    arr = mutator(arr) || arr;
+    tx.set(ref, { data: arr, updatedBy: currentUser(), updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
+    return arr;
+  }).then(done).catch(e => {
+    console.warn('KI-Auftrag konnte nicht gespeichert werden:', e);
+    alert('Die Änderung konnte nicht gespeichert werden (' + (e.code || e.message) + '). Bitte Internetverbindung prüfen und nochmals versuchen.');
+  });
+}
+
+function aiOrderSearchMatch(o, q){
+  if (!q) return true;
+  const phone = String(o.telefon || '').replace(/\D/g, '');
+  const qDigits = q.replace(/\D/g, '');
+  return [o.vorname, o.nachname, o.modell, o.auftrag, o.email, o.notizen].join(' ').toLowerCase().includes(q)
+    || (qDigits.length >= 3 && phone.includes(qDigits));
+}
+
+function setAiSeg(seg){
+  aiOrdersSeg = seg;
+  document.querySelectorAll('#ordersSeg .seg-btn').forEach(b => b.classList.toggle('active', b.dataset.seg === seg));
+  document.getElementById('ownOrdersWrap').hidden = seg !== 'own';
+  document.getElementById('aiOrdersWrap').hidden = seg !== 'ai';
+  renderAiOrders();
+}
+
+function renderAiOrders(){
+  const all = load(AI_ORDERS_KEY, []).filter(o => o && o.id);
+  const newCount = all.filter(o => (o.status || 'neu') === 'neu').length;
+  const badge = document.getElementById('aiNewBadge');
+  if (badge) { badge.textContent = newCount; badge.hidden = newCount === 0; }
+
+  const list = document.getElementById('aiOrdersList');
+  if (!list || aiOrdersSeg !== 'ai') return;
+
+  const q = (document.getElementById('aiOrderSearch').value || '').trim().toLowerCase();
+  const rows = all
+    .filter(o => aiOrdersFilter === 'all' || ['neu','kontaktiert'].includes(o.status || 'neu'))
+    .filter(o => aiOrderSearchMatch(o, q))
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+  if (!rows.length) {
+    list.innerHTML = '<div class="empty-state">' + (all.length ? 'Keine KI-Aufträge für diese Ansicht.' : 'Noch keine KI-Aufträge. Sobald der KI-Assistent im Chat einen Auftrag aufnimmt, erscheint er hier.') + '</div>';
+    return;
+  }
+
+  list.innerHTML = rows.map(o => {
+    const st = o.status || 'neu';
+    const tel = String(o.telefon || '').replace(/[^\d+]/g, '');
+    const preis = (o.preis === null || o.preis === undefined || o.preis === '')
+      ? 'Auf Anfrage'
+      : 'CHF ' + Number(o.preis).toFixed(2);
+    const detail = [o.qualitaet, o.kamera ? 'Kamera ' + o.kamera : ''].filter(Boolean).join(' · ');
+    return `<div class="card ai-card">
+      <div class="card-top">
+        <div>
+          <p class="card-title">${esc(o.vorname)} ${esc(o.nachname)}${st === 'neu' ? '<span class="order-live-dot" title="Neu"></span>' : ''}</p>
+          <p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)}${detail ? ' · ' + esc(detail) : ''}</p>
+        </div>
+        <div class="card-actions">
+          <button class="icon-btn-sm" data-ai-del="${esc(o.id)}" title="Löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
+        </div>
+      </div>
+      <span class="ai-tag">🤖 Von der KI aufgenommen</span><span class="badge badge-ai-${esc(st)}">${esc(AI_STATUS_LABELS[st] || st)}</span>
+      <div class="card-grid">
+        <div><div class="k">Handynummer</div><div class="v">${o.telefon ? `<a class="link-glow" href="tel:${esc(tel)}">${esc(o.telefon)}</a>` : '—'}</div></div>
+        <div><div class="k">E-Mail</div><div class="v">${o.email ? `<a class="link-glow" href="mailto:${esc(o.email)}">${esc(o.email)}</a>` : '—'}</div></div>
+        <div><div class="k">Preis</div><div class="v">${esc(preis)}${o.preisInfo ? `<div style="color:var(--muted);font-size:11.5px;">${esc(o.preisInfo)}</div>` : ''}</div></div>
+        <div><div class="k">Garantie</div><div class="v">${esc(o.garantie || '—')}</div></div>
+        <div><div class="k">IMEI</div><div class="v">${esc(o.imei || 'Noch offen')}</div></div>
+        <div><div class="k">Wunsch</div><div class="v">${esc(o.wunsch || '—')}</div></div>
+        <div><div class="k">Aufgenommen</div><div class="v">${o.createdAt ? fmtTime(o.createdAt) : '—'}${o.short ? ' · Chat #' + esc(o.short) : ''}</div></div>
+        ${o.updatedAt ? `<div><div class="k">Zuletzt geändert</div><div class="v">${fmtTime(o.updatedAt)}</div></div>` : ''}
+        ${o.notizen ? `<div style="grid-column:1/-1;"><div class="k">Notizen</div><div class="v">${linkify(o.notizen)}</div></div>` : ''}
+      </div>
+      <select class="status-select" data-ai-status="${esc(o.id)}">${Object.entries(AI_STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${k === st ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <div class="ai-actions">
+        ${tel ? `<a class="btn btn-ghost btn-sm" href="tel:${esc(tel)}">📞 Anrufen</a>` : ''}
+        ${st !== 'uebernommen' ? `<button class="btn btn-primary btn-sm" type="button" data-ai-convert="${esc(o.id)}">✅ Als Kunden Auftrag erfassen</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+document.querySelectorAll('#ordersSeg .seg-btn').forEach(b => b.addEventListener('click', () => setAiSeg(b.dataset.seg)));
+document.querySelectorAll('#aiFilterBtns [data-aifilter]').forEach(b => b.addEventListener('click', () => {
+  aiOrdersFilter = b.dataset.aifilter;
+  document.querySelectorAll('#aiFilterBtns [data-aifilter]').forEach(x => x.classList.toggle('active', x === b));
+  renderAiOrders();
+}));
+document.getElementById('aiOrderSearch').addEventListener('input', renderAiOrders);
+
+document.getElementById('aiOrdersList').addEventListener('change', e => {
+  const sel = e.target.closest('[data-ai-status]');
+  if (!sel) return;
+  const id = sel.dataset.aiStatus, status = sel.value;
+  aiOrdersMutate(arr => {
+    const o = arr.find(x => x.id === id);
+    if (o && o.status !== status) {
+      logActivity('🤖', 'beim KI-Auftrag von ' + o.vorname + ' ' + o.nachname + ' den Status auf „' + (AI_STATUS_LABELS[status] || status) + '“ gesetzt');
+      o.status = status; o.updatedBy = currentUser(); o.updatedAt = Date.now();
+    }
+    return arr;
+  });
+});
+
+document.getElementById('aiOrdersList').addEventListener('click', e => {
+  const del = e.target.closest('[data-ai-del]');
+  if (del) {
+    const id = del.dataset.aiDel;
+    showConfirm('Diesen KI-Auftrag wirklich löschen?', () => {
+      aiOrdersMutate(arr => {
+        const o = arr.find(x => x.id === id);
+        if (o) logActivity('🗑️', 'den KI-Auftrag gelöscht: ' + o.vorname + ' ' + o.nachname + ' · ' + o.modell);
+        return arr.filter(x => x.id !== id);
+      });
+    });
+    return;
+  }
+  const conv = e.target.closest('[data-ai-convert]');
+  if (conv) {
+    const o = load(AI_ORDERS_KEY, []).find(x => x.id === conv.dataset.aiConvert);
+    if (o) convertAiOrder(o);
+  }
+});
+
+// Öffnet das normale Kunden-Auftrag-Formular, vorausgefüllt mit den Angaben der KI.
+function convertAiOrder(o){
+  openCustomerOrderModal();
+  const set = (id, v) => { document.getElementById(id).value = v == null ? '' : v; };
+  set('custVorname', o.vorname); set('custNachname', o.nachname);
+  set('custTelefon', o.telefon); set('custEmail', o.email);
+  set('custModell', o.modell); set('custImei', o.imei);
+  if (o.auftrag) set('custAuftrag', o.auftrag);
+  set('custPreis', o.preis); set('custGarantie', o.garantie || '6 Monate');
+  const notiz = [
+    o.qualitaet ? o.qualitaet + '-Display' : '',
+    o.kamera ? 'Kamera ' + o.kamera : '',
+    o.wunsch ? 'Wunsch: ' + o.wunsch : '',
+    o.notizen || '',
+    'Aufgenommen von der KI (Chat #' + (o.short || '—') + ')'
+  ].filter(Boolean).join('\n');
+  set('custNotizen', notiz);
+  pendingAiOrderId = o.id;
+}
 
 /* ===================== INVOICES ===================== */
 let selectedPay = 'twint';
