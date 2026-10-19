@@ -833,6 +833,31 @@ input,select,textarea{font-family:var(--sans);}
 .rev-bar{border-color:rgba(245,166,35,0.5); background:rgba(245,166,35,0.08);}
 @media (max-width:420px){ .foto-cols{grid-template-columns:1fr;} }
 </style>
+<style id="lcStyle">
+/* ===== Kunden-Chats (Live-Chat von der Website) ===== */
+#tab-livechats{padding-bottom:0;}
+#tab-livechats .lc-view{display:none; flex-direction:column; flex:1; min-height:0; height:100%;}
+#tab-livechats .lc-view.show{display:flex;}
+#lcListView{overflow-y:auto; -webkit-overflow-scrolling:touch;}
+#lcList{padding-bottom:90px;}
+.lc-badge{display:inline-flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 5px; margin-left:6px; border-radius:9px; background:#e34848; color:#fff; font-size:11px; font-weight:700; line-height:1; box-shadow:0 0 8px rgba(227,72,72,.6);}
+.lc-intro{color:var(--muted); font-size:12.5px; padding:0 4px 12px;}
+.lc-item{display:flex; align-items:center; gap:12px; padding:12px; border-radius:var(--radius); border:1px solid var(--glass-border-soft); background:var(--glass-bg-2); cursor:pointer; margin-bottom:8px; -webkit-tap-highlight-color:transparent; backdrop-filter:var(--glass-blur-sm); -webkit-backdrop-filter:var(--glass-blur-sm);}
+.lc-item.unread{border-color:var(--blue-light); box-shadow:var(--glow-sm);}
+.lc-avatar{width:42px; height:42px; border-radius:50%; background:linear-gradient(135deg,var(--blue-light),var(--blue)); display:flex; align-items:center; justify-content:center; font-weight:700; color:#fff; flex:none;}
+.lc-main{flex:1; min-width:0;}
+.lc-name{font-weight:600; color:var(--white); display:flex; gap:6px; align-items:baseline;}
+.lc-name small{color:var(--muted); font-weight:500; font-size:11px;}
+.lc-item.unread .lc-last{color:var(--white); font-weight:600;}
+.lc-last{color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.lc-side{display:flex; flex-direction:column; align-items:flex-end; gap:6px; font-size:11px; color:var(--muted); flex:none;}
+.lc-head{display:flex; align-items:center; gap:10px; padding:2px 2px 10px;}
+.lc-head .lc-title{flex:1; min-width:0;}
+#lcMsgs .bubble{white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;}
+#lcToast{position:fixed; top:calc(env(safe-area-inset-top,0px) + 10px); left:12px; right:12px; max-width:480px; margin:0 auto; z-index:99999; display:none; padding:12px 14px; border-radius:14px; background:rgba(14,26,46,.96); border:1px solid var(--blue-light); color:var(--white); box-shadow:var(--glow-md); cursor:pointer; font-size:14px;}
+#lcToast b{display:block; margin-bottom:2px;}
+#lcToast span{color:var(--muted); display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+</style>
 </head>
 <body>
 
@@ -936,6 +961,7 @@ input,select,textarea{font-family:var(--sans);}
 
   <div class="tabs">
     <button class="tab-btn active" data-tab="chat">💬 Chat</button>
+    <button class="tab-btn" data-tab="livechats" id="livechatTabBtn">🗨️ Kunden-Chats<span class="lc-badge" id="lcTabBadge" style="display:none;">0</span></button>
     <button class="tab-btn" data-tab="meinestunden" id="myHoursTabBtn" style="display:none;">⏱ Meine Stunden</button>
     <button class="tab-btn" data-tab="orders">🧾 Aufträge</button>
     <button class="tab-btn" data-tab="calendar">📅 Termine</button>
@@ -963,6 +989,28 @@ input,select,textarea{font-family:var(--sans);}
         </button>
         <textarea id="chatInput" rows="1" placeholder="Nachricht schreiben..."></textarea>
         <button class="icon-btn send-btn" id="sendBtn" title="Senden">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KUNDEN-CHATS (Live-Chat von der Website) -->
+  <div class="tab-content" id="tab-livechats">
+    <div class="lc-view show" id="lcListView">
+      <div class="lc-intro">Jeder Chat von der Website erscheint hier einzeln. Rote Zahl = ungelesene Nachrichten.</div>
+      <div id="lcList"><div class="empty-state">Lade Chats …</div></div>
+    </div>
+    <div class="lc-view" id="lcConvView">
+      <div class="lc-head">
+        <button class="icon-btn" id="lcBack" type="button" title="Zurück" style="font-size:22px;">‹</button>
+        <div class="lc-title"><div class="lc-name" id="lcConvName"></div><div class="lc-last" id="lcConvSub"></div></div>
+        <button class="icon-btn" id="lcDel" type="button" title="Chat löschen">🗑</button>
+      </div>
+      <div class="chat-messages" id="lcMsgs"></div>
+      <div class="chat-input-row">
+        <textarea id="lcInput" rows="1" placeholder="Antwort an den Kunden …" maxlength="1000"></textarea>
+        <button class="icon-btn send-btn" id="lcSend" type="button" title="Senden">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
@@ -2156,6 +2204,7 @@ function enterTeamApp(u, uKey){
   startChatCollectionSync();
   if (isChatTabActive()) markMessagesAsRead();
   startTeamExtras(uKey);
+  if (typeof startLiveChatSync === 'function') startLiveChatSync();
 }
 
 /* ===================== TABS ===================== */
@@ -2166,7 +2215,7 @@ function switchToTab(tabName){
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
   btn.classList.add('active');
   document.getElementById('tab-' + tabName).classList.add('active');
-  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity' || tabName === 'werbung' || tabName === 'lohn' || tabName === 'meinestunden') ? 'none' : 'flex';
+  document.getElementById('fabBtn').style.display = (tabName === 'chat' || tabName === 'livechats' || tabName === 'stats' || tabName === 'revenue' || tabName === 'activity' || tabName === 'werbung' || tabName === 'lohn' || tabName === 'meinestunden') ? 'none' : 'flex';
   if (tabName === 'werbung') wbOpenTab();
   if (tabName === 'lohn') renderLohn(true);
   if (tabName === 'meinestunden') renderMyHours();
@@ -2177,6 +2226,7 @@ function switchToTab(tabName){
     if (!f.getAttribute('src')) f.setAttribute('src', 'login-counter.html'); // erst beim ersten Öffnen laden
   }
   if (tabName === 'chat') { scrollChatToBottom(); markMessagesAsRead(); }
+  if (tabName === 'livechats' && typeof lcOnTabOpen === 'function') lcOnTabOpen();
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
@@ -5938,5 +5988,204 @@ document.getElementById('ordersList').addEventListener('click', e => {
 });
 </script>
 <script src="login-splash.js"></script>
+<script id="lcScript">
+/* ===================== KUNDEN-CHATS (Live-Chat von blue-fix.ch) =====================
+   Firestore: livechat_sessions/{chatId}            -> ein Dokument pro Besucher-Chat
+              livechat_sessions/{chatId}/messages   -> die einzelnen Nachrichten
+   Push bei geschlossener App kommt von api/chat-notify.js (Vercel). Solange das Panel offen
+   ist, zeigt dieser Code zusätzlich sofort ein Banner + rote Zahl am Tab. */
+(function(){
+  var lcUnsub = null, lcMsgUnsub = null, lcSessions = [], lcOpenSid = null, lcMsgs = [], lcKnown = {}, lcInit = false, lcToastTimer = null;
+  var $ = function(id){ return document.getElementById(id); };
+
+  function lcCur(){ return lcSessions.find(function(s){ return s.id === lcOpenSid; }) || null; }
+  function lcViewActive(){
+    var b = document.querySelector('.tab-btn.active');
+    return !!b && b.dataset.tab === 'livechats' && document.visibilityState === 'visible' && typeof appScreen !== 'undefined' && appScreen && appScreen.style.display === 'flex';
+  }
+  function lcWhen(ts){
+    if (!ts) return '';
+    var d = new Date(ts), n = new Date();
+    if (d.toDateString() === n.toDateString()) return d.toLocaleTimeString('de-CH', {hour:'2-digit', minute:'2-digit'});
+    return d.toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit'});
+  }
+  function lcUpdateBadge(){
+    var n = lcSessions.reduce(function(a,s){ return a + (s.unreadTeam || 0); }, 0);
+    var b = $('lcTabBadge'); if (!b) return;
+    b.style.display = n > 0 ? 'inline-flex' : 'none';
+    b.textContent = n > 99 ? '99+' : n;
+  }
+
+  /* ---------- Live-Sync ---------- */
+  window.startLiveChatSync = function(){
+    if (typeof fbReady === 'undefined' || !fbReady || !fbDb) return;
+    if (lcUnsub) { lcUnsub(); lcUnsub = null; }
+    lcInit = false; lcKnown = {};
+    lcUnsub = fbDb.collection('livechat_sessions').orderBy('lastMessageAt', 'desc').limit(200).onSnapshot(function(snap){
+      var list = snap.docs.map(function(d){ var o = d.data(); o.id = d.id; return o; });
+      if (!snap.metadata.fromCache) {
+        list.forEach(function(s){
+          var prev = lcKnown[s.id];
+          if (lcInit && s.lastFrom === 'visitor' && (s.lastMessageAt || 0) > (prev || 0)) lcAlert(s, prev === undefined);
+          lcKnown[s.id] = s.lastMessageAt || 0;
+        });
+        lcInit = true;
+      }
+      lcSessions = list;
+      lcRenderList(); lcUpdateBadge(); lcHeader();
+      if (lcOpenSid && lcViewActive()) lcMarkRead();
+    }, function(err){
+      console.warn('Live-Chat-Sync-Fehler:', err);
+      var l = $('lcList'); if (l) l.innerHTML = '<div class="empty-state">Chats konnten nicht geladen werden (' + esc(err.code || err.message) + ').</div>';
+    });
+  };
+
+  /* ---------- Banner bei neuer Nachricht ---------- */
+  function lcAlert(s, isNew){
+    if (lcOpenSid === s.id && lcViewActive()) return;
+    var title = (isNew ? '💬 Neuer Kunden-Chat: ' : '💬 ') + (s.name || 'Besucher');
+    var text = s.lastText || '';
+    if (document.visibilityState === 'visible') {
+      var t = $('lcToast');
+      if (!t) {
+        t = document.createElement('div'); t.id = 'lcToast'; document.body.appendChild(t);
+        t.addEventListener('click', function(){
+          t.style.display = 'none';
+          switchToTab('livechats');
+          if (t.dataset.sid) lcOpenConv(t.dataset.sid);
+        });
+      }
+      t.dataset.sid = s.id;
+      t.innerHTML = '<b>' + esc(title) + '</b><span>' + esc(text) + '</span>';
+      t.style.display = 'block';
+      clearTimeout(lcToastTimer); lcToastTimer = setTimeout(function(){ t.style.display = 'none'; }, 7000);
+      try {
+        var ac = new (window.AudioContext || window.webkitAudioContext)(), o = ac.createOscillator(), g = ac.createGain();
+        o.connect(g); g.connect(ac.destination); o.frequency.value = 880; g.gain.value = 0.05;
+        o.start(); o.stop(ac.currentTime + 0.15);
+      } catch(e){}
+      try { if (navigator.vibrate) navigator.vibrate(120); } catch(e){}
+    } else {
+      try { notifyOther(title, text, 'lc-' + s.id); } catch(e){}
+    }
+  }
+
+  /* ---------- Chat-Liste ---------- */
+  function lcRenderList(){
+    var box = $('lcList'); if (!box) return;
+    if (!lcSessions.length) {
+      box.innerHTML = '<div class="empty-state">Noch keine Kunden-Chats.<br>Sobald jemand auf der Website schreibt, erscheint der Chat hier.</div>';
+      return;
+    }
+    box.innerHTML = lcSessions.map(function(s){
+      var un = s.unreadTeam || 0, nm = s.name || 'Besucher';
+      return '<div class="lc-item' + (un ? ' unread' : '') + '" data-sid="' + esc(s.id) + '">' +
+        '<div class="lc-avatar">' + esc(nm.charAt(0).toUpperCase()) + '</div>' +
+        '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small></div>' +
+        '<div class="lc-last">' + (s.lastFrom === 'team' ? esc((s.lastAgent || 'Team') + ': ') : '') + esc(s.lastText || '') + '</div></div>' +
+        '<div class="lc-side"><span>' + lcWhen(s.lastMessageAt) + '</span>' + (un ? '<span class="lc-badge" style="margin:0;">' + un + '</span>' : '') + '</div></div>';
+    }).join('');
+  }
+
+  /* ---------- Einzelner Chat ---------- */
+  function lcHeader(){
+    var s = lcCur(); if (!s) return;
+    $('lcConvName').innerHTML = esc(s.name || 'Besucher') + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>';
+    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '');
+  }
+  function lcRenderConv(){
+    var box = $('lcMsgs'); if (!box) return;
+    var s = lcCur() || {};
+    var near = box.scrollHeight - box.scrollTop - box.clientHeight < 140;
+    if (!lcMsgs.length) { box.innerHTML = '<div class="chat-empty">Noch keine Nachrichten.</div>'; return; }
+    var lastTeam = -1; lcMsgs.forEach(function(m,i){ if (m.from === 'team') lastTeam = i; });
+    box.innerHTML = lcMsgs.map(function(m,i){
+      var mine = m.from === 'team';
+      var who = mine ? (m.agent || 'Team') : (s.name || 'Besucher');
+      var meta = '<span>' + esc(who) + ' · ' + fmtTime(m.ts) + '</span>';
+      if (mine && i === lastTeam) {
+        var seen = s.visitorSeenAt && s.visitorSeenAt >= m.ts;
+        meta += '<span class="read-status' + (seen ? ' is-read' : '') + '">' + (seen ? '✓✓ Gelesen' : '✓ Gesendet') + '</span>';
+      }
+      return '<div class="msg ' + (mine ? 'me' : 'them') + '"><div class="bubble">' + esc(m.text) + '</div><div class="meta">' + meta + '</div></div>';
+    }).join('');
+    if (near) box.scrollTop = box.scrollHeight;
+  }
+  function lcOpenConv(sid){
+    if (typeof fbDb === 'undefined' || !fbDb) return;
+    lcOpenSid = sid; lcMsgs = [];
+    $('lcListView').classList.remove('show'); $('lcConvView').classList.add('show');
+    lcHeader(); lcRenderConv();
+    if (lcMsgUnsub) lcMsgUnsub();
+    lcMsgUnsub = fbDb.collection('livechat_sessions').doc(sid).collection('messages').orderBy('ts').onSnapshot(function(snap){
+      lcMsgs = snap.docs.map(function(d){ return d.data(); });
+      var box = $('lcMsgs'); var first = !box.dataset.sid || box.dataset.sid !== sid; box.dataset.sid = sid;
+      lcRenderConv(); if (first) box.scrollTop = box.scrollHeight;
+      if (lcViewActive()) lcMarkRead();
+    }, function(err){ console.warn('Live-Chat-Nachrichten-Fehler:', err); });
+    lcMarkRead();
+  }
+  function lcBack(){
+    lcOpenSid = null;
+    if (lcMsgUnsub) { lcMsgUnsub(); lcMsgUnsub = null; }
+    var box = $('lcMsgs'); if (box) box.dataset.sid = '';
+    $('lcConvView').classList.remove('show'); $('lcListView').classList.add('show');
+  }
+  function lcMarkRead(){
+    var s = lcCur(); if (!s || !lcOpenSid) return;
+    var lastV = 0; lcMsgs.forEach(function(m){ if (m.from === 'visitor') lastV = Math.max(lastV, m.ts || 0); });
+    if ((s.unreadTeam || 0) > 0 || (lastV && (s.teamReadAt || 0) < lastV)) {
+      fbDb.collection('livechat_sessions').doc(lcOpenSid).set({ unreadTeam: 0, teamReadAt: Date.now() }, { merge: true }).catch(function(){});
+    }
+  }
+  async function lcSend(){
+    var inp = $('lcInput'), t = inp.value.trim().slice(0, 1000);
+    if (!t || !lcOpenSid) return;
+    var me = currentUser(), agent = (typeof USERS !== 'undefined' && USERS[me] && USERS[me].displayName) || me || 'BlueFix';
+    var now = Date.now(), sRef = fbDb.collection('livechat_sessions').doc(lcOpenSid), b = fbDb.batch();
+    b.set(sRef, { lastMessageAt: now, lastText: t.slice(0, 140), lastFrom: 'team', lastAgent: agent,
+      unreadVisitor: firebase.firestore.FieldValue.increment(1), unreadTeam: 0, teamReadAt: now }, { merge: true });
+    b.set(sRef.collection('messages').doc(), { from: 'team', agent: agent, text: t, ts: now });
+    inp.value = ''; inp.style.height = 'auto';
+    try { await b.commit(); } catch(e) { inp.value = t; alert('Antwort konnte nicht gesendet werden. Bitte Verbindung prüfen.'); }
+  }
+  async function lcDelete(){
+    var s = lcCur(); if (!s) return;
+    if (!confirm('Chat mit „' + (s.name || 'Besucher') + '“ wirklich löschen?')) return;
+    try {
+      var sRef = fbDb.collection('livechat_sessions').doc(s.id);
+      var snap = await sRef.collection('messages').get();
+      var docs = snap.docs;
+      for (var i = 0; i < docs.length; i += 400) {
+        var b = fbDb.batch(); docs.slice(i, i + 400).forEach(function(d){ b.delete(d.ref); }); await b.commit();
+      }
+      await sRef.delete();
+      lcBack();
+    } catch(e) { alert('Chat konnte nicht gelöscht werden.'); }
+  }
+
+  /* ---------- Events ---------- */
+  document.addEventListener('click', function(e){
+    var it = e.target.closest && e.target.closest('.lc-item');
+    if (it && $('lcList') && $('lcList').contains(it)) lcOpenConv(it.dataset.sid);
+  });
+  $('lcBack').addEventListener('click', lcBack);
+  $('lcDel').addEventListener('click', lcDelete);
+  $('lcSend').addEventListener('click', lcSend);
+  $('lcInput').addEventListener('input', function(){ this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
+  $('lcInput').addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey && window.matchMedia('(hover: hover)').matches) { e.preventDefault(); lcSend(); }
+  });
+  document.addEventListener('visibilitychange', function(){ if (lcOpenSid && lcViewActive()) lcMarkRead(); });
+  window.lcOnTabOpen = function(){ if (lcOpenSid) { lcMarkRead(); var b = $('lcMsgs'); if (b) b.scrollTop = b.scrollHeight; } };
+
+  /* Start, falls jemand schon eingeloggt ist (oder der Login-Hook noch nicht lief) */
+  function tryStart(){
+    if (lcUnsub) return;
+    try { if (typeof currentUser === 'function' && currentUser() && typeof appScreen !== 'undefined' && appScreen && appScreen.style.display === 'flex') window.startLiveChatSync(); } catch(e){}
+  }
+  tryStart(); setTimeout(tryStart, 1500); setTimeout(tryStart, 4000);
+})();
+</script>
 </body>
 </html>
