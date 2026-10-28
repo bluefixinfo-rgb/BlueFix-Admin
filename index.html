@@ -1085,6 +1085,7 @@ input,select,textarea{font-family:var(--sans);}
   <div class="tab-content" id="tab-invoices">
     <div class="section-head-row">
       <h2>Rechnungen</h2>
+      <button type="button" class="btn btn-ghost btn-sm" id="invToggleAll" style="display:none;">Alle ausklappen</button>
     </div>
     <div id="mahnBar"></div>
     <div class="order-search" style="margin-bottom:14px;"><span class="search-icon">⌕</span><input id="invoiceSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
@@ -3791,6 +3792,16 @@ async function invoiceSharePdf(invId){
 
 const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
 
+const expandedInvoices = new Set();
+let invVisibleIds = [];
+function invUpdateToggleAll(invoices){
+  const btn = document.getElementById('invToggleAll');
+  if (!btn) return;
+  invVisibleIds = (invoices || []).map(i => i.id);
+  btn.style.display = invVisibleIds.length ? '' : 'none';
+  const allOpen = invVisibleIds.length && invVisibleIds.every(id => expandedInvoices.has(id));
+  btn.textContent = allOpen ? 'Alle einklappen' : 'Alle ausklappen';
+}
 function renderInvoices(){
   renderDashboard();
   renderRevenue();
@@ -3798,6 +3809,7 @@ function renderInvoices(){
   try { renderMahnBar(allInvoices); } catch (e) {}
   const list = document.getElementById('invoicesList');
   list.innerHTML = '';
+  invUpdateToggleAll([]);
   if (!allInvoices.length) { list.innerHTML = '<div class="empty-state">Noch keine Rechnungen. Tippe unten rechts auf + um eine zu erstellen.</div>'; return; }
   const iq = (document.getElementById('invoiceSearch')?.value || '').trim().toLowerCase();
   const custIdx = iq ? buildCustomerIndex() : null;
@@ -3837,8 +3849,22 @@ function renderInvoices(){
       </div>
       ${isOverdue(inv) ? `<button class="btn btn-danger btn-sm" data-mahn-inv="${inv.id}" style="width:100%;margin-top:8px;">📨 ${mahnCount(inv) ? 'Nächste Mahnung senden' : 'Zahlungserinnerung senden'}</button>` : ''}
     `;
+    {
+      // Nur Kopfzeile (Name + Beschreibung) sichtbar, Tipp klappt alles auf
+      const top = card.querySelector('.card-top');
+      if (top) {
+        const more = document.createElement('div'); more.className = 'card-more';
+        while (top.nextSibling) more.appendChild(top.nextSibling);
+        card.appendChild(more);
+        top.dataset.toggle = inv.id;
+        const acts = top.querySelector('.card-actions');
+        if (acts) { const ch = document.createElement('span'); ch.className = 'card-chev'; ch.textContent = '▾'; acts.prepend(ch); }
+        if (!expandedInvoices.has(inv.id)) card.classList.add('collapsed');
+      }
+    }
     list.appendChild(card);
   });
+  invUpdateToggleAll(invoices);
 
   list.querySelectorAll('[data-del-inv]').forEach(btn => btn.addEventListener('click', () => {
     showConfirm('Diese Rechnung wirklich löschen?', () => {
@@ -4988,6 +5014,23 @@ function invoiceMatchesSearch(inv, q, custIdx){
   return searchTokensMatch(hay, c.tels, q);
 }
 document.getElementById('invoiceSearch').addEventListener('input', renderInvoices);
+document.getElementById('invoicesList').addEventListener('click', e => {
+  const top = e.target.closest('[data-toggle]');
+  if (!top || e.target.closest('button,a,select,input')) return;
+  const id = top.dataset.toggle, card = top.closest('.card');
+  if (expandedInvoices.has(id)) { expandedInvoices.delete(id); card.classList.add('collapsed'); }
+  else { expandedInvoices.add(id); card.classList.remove('collapsed'); }
+  invUpdateToggleAll(invVisibleIds.map(x => ({ id: x })));
+});
+document.getElementById('invToggleAll').addEventListener('click', () => {
+  const allOpen = invVisibleIds.length && invVisibleIds.every(id => expandedInvoices.has(id));
+  invVisibleIds.forEach(id => allOpen ? expandedInvoices.delete(id) : expandedInvoices.add(id));
+  document.querySelectorAll('#invoicesList .card').forEach(c => {
+    const t = c.querySelector('[data-toggle]'); if (!t) return;
+    c.classList.toggle('collapsed', !expandedInvoices.has(t.dataset.toggle));
+  });
+  invUpdateToggleAll(invVisibleIds.map(x => ({ id: x })));
+});
 
 /* ---------- Überfällige Rechnungen ---------- */
 function invoiceAgeDays(inv){ return Math.floor((Date.now() - (inv.createdAt || Date.now())) / 864e5); }
