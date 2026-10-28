@@ -672,7 +672,8 @@ input,select,textarea{font-family:var(--sans);}
 .order-search input:focus{outline:none;border-color:var(--blue-light);box-shadow:0 0 0 3px rgba(74,156,255,.12);}
 .order-search input{display:block;margin:0;box-sizing:border-box;-webkit-appearance:none;appearance:none;text-align:left;line-height:1.3;}
 .order-search input::-webkit-search-decoration,.order-search input::-webkit-search-cancel-button{-webkit-appearance:none;}
-.order-search .search-icon{position:absolute;left:14px;top:0;bottom:0;transform:none;display:flex;align-items:center;color:var(--muted);font-size:18px;line-height:1;pointer-events:none;z-index:1;}
+.order-search .search-icon{display:none;}
+.order-search input{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%238a93b5' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10.5' cy='10.5' r='6.5'/%3E%3Cpath d='M20 20l-4.8-4.8'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:14px center;background-size:18px 18px;text-indent:0;}
 .order-file-box{margin-top:12px;padding:12px;border:1px solid rgba(74,156,255,.16);background:rgba(30,111,239,.045);border-radius:13px;}
 .order-file-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .order-file-name{font-size:12.5px;color:var(--white);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:160px;}
@@ -1087,7 +1088,6 @@ input,select,textarea{font-family:var(--sans);}
   <div class="tab-content" id="tab-invoices">
     <div class="section-head-row">
       <h2>Rechnungen</h2>
-      <button type="button" class="btn btn-ghost btn-sm" id="invToggleAll" style="display:none;">Alle ausklappen</button>
     </div>
     <div id="mahnBar"></div>
     <div class="order-search" style="margin-bottom:14px;"><span class="search-icon">⌕</span><input id="invoiceSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
@@ -3797,12 +3797,7 @@ const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
 const expandedInvoices = new Set();
 let invVisibleIds = [];
 function invUpdateToggleAll(invoices){
-  const btn = document.getElementById('invToggleAll');
-  if (!btn) return;
   invVisibleIds = (invoices || []).map(i => i.id);
-  btn.style.display = invVisibleIds.length ? '' : 'none';
-  const allOpen = invVisibleIds.length && invVisibleIds.every(id => expandedInvoices.has(id));
-  btn.textContent = allOpen ? 'Alle einklappen' : 'Alle ausklappen';
 }
 function renderInvoices(){
   renderDashboard();
@@ -5022,16 +5017,6 @@ document.getElementById('invoicesList').addEventListener('click', e => {
   const id = top.dataset.toggle, card = top.closest('.card');
   if (expandedInvoices.has(id)) { expandedInvoices.delete(id); card.classList.add('collapsed'); }
   else { expandedInvoices.add(id); card.classList.remove('collapsed'); }
-  invUpdateToggleAll(invVisibleIds.map(x => ({ id: x })));
-});
-document.getElementById('invToggleAll').addEventListener('click', () => {
-  const allOpen = invVisibleIds.length && invVisibleIds.every(id => expandedInvoices.has(id));
-  invVisibleIds.forEach(id => allOpen ? expandedInvoices.delete(id) : expandedInvoices.add(id));
-  document.querySelectorAll('#invoicesList .card').forEach(c => {
-    const t = c.querySelector('[data-toggle]'); if (!t) return;
-    c.classList.toggle('collapsed', !expandedInvoices.has(t.dataset.toggle));
-  });
-  invUpdateToggleAll(invVisibleIds.map(x => ({ id: x })));
 });
 
 /* ---------- Überfällige Rechnungen ---------- */
