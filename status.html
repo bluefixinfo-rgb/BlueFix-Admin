@@ -352,7 +352,7 @@ function shipHtml(d){
     return `<h2>Dein Paket ist angekommen 🎉</h2><p class="sub">Die Post hat dein Gerät zugestellt. Wir wünschen dir viel Freude damit!</p>
       ${TRUCK_ARRIVED}
       <div class="ok">${IC.check}<div><b>Zugestellt</b><span>${esc(fmtDate(d.zugestellt))}</span></div></div>
-      <div class="btns"><a class="btn" target="_blank" rel="noopener" href="${REVIEW_URL}">⭐ Jetzt auf Google bewerten</a></div>
+      <div class="btns"><a class="btn" target="_blank" rel="noopener" href="${REVIEW_URL}">⭐ Jetzt BlueFix bewerten</a></div>
       ${w && w.art === 'post' ? `<div class="recap"><small>Geliefert an</small>${addr(w)}</div>` : ''}
       <a class="trk small" target="_blank" rel="noopener" href="${href}"><span><small>Sendungsnummer</small><b>${esc(d.sendungsnr)}</b></span>${ARROW}</a>
       <p class="sub" style="margin-top:14px;">Etwas stimmt nicht? Schreib uns einfach kurz per E-Mail an ${CONTACT_MAIL}.</p>`;
