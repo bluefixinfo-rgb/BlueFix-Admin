@@ -67,6 +67,18 @@ h1{margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:25px; font-
   animation:pop .5s cubic-bezier(.3,1.6,.5,1) both;
 }
 .done .tick svg{width:30px; height:30px;}
+
+.perk{display:flex; align-items:center; gap:10px; margin:16px 0 0; padding:11px 14px; border-radius:12px; background:rgba(74,156,255,0.12); border:1px solid rgba(74,156,255,0.35); font-size:13.5px; color:var(--white);}
+.perk b{color:var(--blue-light); font-weight:600;}
+.perk svg{flex:none; width:20px; height:20px; color:var(--blue-light);}
+.codebox{margin:20px 0 0; padding:18px 14px 16px; border-radius:16px; text-align:center; background:rgba(30,111,239,0.14); border:1.5px dashed rgba(74,156,255,0.75);}
+.codebox small{display:block; color:var(--muted); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;}
+.codebox .code{display:block; margin:8px 0 4px; font:700 38px/1.2 'Space Grotesk',ui-monospace,monospace; letter-spacing:.07em; color:var(--white); user-select:all; -webkit-user-select:all;}
+.codebox .note{display:block; color:var(--muted); font-size:12.5px;}
+.actions{display:flex; gap:10px; margin-top:14px;}
+.actions button{flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.08); color:var(--white); font:600 14px 'Inter',sans-serif; cursor:pointer;}
+.actions button.main{background:linear-gradient(135deg,var(--blue),#0b3f8a); border-color:rgba(255,255,255,0.4);}
+.hint{margin:14px 0 0; color:var(--muted); font-size:12.5px;}
 [hidden]{display:none !important;}
 @keyframes led{0%,100%{opacity:.7;} 50%{opacity:1;}}
 @keyframes pop{0%{transform:scale(0); opacity:0;} 100%{transform:scale(1); opacity:1;}}
@@ -78,8 +90,11 @@ h1{margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:25px; font-
   <div class="brand"><img src="logo.png" alt="BlueFix"></div>
 
   <section class="card" id="formCard">
+    <div id="intro">
     <h1>Newsletter</h1>
     <p class="sub">Erfahre als Erste/r von unseren Aktionen und Angeboten rund um deine Handy-Reparatur.</p>
+    <div class="perk"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="7.5" cy="7.5" r="1.2"/></svg><span>Als Dankeschön: <b>10% Rabatt</b> auf eine Reparatur – gilt nur 1 Mal.</span></div>
+    </div>
     <div id="formBox">
       <div class="field"><label for="email">E-Mail</label><input id="email" type="email" inputmode="email" autocomplete="email" autocapitalize="off" placeholder="name@beispiel.ch"></div>
       <div class="or">oder</div>
@@ -91,7 +106,17 @@ h1{margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:25px; font-
     <div class="done" id="doneBox" hidden>
       <div class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div>
       <h1>Danke!</h1>
-      <p class="sub">Du bist eingetragen. Wir melden uns, sobald es etwas Neues gibt.</p>
+      <p class="sub" id="doneText">Du bist eingetragen. Wir melden uns, sobald es etwas Neues gibt.</p>
+      <div class="codebox">
+        <small>Dein Rabattcode · 10%</small>
+        <span class="code" id="codeVal"></span>
+        <span class="note">Gilt nur 1 Mal · auf eine Reparatur</span>
+        <div class="actions">
+          <button class="main" id="copyBtn" type="button">Code kopieren</button>
+          <button id="saveBtn" type="button">Als TXT speichern</button>
+        </div>
+      </div>
+      <p class="hint">Speichere den Code gleich – zeig ihn bei deiner Reparatur bei uns.</p>
     </div>
   </section>
 </main>
@@ -127,6 +152,13 @@ async function sha256Hex(s){
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
   return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
 }
+
+/* Zufälliger Rabattcode: BL-XXXX (4 Zeichen, ohne verwechselbare Zeichen wie 0/O, 1/I) */
+function makeCode(){
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';           // 32 Zeichen
+  const b = crypto.getRandomValues(new Uint8Array(4));
+  return 'BL-' + Array.from(b, x => A[x & 31]).join('');
+}
 function showErr(t){ const e = $('err'); e.textContent = t; e.hidden = !t; }
 
 $('go').addEventListener('click', async () => {
@@ -142,16 +174,51 @@ $('go').addEventListener('click', async () => {
   const btn = $('go'); btn.disabled = true; btn.textContent = 'Einen Moment …';
   try {
     const id = 'nl_' + (await sha256Hex((mail || '-') + '|' + (tel || '-'))).slice(0, 32);
-    await Promise.race([
-      db.collection(COL).doc(id).set({ typ: 'newsletter', email: mail, tel: tel, at: Date.now() }),
-      new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))
-    ]);
-    $('formBox').hidden = true; $('doneBox').hidden = false;
+    const ref = db.collection(COL).doc(id);
+    const withTimeout = p => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 12000))]);
+
+    // Schon eingetragen? Dann bekommt die Person denselben Code (Rabatt gilt nur 1 Mal)
+    let code = null;
+    try { const snap = await withTimeout(ref.get()); if (snap.exists && snap.data().code) code = snap.data().code; } catch (e) { /* ohne Leserecht einfach weiter */ }
+    const isNew = !code;
+    if (isNew) {
+      code = makeCode();
+      for (let i = 0; i < 8; i++) {                      // jeder Code darf nur einmal vergeben sein
+        let taken = false;
+        try { const q = await withTimeout(db.collection(COL).where('code', '==', code).limit(1).get()); taken = !q.empty; } catch (e) { break; }
+        if (!taken) break;
+        code = makeCode();
+      }
+      await withTimeout(ref.set({ typ: 'newsletter', email: mail, tel: tel, at: Date.now(), code: code, codeUsed: false }, { merge: true }));
+    }
+    $('codeVal').textContent = code;
+    if (!isNew) $('doneText').textContent = 'Du warst schon eingetragen – das ist dein Rabattcode:';
+    else $('doneText').textContent = 'Du bist eingetragen. Das ist dein persönlicher Rabattcode:';
+    $('intro').hidden = true; $('formBox').hidden = true; $('doneBox').hidden = false;
   } catch (e) {
     console.warn(e);
     showErr('Das hat leider nicht geklappt. Bitte versuche es gleich noch einmal.');
     btn.disabled = false; btn.textContent = 'Eintragen';
   }
+});
+
+$('copyBtn').addEventListener('click', async () => {
+  const t = $('codeVal').textContent, b = $('copyBtn');
+  try { await navigator.clipboard.writeText(t); }
+  catch (e) {                                              // Fallback für ältere Browser
+    const r = document.createRange(); r.selectNodeContents($('codeVal'));
+    const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    try { document.execCommand('copy'); } catch (_) {}
+  }
+  b.textContent = 'Kopiert ✓'; setTimeout(() => b.textContent = 'Code kopieren', 2000);
+});
+$('saveBtn').addEventListener('click', () => {
+  const code = $('codeVal').textContent;
+  const txt = 'BlueFix Handy Reparatur\r\n\r\nDein Rabattcode: ' + code + '\r\n10% Rabatt auf eine Reparatur – gilt nur 1 Mal.\r\nBitte den Code bei deiner Reparatur zeigen.\r\n\r\nWeierbuckstrasse 1, 8213 Neunkirch\r\n+41 76 229 91 82 · BlueFix.info@gmail.com\r\n';
+  const url = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
+  const a = document.createElement('a'); a.href = url; a.download = 'BlueFix-Rabattcode-' + code + '.txt';
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  $('saveBtn').textContent = 'Gespeichert ✓'; setTimeout(() => $('saveBtn').textContent = 'Als TXT speichern', 2000);
 });
 ['email', 'tel'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); }));
 </script>

@@ -1313,6 +1313,7 @@ input,select,textarea{font-family:var(--sans);}
       <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
       <div class="field"><label>Notizen (optional)</label><textarea id="custNotizen" placeholder="Zustand des Geräts, Kundenwünsche…"></textarea></div>
       <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
+      <div class="field"><label>Rabattcode (optional, Newsletter-Code)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
 
     </div>
@@ -2628,6 +2629,95 @@ function setupSignaturePad(canvasId, clearId){
 }
 const bluefixSig=setupSignaturePad('blueSigCanvas','clearBlueSig');
 
+/* ---- Rabattcode im Kunden-Auftrag (Newsletter-Code BL-XXXX, 10%) ---- */
+let custDisc = null;   // { code, docId, prozent, claimed, existing, preisOriginal }
+const NL_PROZENT = 10;
+function chf5(x){ return Math.round(x * 20) / 20; }
+function normNlCode(v){
+  const m = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (m.startsWith('BL')) return /^BL[A-Z0-9]{4}$/.test(m) ? 'BL-' + m.slice(2) : '';
+  return /^[A-Z0-9]{4}$/.test(m) ? 'BL-' + m : '';
+}
+function custDiscMsg(t, ok){
+  const el = document.getElementById('custRabattMsg');
+  el.textContent = t || '';
+  el.style.color = ok === true ? '#7fd6a0' : ok === false ? '#ff9a9a' : '';
+}
+function custDiscReset(){
+  custDisc = null;
+  document.getElementById('custRabatt').value = '';
+  document.getElementById('custRabatt').disabled = false;
+  document.getElementById('custRabattBtn').disabled = false;
+  custDiscMsg('');
+}
+function custDiscLock(o){
+  custDisc = { code: o.rabattCode, claimed: true, existing: true, prozent: o.rabattProzent || NL_PROZENT, preisOriginal: o.preisOriginal };
+  document.getElementById('custRabatt').value = o.rabattCode;
+  document.getElementById('custRabatt').disabled = true;
+  document.getElementById('custRabattBtn').disabled = true;
+  custDiscMsg('✓ ' + custDisc.prozent + '% Rabatt eingelöst (Code ' + o.rabattCode + ')' + (o.preisOriginal != null ? ' · Preis vorher CHF ' + Number(o.preisOriginal).toFixed(2) : ''), true);
+}
+async function nlFindCode(code){
+  let hit = (typeof nlSubs !== 'undefined' ? nlSubs : []).find(x => x.code === code);
+  if (!hit && fbReady && fbDb) {
+    try {
+      const snap = await fbDb.collection(STATUS_COLLECTION).where('typ', '==', 'newsletter').where('code', '==', code).limit(1).get();
+      if (!snap.empty) { const d = snap.docs[0]; hit = Object.assign({ id: d.id }, d.data()); }
+    } catch (e) { console.warn(e); return { error: true }; }
+  }
+  return hit ? { hit } : {};
+}
+document.getElementById('custRabattBtn').addEventListener('click', async () => {
+  if (custDisc && custDisc.existing) return;
+  const code = normNlCode(document.getElementById('custRabatt').value);
+  if (!code) { custDiscMsg('Bitte einen Code im Format BL-XXXX eingeben.', false); return; }
+  const preis = parseFloat(document.getElementById('custPreis').value) || 0;
+  if (!(preis > 0)) { custDiscMsg('Bitte zuerst den Preis eintragen, der Rabatt wird davon abgezogen.', false); return; }
+  if (!fbReady || !fbDb) { custDiscMsg('Keine Verbindung, der Code kann nicht geprüft werden.', false); return; }
+  if (custDisc) { document.getElementById('custPreis').value = custDisc.preisOriginal; custDisc = null; }
+  custDiscMsg('Prüfe Code …');
+  const r = await nlFindCode(code);
+  if (r.error) { custDiscMsg('Der Code konnte nicht geprüft werden (Verbindung?).', false); return; }
+  if (!r.hit) { custDiscMsg('Code nicht gefunden.', false); return; }
+  if (r.hit.codeUsed) { custDiscMsg('Dieser Code wurde schon eingelöst' + (r.hit.usedAt ? ' (' + fmtTime(r.hit.usedAt) + ')' : '') + '.', false); return; }
+  const neu = chf5(preis * (100 - NL_PROZENT) / 100);
+  custDisc = { code, docId: r.hit.id, prozent: NL_PROZENT, claimed: false, preisOriginal: preis };
+  document.getElementById('custRabatt').value = code;
+  document.getElementById('custPreis').value = neu.toFixed(2);
+  custDiscMsg('✓ ' + NL_PROZENT + '% Rabatt: CHF ' + preis.toFixed(2) + ' → CHF ' + neu.toFixed(2) + ' (wird beim Speichern eingelöst)', true);
+});
+document.getElementById('custRabatt').addEventListener('input', () => {
+  // Code geändert: Rabatt zurücknehmen
+  if (custDisc && !custDisc.existing) {
+    document.getElementById('custPreis').value = custDisc.preisOriginal;
+    custDisc = null; custDiscMsg('');
+  }
+});
+async function custDiscFinalize(order){
+  if (!custDisc) return true;
+  if (!custDisc.claimed) {
+    try {
+      const ref = fbDb.collection(STATUS_COLLECTION).doc(custDisc.docId);
+      await fbDb.runTransaction(async tx => {
+        const snap = await tx.get(ref);
+        if (!snap.exists) throw new Error('gone');
+        if (snap.data().codeUsed) throw new Error('used');
+        tx.update(ref, { codeUsed: true, usedAt: Date.now(), usedOrder: order.id, usedVia: 'Admin' });
+      });
+      custDisc.claimed = true;
+    } catch (e) {
+      alert(e && e.message === 'used'
+        ? 'Dieser Rabattcode wurde in der Zwischenzeit schon eingelöst. Bitte Code und Preis prüfen.'
+        : 'Der Rabattcode konnte nicht eingelöst werden (Verbindung prüfen). Der Auftrag wurde nicht gespeichert.');
+      return false;
+    }
+  }
+  order.rabattCode = custDisc.code;
+  order.rabattProzent = custDisc.prozent || NL_PROZENT;
+  if (custDisc.preisOriginal != null) order.preisOriginal = custDisc.preisOriginal;
+  return true;
+}
+
 function resetCustomerOrderModal(){
   ['custVorname','custNachname','custTelefon','custEmail','custModell','custImei','custNotizen','custPreis','custGarantie'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('custAuftrag').selectedIndex=0;
@@ -2636,6 +2726,7 @@ function resetCustomerOrderModal(){
   document.getElementById('customerOrderModalTitle').textContent='👤 Kunden Auftrag';
   document.getElementById('custSave').textContent='Auftrag speichern & PDF erstellen';
   bluefixSig.clear();
+  custDiscReset();
 }
 function openCustomerOrderModal(order=null){
   pendingAiOrderId=null;
@@ -2655,6 +2746,7 @@ function openCustomerOrderModal(order=null){
     document.getElementById('custPreis').value=order.preis??'';
     document.getElementById('custGarantie').value=order.garantie||'';
     document.getElementById('custAgb').checked=!!order.agbAccepted;
+    if(order.rabattCode) custDiscLock(order);
   }
   document.getElementById('customerOrderModal').classList.add('show');
 }
@@ -2674,7 +2766,7 @@ function updateOrderFilterButtons(){
 }
 document.getElementById('custCancel').addEventListener('click', () => { pendingAiOrderId=null; document.getElementById('customerOrderModal').classList.remove('show'); });
 
-document.getElementById('custSave').addEventListener('click', () => {
+document.getElementById('custSave').addEventListener('click', async () => {
   const vorname=document.getElementById('custVorname').value.trim();
   const nachname=document.getElementById('custNachname').value.trim();
   const modell=document.getElementById('custModell').value.trim();
@@ -2694,6 +2786,7 @@ document.getElementById('custSave').addEventListener('click', () => {
     order.telefon=document.getElementById('custTelefon').value.trim();
     order.email=document.getElementById('custEmail').value.trim();
     order.garantie=garantie; order.preis=preis;
+    if(!(await custDiscFinalize(order))) return;
     order.auftrag=document.getElementById('custAuftrag').value;
     order.notizen=document.getElementById('custNotizen').value.trim();
     order.agbAccepted=true;
@@ -2720,6 +2813,7 @@ document.getElementById('custSave').addEventListener('click', () => {
     bluefixSignature:bluefixSig.getData(),
     createdBy:currentUser(),createdAt:Date.now()
   };
+  if(!(await custDiscFinalize(order))) return;
   if(pendingAiOrderId){ order.fromAiOrder=pendingAiOrderId; }
   orders.unshift(order); save(ORDERS_KEY,orders);
   if(pendingAiOrderId){ const _aid=pendingAiOrderId; pendingAiOrderId=null; aiOrdersMutate(arr=>{ const x=arr.find(o=>o.id===_aid); if(x){ x.status='uebernommen'; x.orderId=order.id; x.updatedBy=currentUser(); x.updatedAt=Date.now(); } return arr; }); }
@@ -3166,7 +3260,7 @@ function generateWarrantyPDF(o){
   y=72;
   doc.setFillColor(...soft); doc.setDrawColor(...line); doc.roundedRect(margin,y,pageW-margin*2,78,5,5,'FD');
   doc.setTextColor(...blue); doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text('AUFTRAGSDATEN',margin+8,y+11);
-  const rows=[['Kunde',o.vorname+' '+o.nachname],['Gerät',o.modell],['IMEI',o.imei],['Reparatur',o.auftrag],['Preis','CHF '+Number(o.preis||0).toFixed(2)],['Garantiedauer',o.garantie||'—']];
+  const rows=[['Kunde',o.vorname+' '+o.nachname],['Gerät',o.modell],['IMEI',o.imei],['Reparatur',o.auftrag],['Preis','CHF '+Number(o.preis||0).toFixed(2)+(o.rabattCode?' ('+(o.rabattProzent||10)+'% Rabatt, '+o.rabattCode+')':'')],['Garantiedauer',o.garantie||'—']];
   const colX=[margin+8,108];
   rows.forEach(([k,v],i)=>{ const col=i%2,row=Math.floor(i/2),yy=y+22+row*17; doc.setTextColor(...muted);doc.setFontSize(7.5);doc.setFont(undefined,'bold');doc.text(k.toUpperCase(),colX[col],yy);doc.setTextColor(...text);doc.setFontSize(10);doc.setFont(undefined,'normal');doc.text(String(v||'—'),colX[col],yy+6); });
 
@@ -3242,7 +3336,7 @@ function renderOrders(){
       ${!isCustomer?`<div><div class="k">Zugewiesen an</div><div class="v">${esc(o.assigned)}</div></div>`:''}
       <div><div class="k">Angelegt</div><div class="v">${fmtTime(o.createdAt)}</div></div>
       ${o.updatedAt?`<div><div class="k">Zuletzt aktualisiert</div><div class="v">${fmtTime(o.updatedAt)}</div></div>`:''}
-      ${isCustomer?`<div><div class="k">IMEI</div><div class="v">${esc(o.imei)}</div></div><div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis||0).toFixed(2)}</div></div><div><div class="k">Garantie</div><div class="v">${esc(o.garantie||'—')}</div></div>`:''}
+      ${isCustomer?`<div><div class="k">IMEI</div><div class="v">${esc(o.imei)}</div></div><div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis||0).toFixed(2)}${o.rabattCode?`<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.rabattProzent||10)}% Rabatt · Code ${esc(o.rabattCode)}${o.preisOriginal!=null?' · vorher CHF '+Number(o.preisOriginal).toFixed(2):''}</div>`:''}</div></div><div><div class="k">Garantie</div><div class="v">${esc(o.garantie||'—')}</div></div>`:''}
       ${o.tracking?`<div><div class="k">Sendungsnr.</div><div class="v" style="word-break:break-all;">${trackingHtml(o.tracking, o.carrier)}</div></div>`:''}
       ${o.link?`<div><div class="k">Bestellt bei</div><div class="v"><a href="${esc(o.link)}" target="_blank" rel="noopener" class="link-glow">Link öffnen ↗</a></div></div>`:''}
       ${o.notizen?`<div style="grid-column:1/-1;"><div class="k">Notizen</div><div class="v">${linkify(o.notizen)}</div></div>`:''}
@@ -3411,7 +3505,7 @@ function renderAiOrders(){
       <div class="card-grid">
         <div><div class="k">Handynummer</div><div class="v">${o.telefon ? `<a class="link-glow" href="tel:${esc(tel)}">${esc(o.telefon)}</a>` : '—'}</div></div>
         <div><div class="k">E-Mail</div><div class="v">${o.email ? `<a class="link-glow" href="mailto:${esc(o.email)}">${esc(o.email)}</a>` : '—'}</div></div>
-        <div><div class="k">Preis</div><div class="v">${esc(preis)}${o.preisInfo ? `<div style="color:var(--muted);font-size:11.5px;">${esc(o.preisInfo)}</div>` : ''}</div></div>
+        <div><div class="k">Preis</div><div class="v">${esc(preis)}${o.rabattCode ? `<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.rabattProzent || 10)}% Rabatt · Code ${esc(o.rabattCode)}${o.preisOriginal != null ? ' · vorher CHF ' + Number(o.preisOriginal).toFixed(2) : ''}</div>` : ''}${o.preisInfo ? `<div style="color:var(--muted);font-size:11.5px;">${esc(o.preisInfo)}</div>` : ''}</div></div>
         <div><div class="k">Garantie</div><div class="v">${esc(o.garantie || '—')}</div></div>
         <div><div class="k">IMEI</div><div class="v">${esc(o.imei || 'Noch offen')}</div></div>
         <div><div class="k">Wunsch</div><div class="v">${esc(o.wunsch || '—')}</div></div>
@@ -3478,6 +3572,7 @@ function convertAiOrder(o){
   set('custModell', o.modell); set('custImei', o.imei);
   if (o.auftrag) set('custAuftrag', o.auftrag);
   set('custPreis', o.preis); set('custGarantie', o.garantie || '6 Monate');
+  if (o.rabattCode) custDiscLock(o);
   const notiz = [
     o.qualitaet ? o.qualitaet + '-Display' : '',
     o.kamera ? 'Kamera ' + o.kamera : '',
@@ -4591,10 +4686,17 @@ function nlRender(){
   const c = document.getElementById('nlCount');
   if (nlErr) { c.textContent = '⚠️ Die Abonnenten konnten nicht geladen werden (Verbindung oder Firebase-Regeln prüfen).'; box.innerHTML = ''; return; }
   const withMail = nlSubs.filter(x => x.email).length, withTel = nlSubs.filter(x => x.tel).length;
-  c.textContent = nlSubs.length ? nlSubs.length + (nlSubs.length === 1 ? ' Abonnent' : ' Abonnenten') + ' · ' + withMail + ' mit E-Mail · ' + withTel + ' mit Handynummer' : 'Noch keine Abonnenten.';
-  box.innerHTML = nlSubs.map(x => '<div class="wb-rec"><div><b>' + esc(x.email || wbFmtNum(x.tel)) + '</b><small>' +
-    (x.email && x.tel ? esc(wbFmtNum(x.tel)) + ' · ' : '') + esc(fmtTime(x.at || 0)) + '</small></div>' +
-    '<button class="btn btn-ghost btn-sm" type="button" data-nl-del="' + esc(x.id) + '" aria-label="Abonnent entfernen">🗑</button></div>').join('');
+  c.textContent = nlSubs.length ? nlSubs.length + (nlSubs.length === 1 ? ' Abonnent' : ' Abonnenten') + ' · ' + withMail + ' mit E-Mail · ' + withTel + ' mit Handynummer · ' + nlSubs.filter(x => x.code && !x.codeUsed).length + ' offene Rabattcodes' : 'Noch keine Abonnenten.';
+  box.innerHTML = nlSubs.map(x => {
+    const codeLine = x.code
+      ? '<small><b style="display:inline; letter-spacing:.06em; color:var(--white);">' + esc(x.code) + '</b> · ' + (x.codeUsed ? '✅ eingelöst' + (x.usedAt ? ' ' + esc(fmtTime(x.usedAt)) : '') + (x.usedVia ? ' (' + esc(x.usedVia) + ')' : '') : '🎟️ offen') + '</small>'
+      : '<small>kein Rabattcode</small>';
+    return '<div class="wb-rec"><div><b>' + esc(x.email || wbFmtNum(x.tel)) + '</b><small>' +
+      (x.email && x.tel ? esc(wbFmtNum(x.tel)) + ' · ' : '') + esc(fmtTime(x.at || 0)) + '</small>' + codeLine + '</div>' +
+      '<div style="display:flex; gap:6px; flex:none;">' +
+      (x.code ? '<button class="btn btn-ghost btn-sm" type="button" data-nl-use="' + esc(x.id) + '" title="' + (x.codeUsed ? 'Wieder auf offen setzen' : 'Als eingelöst markieren') + '">' + (x.codeUsed ? '↺ offen' : '✓ eingelöst') + '</button>' : '') +
+      '<button class="btn btn-ghost btn-sm" type="button" data-nl-del="' + esc(x.id) + '" aria-label="Abonnent entfernen">🗑</button></div></div>';
+  }).join('');
 }
 document.addEventListener('click', e => {
   const d = e.target.closest && e.target.closest('[data-nl-del]');
@@ -4603,6 +4705,16 @@ document.addEventListener('click', e => {
   showConfirm('«' + (x.email || wbFmtNum(x.tel)) + '» wird aus dem Newsletter entfernt.', () => {
     fbDb.collection(STATUS_COLLECTION).doc(id).delete().catch(() => alert('Entfernen hat nicht geklappt. Bitte Verbindung prüfen.'));
   }, { title: 'Abonnent entfernen?', ok: 'Entfernen' });
+});
+document.addEventListener('click', e => {
+  const u = e.target.closest && e.target.closest('[data-nl-use]');
+  if (!u) return;
+  const id = u.dataset.nlUse, x = nlSubs.find(y => y.id === id); if (!x) return;
+  const now = !x.codeUsed;
+  fbDb.collection(STATUS_COLLECTION).doc(id).update(now
+    ? { codeUsed: true, usedAt: Date.now(), usedVia: 'Admin' }
+    : { codeUsed: false, usedAt: null, usedVia: null, usedOrder: null }
+  ).catch(() => alert('Das hat nicht geklappt. Bitte Verbindung prüfen.'));
 });
 document.getElementById('nlCopy').addEventListener('click', async e => {
   const b = e.currentTarget; let ok = false;
