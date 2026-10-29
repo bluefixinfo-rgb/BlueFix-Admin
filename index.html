@@ -4135,7 +4135,7 @@ function repBoxHtml(o){
       <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
       ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
       ${rs === 'fertig' && o.sendungsnr && !o.zugestellt ? `<button class="btn btn-primary btn-sm" type="button" data-delivered="${esc(o.id)}">📬 Paket ist angekommen</button>` : ''}
-      ${o.sendungsnr && o.zugestellt ? `<button class="btn btn-ghost btn-sm" type="button" data-delivered-mail="${esc(o.id)}">📧 Ankunfts-Mail senden</button><button class="btn btn-ghost btn-sm" type="button" data-undeliver="${esc(o.id)}">↩️ Zustellung zurücknehmen</button>` : ''}
+      ${o.sendungsnr && o.zugestellt ? `<button class="btn btn-ghost btn-sm" type="button" data-undeliver="${esc(o.id)}">↩️ Zustellung zurücknehmen</button>` : ''}
     </div>
   </div>`;
 }
@@ -4331,8 +4331,6 @@ document.getElementById('statusClose').addEventListener('click', () => {
 document.getElementById('ordersList').addEventListener('click', e => {
   const dlv = e.target.closest('[data-delivered]');
   if (dlv) { showConfirm('Das Paket wird als angekommen markiert. Beim Kunden ändert sich das Bild (Lieferwagen steht vor dem Haus). Danach kannst du ihm die Ankunfts-Mail schicken.', () => markDelivered(dlv.dataset.delivered), { title: 'Paket ist angekommen?', ok: 'Ja, angekommen' }); return; }
-  const dlm = e.target.closest('[data-delivered-mail]');
-  if (dlm) { openStatusModal(dlm.dataset.deliveredMail, 'delivered'); return; }
   const udl = e.target.closest('[data-undeliver]');
   if (udl) { showConfirm('Beim Kunden fährt der Lieferwagen wieder.', () => undoDelivered(udl.dataset.undeliver), { title: 'Zustellung zurücknehmen?', ok: 'Zurücknehmen' }); return; }
   const rst = e.target.closest('[data-wish-reset]');
