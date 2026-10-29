@@ -4002,7 +4002,8 @@ function publishStatus(o){
     modell: o.modell || '',
     status: o.repStatus || 'angenommen',
     updatedAt: o.statusUpdatedAt || Date.now(),
-    sendungsnr: o.sendungsnr || firebase.firestore.FieldValue.delete()
+    sendungsnr: o.sendungsnr || firebase.firestore.FieldValue.delete(),
+    zugestellt: o.zugestellt || firebase.firestore.FieldValue.delete()
   }, { merge: true }).catch(e => console.warn('Status konnte nicht veröffentlicht werden:', e));
 }
 function removeStatusDoc(o){
@@ -4087,12 +4088,39 @@ function resetWish(id){
   renderOrders();
 }
 
+// Paket ist beim Kunden angekommen (laut Sendungsverfolgung) -> Kundenseite ändert das Bild
+function markDelivered(id){
+  const arr = load(ORDERS_KEY, []);
+  const o = arr.find(x => x.id === id);
+  if (!o || !o.sendungsnr) return;
+  o.zugestellt = Date.now();
+  o.statusUpdatedAt = Date.now();
+  o.updatedBy = currentUser(); o.updatedAt = Date.now();
+  save(ORDERS_KEY, arr);
+  publishStatus(o);
+  logActivity('📬', 'das Paket von ' + o.vorname + ' ' + o.nachname + ' als angekommen markiert');
+  renderOrders();
+  openStatusModal(id, 'delivered');
+}
+function undoDelivered(id){
+  const arr = load(ORDERS_KEY, []);
+  const o = arr.find(x => x.id === id);
+  if (!o) return;
+  delete o.zugestellt;
+  o.statusUpdatedAt = Date.now();
+  o.updatedBy = currentUser(); o.updatedAt = Date.now();
+  save(ORDERS_KEY, arr);
+  publishStatus(o);
+  logActivity('↩️', 'die Zustellung von ' + o.vorname + ' ' + o.nachname + ' zurückgenommen');
+  renderOrders();
+}
+
 function repBoxHtml(o){
   const rs = o.repStatus || 'angenommen', w = o.wunsch;
   const steps = Object.entries(REP_LABELS).map(([k, v]) =>
     `<button type="button" class="rep-step${rs === k ? ' on' : ''}${rs === k && k === 'fertig' ? ' done' : ''}" data-rep-set="${esc(o.id)}|${k}">${v}</button>`).join('');
   let info = '';
-  if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>`;
+  if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>` + (o.zugestellt ? `<div class="rep-info">📬 <b>Paket ist angekommen</b> · ${esc(fmtTime(o.zugestellt))}</div>` : '');
   else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
   else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät bei BlueFix ab</b></div>`;
   if (w && (w.changes || 0) >= 1) info += `<div class="rep-info">🔒 Kunde hat seine Auswahl schon geändert – weitere Änderungen sind gesperrt.</div>`;
@@ -4106,6 +4134,8 @@ function repBoxHtml(o){
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Kundenauswahl zurücksetzen</button>` : ''}
       <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
       ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
+      ${rs === 'fertig' && o.sendungsnr && !o.zugestellt ? `<button class="btn btn-primary btn-sm" type="button" data-delivered="${esc(o.id)}">📬 Paket ist angekommen</button>` : ''}
+      ${o.sendungsnr && o.zugestellt ? `<button class="btn btn-ghost btn-sm" type="button" data-delivered-mail="${esc(o.id)}">📧 Ankunfts-Mail senden</button><button class="btn btn-ghost btn-sm" type="button" data-undeliver="${esc(o.id)}">↩️ Zustellung zurücknehmen</button>` : ''}
     </div>
   </div>`;
 }
@@ -4123,6 +4153,7 @@ function statusMessage(o, url){
   const hello = o.vorname ? 'Hallo ' + o.vorname + ', ' : 'Hallo, ';
   const dev = o.modell ? 'dein ' + o.modell : 'dein Gerät';
   const rs = o.repStatus || 'angenommen';
+  if (o.sendungsnr && o.zugestellt) return hello + dev + ' ist bei dir angekommen 📦✅\n\nDie Post hat dein Paket zugestellt. Wir wünschen dir viel Freude damit!\n\nFalls etwas nicht stimmt, melde dich einfach bei uns. Hier siehst du den Stand:\n' + url;
   if (o.sendungsnr) return hello + dev + ' ist unterwegs zu dir 🚚\n\nSendungsnummer: ' + o.sendungsnr + '\n👉 Hier tippen – die Schweizer Post öffnet sich mit deiner Nummer:\n' + trackUrl(o.sendungsnr) + '\n\nDen Weg deines Pakets siehst du auch hier:\n' + url;
   const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden. Auf Wunsch schicken wir es dir auch per Post.'
              : rs === 'reparatur' ? dev + ' ist jetzt bei uns in Reparatur.'
@@ -4133,6 +4164,7 @@ function statusMessage(o, url){
 function statusMessageSie(o, url){
   const dev = o.modell ? 'Ihr ' + o.modell : 'Ihr Gerät';
   const rs = o.repStatus || 'angenommen';
+  if (o.sendungsnr && o.zugestellt) return dev + ' ist bei Ihnen angekommen 📦✅\n\nDie Post hat Ihr Paket zugestellt. Wir wünschen Ihnen viel Freude damit!\n\nFalls etwas nicht stimmt, melden Sie sich bitte jederzeit bei uns. Den Stand sehen Sie hier:\n' + url;
   if (o.sendungsnr) return dev + ' ist unterwegs zu Ihnen 🚚\n\nSendungsnummer: ' + o.sendungsnr + '\n👉 Hier tippen – die Schweizer Post öffnet sich mit Ihrer Nummer:\n' + trackUrl(o.sendungsnr) + '\n\nDen Weg Ihres Pakets sehen Sie auch hier:\n' + url;
   const line = rs === 'fertig' ? dev + ' ist fertig und kann bei BlueFix abgeholt werden. Auf Wunsch schicken wir es Ihnen auch per Post.'
              : rs === 'reparatur' ? dev + ' befindet sich jetzt bei uns in Reparatur.'
@@ -4166,7 +4198,7 @@ function buildMailBody(o, anliegen){
     'Für Rückfragen stehen wir Ihnen jederzeit gerne zur Verfügung.\n\n' +
     MAIL_SIGNATURE;
 }
-function mailSubject(o){ return 'BlueFix - Handy Reparatur'; }
+function mailSubject(o){ return o && o.zugestellt && o.sendungsnr ? 'BlueFix - Ihr Paket ist angekommen' : 'BlueFix - Handy Reparatur'; }
 
 /* ---- Aufrufe/«Gelesen» pro Status-Link: Auswertung + Live-Anzeige direkt in der Auftragskarte ---- */
 function statusViewStats(data){
@@ -4226,10 +4258,11 @@ function openStatusModal(id, mode){
   statusModalOrderId = id;
   const url = statusUrl(o.statusToken);
   const ship = mode === 'ship';
-  document.getElementById('statusModalTitle').textContent = ship ? '📦 Versand per Post' : mode === 'done' ? '✅ Gerät ist fertig' : '🔗 Status-Link';
+  document.getElementById('statusModalTitle').textContent = ship ? '📦 Versand per Post' : mode === 'done' ? '✅ Gerät ist fertig' : mode === 'delivered' ? '📬 Paket ist angekommen' : '🔗 Status-Link';
   document.getElementById('statusModalBody').innerHTML = `
     <p class="card-sub">${esc(o.vorname)} ${esc(o.nachname)} · ${esc(o.modell)}</p>
     ${ship ? `<div class="field" style="margin-top:12px;"><label>Sendungsnummer</label><input type="text" id="stTrack" autocapitalize="off" value="${esc(o.sendungsnr || '')}" placeholder="z.B. 99.00.123456.12345678"></div>`
+           : mode === 'delivered' ? '<p class="card-sub" style="margin-top:10px;">✅ Beim Kunden hat sich das Bild geändert: Der Lieferwagen steht jetzt vor dem Haus. Schick ihm jetzt noch die Ankunfts-Mail.</p>'
            : `<img class="status-qr" src="https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=0&data=${encodeURIComponent(url)}" width="180" height="180" alt="QR-Code zum Status">`}
     <div class="status-link-row"><input type="text" id="stLink" readonly value="${esc(url)}"><button class="btn btn-ghost btn-sm" type="button" id="stCopy">Kopieren</button></div>
     <div class="card-sub" id="stViews" style="margin-top:8px;">👀 Aufrufe werden geladen…</div>
@@ -4296,6 +4329,12 @@ document.getElementById('statusClose').addEventListener('click', () => {
 });
 
 document.getElementById('ordersList').addEventListener('click', e => {
+  const dlv = e.target.closest('[data-delivered]');
+  if (dlv) { showConfirm('Das Paket wird als angekommen markiert. Beim Kunden ändert sich das Bild (Lieferwagen steht vor dem Haus). Danach kannst du ihm die Ankunfts-Mail schicken.', () => markDelivered(dlv.dataset.delivered), { title: 'Paket ist angekommen?', ok: 'Ja, angekommen' }); return; }
+  const dlm = e.target.closest('[data-delivered-mail]');
+  if (dlm) { openStatusModal(dlm.dataset.deliveredMail, 'delivered'); return; }
+  const udl = e.target.closest('[data-undeliver]');
+  if (udl) { showConfirm('Beim Kunden fährt der Lieferwagen wieder.', () => undoDelivered(udl.dataset.undeliver), { title: 'Zustellung zurücknehmen?', ok: 'Zurücknehmen' }); return; }
   const rst = e.target.closest('[data-wish-reset]');
   if (rst) { showConfirm('Der Kunde kann danach wieder neu wählen (Abholung oder Post) und hat wieder eine Änderung frei.', () => resetWish(rst.dataset.wishReset), { title: 'Auswahl zurücksetzen?', ok: 'Zurücksetzen' }); return; }
   const step = e.target.closest('[data-rep-set]');
