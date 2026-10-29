@@ -3985,7 +3985,9 @@ function newStatusToken(){
   crypto.getRandomValues(a);
   return Array.from(a, b => b.toString(16).padStart(2, '0')).join('');
 }
-function statusUrl(token){ return new URL('status.html?t=' + token, location.href).href; }
+// Öffentliche Adresse der Status-Seite. Zum Zurückstellen: 'status.html' eintragen (alter Link bleibt immer gültig).
+const STATUS_BASE = 'https://blue-fix.ch/reparatur';
+function statusUrl(token){ return STATUS_BASE + '?t=' + token; }
 // Offizieller Tracking-Link der Schweizer Post: öffnet direkt die Sendung, die Nummer ist schon eingetragen
 function trackUrl(nr){
   const t = String(nr || '').trim();
