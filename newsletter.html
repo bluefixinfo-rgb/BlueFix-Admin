@@ -79,6 +79,10 @@ h1{margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:25px; font-
 .actions button{flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,0.3); background:rgba(255,255,255,0.08); color:var(--white); font:600 14px 'Inter',sans-serif; cursor:pointer;}
 .actions button.main{background:linear-gradient(135deg,var(--blue),#0b3f8a); border-color:rgba(255,255,255,0.4);}
 .hint{margin:14px 0 0; color:var(--muted); font-size:12.5px;}
+.linkbtn{display:inline-block; margin-top:12px; padding:0; background:none; border:none; color:var(--blue-light); font:600 13.5px 'Inter',sans-serif; text-decoration:underline; cursor:pointer;}
+.fallback{margin-top:12px; text-align:left;}
+.fallback p{margin:0 0 6px; color:var(--muted); font-size:12.5px;}
+.fallback textarea{width:100%; margin-top:10px; padding:10px 12px; border-radius:12px; font:13px/1.45 ui-monospace,monospace; color:var(--white); background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); resize:none;}
 [hidden]{display:none !important;}
 @keyframes led{0%,100%{opacity:.7;} 50%{opacity:1;}}
 @keyframes pop{0%{transform:scale(0); opacity:0;} 100%{transform:scale(1); opacity:1;}}
@@ -115,6 +119,12 @@ h1{margin:0 0 6px; font-family:'Space Grotesk',sans-serif; font-size:25px; font-
           <button class="main" id="copyBtn" type="button">Code kopieren</button>
           <button id="saveBtn" type="button">Als TXT speichern</button>
         </div>
+      </div>
+      <button class="linkbtn" id="saveHelp" type="button" hidden>Download hat nicht geklappt? Hier tippen</button>
+      <div class="fallback" id="saveFallback" hidden>
+        <p>Falls der Download blockiert wird: Tippe auf den Link, um die Datei zu öffnen, oder kopiere den Text.</p>
+        <a class="linkbtn" id="saveOpen" href="#" target="_blank" rel="noopener">Datei öffnen</a>
+        <textarea id="saveText" rows="7" readonly aria-label="Text zum Kopieren"></textarea>
       </div>
       <p class="hint">Speichere den Code gleich – zeig ihn bei deiner Reparatur bei uns.</p>
     </div>
@@ -212,14 +222,68 @@ $('copyBtn').addEventListener('click', async () => {
   }
   b.textContent = 'Kopiert ✓'; setTimeout(() => b.textContent = 'Code kopieren', 2000);
 });
-$('saveBtn').addEventListener('click', () => {
+/* TXT speichern: funktioniert auf iPhone, Android, In-App-Browsern und Desktop */
+let saveUrl = '';
+function saveDone(){
+  $('saveBtn').textContent = 'Gespeichert ✓';
+  setTimeout(() => $('saveBtn').textContent = 'Als TXT speichern', 2500);
+}
+function showSaveFallback(txt, name){
+  // Letzter Ausweg: Text zum Kopieren anzeigen und Datei in neuem Tab öffnen.
+  $('saveFallback').hidden = false;
+  $('saveText').value = txt;
+  if (saveUrl) $('saveOpen').href = saveUrl;
+  $('saveOpen').setAttribute('download', name);
+}
+$('saveBtn').addEventListener('click', async () => {
   const code = $('codeVal').textContent;
+  if (!code) return;
+  const name = 'BlueFix-Rabattcode-' + code + '.txt';
   const txt = 'BlueFix Handy Reparatur\r\n\r\nDein Rabattcode: ' + code + '\r\n10% Rabatt auf eine Reparatur – gilt nur 1 Mal.\r\nBitte den Code bei deiner Reparatur zeigen.\r\n\r\nWeierbuckstrasse 1, 8213 Neunkirch\r\n+41 76 229 91 82 · BlueFix.info@gmail.com\r\n';
-  const url = URL.createObjectURL(new Blob([txt], { type: 'text/plain;charset=utf-8' }));
-  const a = document.createElement('a'); a.href = url; a.download = 'BlueFix-Rabattcode-' + code + '.txt';
-  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000);
-  $('saveBtn').textContent = 'Gespeichert ✓'; setTimeout(() => $('saveBtn').textContent = 'Als TXT speichern', 2000);
+  const blob = new Blob([txt], { type: 'text/plain;charset=utf-8' });
+  if (saveUrl) URL.revokeObjectURL(saveUrl);
+  saveUrl = URL.createObjectURL(blob);
+
+  // 1) Handy: Teilen-Menü mit echter Datei ("In Dateien sichern" / "Speichern")
+  const touch = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+  try {
+    const file = new File([blob], name, { type: 'text/plain' });
+    if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: 'BlueFix Rabattcode' });
+      saveDone(); return;
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return;       // Teilen-Menü bewusst geschlossen
+    /* sonst weiter mit dem normalen Download */
+  }
+
+  // 2) Normaler Download (Desktop, Android-Chrome)
+  let started = false;
+  try {
+    const a = document.createElement('a');
+    a.href = saveUrl; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); a.remove();
+    started = true;
+  } catch (e) { /* weiter */ }
+
+  // 3) iOS-Safari / In-App-Browser ignorieren oft "download": Datei in neuem Tab öffnen
+  const ua = navigator.userAgent || '';
+  const weak = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+            || /FBAN|FBAV|Instagram|Line\/|WhatsApp|Snapchat|MicroMessenger|; wv\)/i.test(ua);
+  if (!started || weak) {
+    showSaveFallback(txt, name);
+    if (!started) { try { window.open(saveUrl, '_blank'); } catch (e) {} }
+  } else {
+    // Falls der Browser den Download still blockiert, bleibt der Hinweis nach kurzer Zeit sichtbar.
+    setTimeout(() => { $('saveHelp').hidden = false; }, 1800);
+  }
+  saveDone();
 });
+$('saveOpen').addEventListener('click', () => { /* Link öffnet die Datei direkt */ });
+$('saveText').addEventListener('focus', e => e.target.select());
+$('saveHelp').addEventListener('click', () => showSaveFallback(
+  'BlueFix Handy Reparatur\r\n\r\nDein Rabattcode: ' + $('codeVal').textContent + '\r\n10% Rabatt auf eine Reparatur – gilt nur 1 Mal.\r\nBitte den Code bei deiner Reparatur zeigen.\r\n\r\nWeierbuckstrasse 1, 8213 Neunkirch\r\n+41 76 229 91 82 · BlueFix.info@gmail.com\r\n',
+  'BlueFix-Rabattcode-' + $('codeVal').textContent + '.txt'));
 ['email', 'tel'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') $('go').click(); }));
 </script>
 </body>
