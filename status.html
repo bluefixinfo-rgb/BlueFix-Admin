@@ -129,7 +129,7 @@ a.trk:active{transform:scale(.99);}
 .sc-speed line{animation:speed .9s linear infinite;}
 .sc-beam{animation:led 2.4s ease-in-out infinite;}
 @keyframes drift{to{transform:translateX(-160px);}}
-@keyframes road{to{stroke-dashoffset:-26;}}
+@keyframes road{to{stroke-dashoffset:26;}}
 @keyframes bob{0%,100%{transform:translateY(0);}50%{transform:translateY(-1.6px);}}
 @keyframes spin{to{transform:rotate(360deg);}}
 @keyframes speed{0%{transform:translateX(0); opacity:0;}30%{opacity:.8;}100%{transform:translateX(-22px); opacity:0;}}
@@ -312,7 +312,7 @@ function shipHtml(d){
   if (ui === 'form') {
     const v = w && w.art === 'post' ? w : { name:'', strasse:'', plz:'', ort:'', land:'Schweiz' };
     return `<h2>Lieferadresse</h2><p class="sub">Wir schicken dir dein Gerät per Post.</p>
-      <div class="field"><label>Vor- und Nachname</label><input id="f-name" autocomplete="name" value="${esc(v.name || d.vorname || '')}"></div>
+      <div class="field"><label>Vor- und Nachname</label><input id="f-name" autocomplete="name" value="${esc(v.name || [d.vorname, d.nachname].filter(Boolean).join(' '))}"></div>
       <div class="field"><label>Strasse und Nr.</label><input id="f-strasse" autocomplete="address-line1" value="${esc(v.strasse)}"></div>
       <div class="row"><div class="field"><label>PLZ</label><input id="f-plz" inputmode="numeric" autocomplete="postal-code" maxlength="5" value="${esc(v.plz)}"></div>
       <div class="field"><label>Ort</label><input id="f-ort" autocomplete="address-level2" value="${esc(v.ort)}"></div></div>
