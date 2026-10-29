@@ -1203,10 +1203,19 @@ input,select,textarea{font-family:var(--sans);}
     <div class="wb-card">
       <h3>👥 Empfänger</h3>
       <div class="wb-numbox" id="wbNumBox" style="display:none;"><div class="wb-numhead"><b id="wbNumTitle">📞 Nummern</b><button class="btn btn-ghost btn-sm" type="button" id="wbCopyNums">📋 Kopieren</button></div><div class="wb-nums" id="wbNums"></div></div>
-      <div class="wb-row"><select class="wb-sel" id="wbMode" style="flex:1;" aria-label="Empfänger wählen"><option value="test">🧪 Test – nur Jerome Ramspacher</option><option value="alle">👥 Alle Kunden-Aufträge</option></select></div>
+      <div class="wb-row"><select class="wb-sel" id="wbMode" style="flex:1;" aria-label="Empfänger wählen"><option value="test">🧪 Test – nur Jerome Ramspacher</option><option value="alle">👥 Alle Kunden-Aufträge</option><option value="news">📰 Newsletter-Abonnenten</option><option value="beide">👥📰 Kunden-Aufträge + Newsletter</option></select></div>
+      <div class="wb-numbox" id="wbMailBox" style="display:none;"><div class="wb-numhead"><b id="wbMailTitle">✉️ E-Mail-Adressen</b></div><div class="wb-nums" id="wbMails"></div></div>
       <p class="wb-hint" id="wbRecInfo"></p>
       <p class="wb-warn" id="wbRecWarn"></p>
       <div id="wbRecList"></div>
+    </div>
+
+    <div class="wb-card">
+      <h3>📰 Newsletter</h3>
+      <p class="wb-hint">Diese Seite können Kunden öffnen, um sich mit E-Mail oder Handynummer einzutragen (z.B. als QR-Code oder Link):</p>
+      <div class="wb-row"><input class="wb-in" id="nlLink" readonly style="flex:1;"><button class="btn btn-ghost btn-sm" type="button" id="nlCopy" style="width:auto;flex:none;">Kopieren</button></div>
+      <p class="wb-hint" id="nlCount"></p>
+      <div id="nlList"></div>
     </div>
 
     <div class="wb-card">
@@ -1243,12 +1252,14 @@ input,select,textarea{font-family:var(--sans);}
 
     <div class="wb-card">
       <button class="btn btn-primary" type="button" id="wbSendAll">📣 SMS senden</button>
+      <button class="btn btn-primary" type="button" id="wbMailAll" style="margin-top:10px;">📧 E-Mail senden</button>
       <div class="wb-row" style="margin-top:10px;">
         <button class="btn btn-ghost btn-sm" type="button" id="wbPublishBtn">💾 Werbe-Seite speichern</button>
         <button class="btn btn-ghost btn-sm" type="button" id="wbNew">🆕 Neue Aktion</button>
       </div>
       <p class="wb-hint" id="wbMsg"></p>
       <p class="wb-hint">Jede SMS wird für den jeweiligen Kunden einzeln in deiner Nachrichten-App geöffnet – du tippst dort auf «Senden». So sehen die Kunden nie die Nummern der anderen.</p>
+      <p class="wb-hint">E-Mails öffnen sich in Gmail, mit allen Empfängern im BCC (niemand sieht die Adressen der anderen), in Paketen von je 40. Bei vielen Adressen tippst du einfach nochmals auf «E-Mail senden». Gmail erlaubt normalen Konten ca. 500 Mails pro Tag.</p>
     </div>
   </div>
 
@@ -4559,23 +4570,72 @@ wbEl('wbShorter').addEventListener('click', () => { wb.design.h = Math.max(200, 
 wbEl('wbSms').addEventListener('input', e => { wb.sms = e.target.value; wbSave(); });
 
 /* ---- Empfänger: automatisch aus den Kunden-Aufträgen (Test / aktuelle Aufträge / alle) ---- */
-function wbModeGet(){ const v = localStorage.getItem(WB_TEST_KEY); return (v === '0' || v === 'a') ? 'alle' : 'test'; }
-function wbModeSet(m){ localStorage.setItem(WB_TEST_KEY, m === 'alle' ? '0' : '1'); }
+/* ---- Newsletter-Abonnenten (tragen sich selbst auf blue-fix.ch/newsletter ein, liegen in bluefix_status mit typ 'newsletter') ---- */
+const NL_URL = STATUS_BASE.replace(/reparatur\/?$/, 'newsletter');
+const WB_MAIL_BATCH = 40;
+let nlSubs = [], nlUnsub = null, nlErr = false;
+function nlWatch(){
+  if (nlUnsub || !fbReady || !fbDb) return;
+  try {
+    nlUnsub = fbDb.collection(STATUS_COLLECTION).where('typ', '==', 'newsletter').onSnapshot(snap => {
+      nlErr = false;
+      nlSubs = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).sort((a, b) => (b.at || 0) - (a.at || 0));
+      try { wbRenderRecipients(); } catch (e) {}
+      nlRender();
+    }, err => { console.warn('Newsletter-Liste:', err); nlErr = true; nlUnsub = null; nlRender(); });
+  } catch (e) { console.warn(e); }
+}
+function nlRender(){
+  const box = document.getElementById('nlList'); if (!box) return;
+  document.getElementById('nlLink').value = NL_URL;
+  const c = document.getElementById('nlCount');
+  if (nlErr) { c.textContent = '⚠️ Die Abonnenten konnten nicht geladen werden (Verbindung oder Firebase-Regeln prüfen).'; box.innerHTML = ''; return; }
+  const withMail = nlSubs.filter(x => x.email).length, withTel = nlSubs.filter(x => x.tel).length;
+  c.textContent = nlSubs.length ? nlSubs.length + (nlSubs.length === 1 ? ' Abonnent' : ' Abonnenten') + ' · ' + withMail + ' mit E-Mail · ' + withTel + ' mit Handynummer' : 'Noch keine Abonnenten.';
+  box.innerHTML = nlSubs.map(x => '<div class="wb-rec"><div><b>' + esc(x.email || wbFmtNum(x.tel)) + '</b><small>' +
+    (x.email && x.tel ? esc(wbFmtNum(x.tel)) + ' · ' : '') + esc(fmtTime(x.at || 0)) + '</small></div>' +
+    '<button class="btn btn-ghost btn-sm" type="button" data-nl-del="' + esc(x.id) + '" aria-label="Abonnent entfernen">🗑</button></div>').join('');
+}
+document.addEventListener('click', e => {
+  const d = e.target.closest && e.target.closest('[data-nl-del]');
+  if (!d) return;
+  const id = d.dataset.nlDel, x = nlSubs.find(y => y.id === id); if (!x) return;
+  showConfirm('«' + (x.email || wbFmtNum(x.tel)) + '» wird aus dem Newsletter entfernt.', () => {
+    fbDb.collection(STATUS_COLLECTION).doc(id).delete().catch(() => alert('Entfernen hat nicht geklappt. Bitte Verbindung prüfen.'));
+  }, { title: 'Abonnent entfernen?', ok: 'Entfernen' });
+});
+document.getElementById('nlCopy').addEventListener('click', async e => {
+  const b = e.currentTarget; let ok = false;
+  try { await navigator.clipboard.writeText(NL_URL); ok = true; } catch (_) { const i = document.getElementById('nlLink'); i.select(); try { ok = document.execCommand('copy'); } catch (__) {} }
+  b.textContent = ok ? 'Kopiert ✓' : 'Nicht möglich'; setTimeout(() => { b.textContent = 'Kopieren'; }, 1600);
+});
+
+function wbModeGet(){ const v = localStorage.getItem(WB_TEST_KEY); return v === 'n' ? 'news' : v === 'b' ? 'beide' : (v === '0' || v === 'a') ? 'alle' : 'test'; }
+function wbModeSet(m){ localStorage.setItem(WB_TEST_KEY, m === 'news' ? 'n' : m === 'beide' ? 'b' : m === 'alle' ? '0' : '1'); }
 const wbFmtNum = n => /^41\d{9}$/.test(n) ? '+41 ' + n.slice(2, 4) + ' ' + n.slice(4, 7) + ' ' + n.slice(7, 9) + ' ' + n.slice(9) : '+' + n;
 function wbRecipients(){
-  const mode = wbModeGet(), map = new Map();
+  const mode = wbModeGet(), map = new Map(), mails = new Map();
+  const mailOk = m => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(m);
   let seen = 0, noPhone = 0;
-  load(ORDERS_KEY, []).forEach(o => {
+  if (mode !== 'news') load(ORDERS_KEY, []).forEach(o => {
     if (o.typ !== 'kunde') return;
     const name = [o.vorname, o.nachname].filter(Boolean).join(' ').trim();
     if (mode === 'test' && normName(name) !== normName(WB_TEST_NAME)) return;
     seen++;
+    const em = String(o.email || '').trim().toLowerCase();
+    if (mailOk(em) && !mails.has(em)) mails.set(em, { email: em, name: name || 'Kunde' });
     const num = normPhone(o.telefon);
     if (!num) { noPhone++; return; }
     if (map.has(num)) { map.get(num).n++; return; }
     map.set(num, { num, name: name || 'Kunde', vorname: o.vorname || '', modell: o.modell || '', n: 1 });
   });
-  return { list: [...map.values()], mode, test: mode === 'test', seen, noPhone };
+  if (mode === 'news' || mode === 'beide') nlSubs.forEach(x => {
+    const em = String(x.email || '').trim().toLowerCase();
+    if (mailOk(em) && !mails.has(em)) mails.set(em, { email: em, name: 'Newsletter' });
+    const num = x.tel && /^\d{9,15}$/.test(x.tel) ? x.tel : null;
+    if (num && !map.has(num)) map.set(num, { num, name: 'Newsletter-Abonnent', vorname: '', modell: '', n: 1 });
+  });
+  return { list: [...map.values()], emails: [...mails.values()], mode, test: mode === 'test', seen, noPhone };
 }
 /* ---- Aufrufe: zeigt live, ob/wie oft/wann ein Empfänger seinen Werbe-Link schon geöffnet hat ----
    Jeder Empfänger bekommt denselben Werbe-Link, aber mit seiner eigenen Nummer im Parameter "r".
@@ -4593,18 +4653,18 @@ function watchWbOpens(){
 }
 function wbRenderRecipients(){
   const box = wbEl('wbRecList'); if (!box) return;
-  watchWbOpens();
+  watchWbOpens(); nlWatch();
   const r = wbRecipients(), list = r.list, sent = wb.sent || {};
   const sel = wbEl('wbMode'); if (sel && sel.value !== r.mode) sel.value = r.mode;
-  const what = r.mode === 'test' ? ' (Testmodus)' : ' – alle Kunden-Aufträge';
+  const what = r.mode === 'test' ? ' (Testmodus)' : r.mode === 'news' ? ' – Newsletter-Abonnenten' : r.mode === 'beide' ? ' – Kunden-Aufträge + Newsletter' : ' – alle Kunden-Aufträge';
   let info = list.length + ' Empfänger mit Handynummer' + what + '. Neue Aufträge werden automatisch übernommen.';
   if (!list.length) {
     if (r.mode === 'test') info = r.seen
       ? 'Für Jerome Ramspacher ist keine gültige Handynummer hinterlegt. Bitte im Auftrag ergänzen (Feld Telefon).'
       : 'Es gibt noch keinen Kunden-Auftrag auf den Namen Jerome Ramspacher. Lege einen Test-Auftrag mit deiner Handynummer an.';
-    else info = 'Keine Kunden-Aufträge mit gültiger Handynummer gefunden.';
+    else info = r.mode === 'news' ? 'Noch keine Newsletter-Abonnenten mit Handynummer.' : 'Keine Kunden-Aufträge mit gültiger Handynummer gefunden.';
   }
-  wbEl('wbRecInfo').textContent = info;
+  wbEl('wbRecInfo').textContent = info + (r.emails.length ? ' ' + r.emails.length + (r.emails.length === 1 ? ' E-Mail-Adresse' : ' E-Mail-Adressen') + ' für Werbe-Mails.' : '');
   wbEl('wbRecWarn').textContent = r.mode !== 'test' && r.noPhone
     ? '⚠️ ' + r.noPhone + (r.noPhone === 1 ? ' Auftrag hat' : ' Aufträge haben') + ' keine gültige Handynummer und fehlen in der Liste. Nummer im Auftrag ergänzen.' : '';
   box.innerHTML = list.map(x => {
@@ -4617,6 +4677,10 @@ function wbRenderRecipients(){
   const open = list.filter(x => !sent[x.num]).length, b = wbEl('wbSendAll');
   b.textContent = !list.length ? '📣 SMS senden' : open ? '📣 Alle einzeln senden (' + open + ')' : '✅ Alle gesendet';
   b.disabled = !open; b.style.opacity = open ? '' : '.6';
+  const mSent = wb.mailSent || {}, mOpen = r.emails.filter(x => !mSent[x.email]).length, mb = wbEl('wbMailAll');
+  if (mb) { mb.textContent = !r.emails.length ? '📧 E-Mail senden' : mOpen ? '📧 E-Mail an alle senden (' + mOpen + ')' : '✅ Alle E-Mails vorbereitet'; mb.disabled = !mOpen; mb.style.opacity = mOpen ? '' : '.6'; }
+  const mbox = wbEl('wbMailBox');
+  if (mbox) { mbox.style.display = r.emails.length ? '' : 'none'; wbEl('wbMailTitle').textContent = '✉️ ' + r.emails.length + (r.emails.length === 1 ? ' E-Mail-Adresse' : ' E-Mail-Adressen'); wbEl('wbMails').innerHTML = r.emails.map(x => '<span style="white-space:nowrap;' + (mSent[x.email] ? 'opacity:.5;' : '') + '">' + esc(x.email) + '</span>').join(' · '); }
   const nb = wbEl('wbNumBox');
   if (nb) { nb.style.display = list.length ? '' : 'none'; wbEl('wbNumTitle').textContent = '📞 ' + list.length + (list.length === 1 ? ' Nummer' : ' Nummern'); wbEl('wbNums').innerHTML = list.map(x => '<a href="tel:+' + esc(x.num) + '" style="color:inherit;text-decoration:none;white-space:nowrap;' + (sent[x.num] ? 'opacity:.5;' : '') + '">' + esc(wbFmtNum(x.num)) + '</a>').join(' · '); }
 }
@@ -4625,7 +4689,7 @@ wbEl('wbMode').addEventListener('change', e => {
   const v = e.target.value;
   if (v === 'test') { wbModeSet('test'); wbRenderRecipients(); return; }
   e.target.value = wbModeGet();   // erst nach Bestätigung umschalten
-  showConfirm('Es werden alle Kunden-Aufträge mit Handynummer als Empfänger angezeigt.',
+  showConfirm(v === 'news' ? 'Es werden die Newsletter-Abonnenten als Empfänger angezeigt.' : v === 'beide' ? 'Es werden alle Kunden-Aufträge und die Newsletter-Abonnenten als Empfänger angezeigt.' : 'Es werden alle Kunden-Aufträge mit Handynummer als Empfänger angezeigt.',
     () => { wbModeSet(v); wbEl('wbMode').value = v; wbRenderRecipients(); }, { title: 'Empfänger ändern?', ok: 'Ja, ändern' });
 });
 
@@ -4749,7 +4813,7 @@ function wbTplLoad(id){
         if (!d || !Array.isArray(d.els)) throw new Error('Die Vorlage ist beschädigt.');
         wb.design = d;
         if (typeof data.sms === 'string') wb.sms = data.sms;
-        if (newAction) { wb.token = ''; wb.pub = ''; wb.sent = {}; }
+        if (newAction) { wb.token = ''; wb.pub = ''; wb.sent = {}; wb.mailSent = {}; }
         wbSel = null; wbSave(); wbOpenTab();
         wbTplSay('✅ «' + esc(t.name) + '» geladen. Mit «Vorschau» prüfen und dann «Werbe-Seite speichern».');
       } catch (e) { wbTplSay('⚠️ ' + esc(e.message || 'Laden fehlgeschlagen.')); }
@@ -4832,6 +4896,42 @@ wbEl('wbSerieStop').addEventListener('click', () => { wbSeriesOn = false; wbEl('
 document.addEventListener('visibilitychange', () => { if (!document.hidden && wbSeriesOn) setTimeout(wbSeriesShow, 350); });
 window.addEventListener('pageshow', () => { if (wbSeriesOn) setTimeout(wbSeriesShow, 350); });
 
+/* ---- E-Mail an alle (BCC, in Paketen) ---- */
+function wbMailBody(url){
+  const txt = (wb.sms || '').replace(/\{vorname\}/gi, '').replace(/Hallo\s*,/i, 'Hallo,').replace(/\s+([,.!?])/g, '$1').trim();
+  return (txt ? txt + '\n\n' : '') + url + '\n\nLiebe Grüsse\nBlueFix Team\n\nhttps://blue-fix.ch\nWeierbuckstrasse 1, 8213 Neunkirch, Schweiz\n\nDu möchtest keine Werbung mehr von uns? Antworte einfach mit «Abmelden».';
+}
+function wbOpenGmailBcc(bcc, subject, body){
+  const to = 'BlueFix.info@gmail.com', enc = encodeURIComponent, ua = navigator.userAgent || '';
+  const q = 'to=' + enc(to) + '&bcc=' + enc(bcc) + '&subject=' + enc(subject) + '&body=' + enc(body);
+  const mailto = 'mailto:' + to + '?bcc=' + enc(bcc) + '&subject=' + enc(subject) + '&body=' + enc(body);
+  if (/iPhone|iPad|iPod/i.test(ua)) {
+    window.location.href = 'googlegmail://co?' + q;
+    setTimeout(() => { if (!document.hidden) window.location.href = mailto; }, 1500);
+  } else if (/Android/i.test(ua)) window.location.href = mailto;
+  else window.open('https://mail.google.com/mail/?view=cm&fs=1&' + q.replace('&subject=', '&su='), '_blank');
+}
+async function wbMailAll(){
+  const list = wbRecipients().emails;
+  wb.mailSent = wb.mailSent || {};
+  const open = list.filter(x => !wb.mailSent[x.email]);
+  if (!list.length) { wbSay('Keine E-Mail-Adressen vorhanden.'); return; }
+  if (!open.length) { wbSay('✅ Alle E-Mails sind schon vorbereitet. Mit «Neue Aktion» startest du neu.'); return; }
+  if (wbIsDirty()) {   // erst speichern, dann mit einem zweiten Tippen senden (sonst blockiert iOS das Öffnen der Mail-App)
+    wbSay('⏳ Werbe-Seite wird gespeichert …');
+    try { const url = await wbPublish(); wbSay(wbLink(url) + '<br>Tippe jetzt nochmals auf «E-Mail senden».'); } catch (e) { wbSay('⚠️ ' + esc(e.message || 'Speichern fehlgeschlagen.')); }
+    return;
+  }
+  const batch = open.slice(0, WB_MAIL_BATCH), rest = open.length - batch.length;
+  const url = new URL('werbung.html?t=' + wb.token, location.href).href;
+  batch.forEach(x => { wb.mailSent[x.email] = Date.now(); });
+  wbSave(); wbRenderRecipients();
+  try { logActivity('📧', 'eine Werbe-Mail an ' + batch.length + (batch.length === 1 ? ' Empfänger' : ' Empfänger (BCC)') + ' vorbereitet'); } catch (e) {}
+  wbSay('📧 ' + batch.length + (batch.length === 1 ? ' Empfänger' : ' Empfänger') + ' im BCC.' + (rest ? ' Noch ' + rest + ' offen – tippe danach nochmals auf «E-Mail senden».' : ' Das waren alle.'));
+  wbOpenGmailBcc(batch.map(x => x.email).join(','), 'BlueFix Handy Reparatur – Aktion', wbMailBody(url));
+}
+wbEl('wbMailAll').addEventListener('click', wbMailAll);
+
 /* ---- Alle Nummern kopieren ---- */
 wbEl('wbCopyNums').addEventListener('click', async e => {
   const btn = e.currentTarget, list = wbRecipients().list, txt = list.map(x => '+' + x.num).join(', ');
@@ -4845,14 +4945,14 @@ wbEl('wbCopyNums').addEventListener('click', async e => {
 wbEl('wbRecList').addEventListener('click', e => { const b = e.target.closest('[data-wb-send]'); if (b) wbSend(b.dataset.wbSend); });
 wbEl('wbPublishBtn').addEventListener('click', wbPublishClick);
 wbEl('wbNew').addEventListener('click', () => showConfirm('Der Link der letzten Aktion zeigt weiter das alte Design. Die «gesendet»-Markierungen werden zurückgesetzt.', () => {
-  wb.token = ''; wb.pub = ''; wb.sent = {}; wbSave(); wbRenderRecipients(); wbSay('Neue Aktion gestartet – beim nächsten Speichern entsteht ein neuer Link.');
+  wb.token = ''; wb.pub = ''; wb.sent = {}; wb.mailSent = {}; wbSave(); wbRenderRecipients(); wbSay('Neue Aktion gestartet – beim nächsten Speichern entsteht ein neuer Link.');
 }, { title: 'Neue Aktion starten?', ok: 'Neu starten' }));
 
 /* ---- Start, Tab-Wechsel, automatische Aktualisierung ---- */
 function wbOpenTab(){
   wbEl('wbSms').value = wb.sms || '';
   wbEl('wbBg1').value = wbCol(wb.design.bg, '#0b1730'); wbEl('wbBg2').value = wbCol(wb.design.bg2, '#1e4fa8');
-  wbRender(); wbRenderProps(); wbRenderRecipients(); wbRenderTemplates();
+  wbRender(); wbRenderProps(); wbRenderRecipients(); wbRenderTemplates(); nlWatch(); nlRender();
 }
 window.addEventListener('resize', () => { if (wbEl('tab-werbung').classList.contains('active')) wbFit(); });
 // jeder neue/geänderte Auftrag (auch von Thierrys Gerät) aktualisiert die Empfängerliste sofort
