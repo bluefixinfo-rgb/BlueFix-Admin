@@ -249,7 +249,7 @@ $('saveBtn').addEventListener('click', async () => {
   try {
     const file = new File([blob], name, { type: 'text/plain' });
     if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: 'BlueFix Rabattcode' });
+      await navigator.share({ files: [file] }); /* nur die Datei, sonst speichert iOS zusätzlich eine zweite Datei "Text" */
       saveDone(); return;
     }
   } catch (e) {
