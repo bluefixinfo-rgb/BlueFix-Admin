@@ -6752,9 +6752,11 @@ document.getElementById('ordersList').addEventListener('click', e => {
     inp.value = ''; inp.style.height = 'auto';
     try { await b.commit(); } catch(e) { inp.value = t; alert('Antwort konnte nicht gesendet werden. Bitte Verbindung prüfen.'); }
   }
-  async function lcDelete(){
+  function lcDelete(){
     var s = lcCur(); if (!s) return;
-    if (!confirm('Chat mit „' + (s.name || 'Besucher') + '“ wirklich löschen?')) return;
+    showConfirm('Chat mit «' + (s.name || 'Besucher') + '» wirklich löschen?', function(){ lcDeleteDo(s); });
+  }
+  async function lcDeleteDo(s){
     try {
       var sRef = fbDb.collection('livechat_sessions').doc(s.id);
       var snap = await sRef.collection('messages').get();
