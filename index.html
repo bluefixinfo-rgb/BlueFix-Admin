@@ -870,6 +870,17 @@ input,select,textarea{font-family:var(--sans);}
 .lc-item.unread .lc-last{color:var(--white); font-weight:600;}
 .lc-last{color:var(--muted); font-size:13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
 .lc-side{display:flex; flex-direction:column; align-items:flex-end; gap:6px; font-size:11px; color:var(--muted); flex:none;}
+.lc-tabs{display:flex; gap:8px; padding:0 0 12px;}
+.lc-tab{flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px 8px; border-radius:var(--radius); border:1px solid var(--glass-border-soft); background:var(--glass-bg-2); color:var(--muted); font-weight:600; font-size:13px; font-family:inherit; cursor:pointer; -webkit-tap-highlight-color:transparent;}
+.lc-tab span{display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px; padding:0 6px; border-radius:10px; background:rgba(255,255,255,.1); font-size:11px;}
+.lc-tab.active{color:var(--white); border-color:var(--blue-light); box-shadow:var(--glow-sm);}
+.lc-tab.del.active{border-color:#e34848; box-shadow:0 0 12px rgba(227,72,72,.35);}
+.lc-item.deleted{border-color:rgba(227,72,72,.55); background:rgba(227,72,72,.08);}
+.lc-item.deleted .lc-avatar{background:linear-gradient(135deg,#e34848,#8f1d1d);}
+.lc-del-note{color:#ff8a8a; font-size:12.5px; font-weight:600; margin-top:3px; white-space:normal;}
+.lc-closed-bar{display:none; margin:0 0 10px; padding:12px 14px; border-radius:var(--radius); border:1px solid rgba(227,72,72,.6); background:rgba(227,72,72,.12); color:#ffb3b3; font-size:13px; line-height:1.45;}
+.lc-closed-bar b{display:block; color:#ff8a8a; font-size:14px; margin-bottom:2px;}
+.lc-closed-bar em{display:block; margin-top:4px; color:var(--muted); font-style:normal; word-break:break-word;}
 .lc-head{display:flex; align-items:center; gap:10px; padding:2px 2px 10px;}
 .lc-head .lc-title{flex:1; min-width:0;}
 #lcMsgs .bubble{white-space:pre-wrap; word-break:break-word; overflow-wrap:anywhere;}
@@ -1017,7 +1028,11 @@ input,select,textarea{font-family:var(--sans);}
   <!-- KUNDEN-CHATS (Live-Chat von der Website) -->
   <div class="tab-content" id="tab-livechats">
     <div class="lc-view show" id="lcListView">
-      <div class="lc-intro">Jeder Chat von der Website erscheint hier einzeln. Rote Zahl = ungelesene Nachrichten.</div>
+      <div class="lc-intro">Jeder Chat von der Website erscheint hier einzeln. Rote Zahl = ungelesene Nachrichten. Chats, die die KI wegen Beleidigungen gelöscht hat, stehen getrennt unter «Gelöschte Chats».</div>
+      <div class="lc-tabs" id="lcTabs">
+        <button type="button" class="lc-tab active" data-dept="active">💬 Aktive Chats <span id="lcCntActive">0</span></button>
+        <button type="button" class="lc-tab del" data-dept="deleted">🚫 Gelöschte Chats <span id="lcCntDeleted">0</span></button>
+      </div>
       <div id="lcList"><div class="empty-state">Lade Chats …</div></div>
     </div>
     <div class="lc-view" id="lcConvView">
@@ -1026,6 +1041,7 @@ input,select,textarea{font-family:var(--sans);}
         <div class="lc-title"><div class="lc-name" id="lcConvName"></div><div class="lc-last" id="lcConvSub"></div></div>
         <button class="icon-btn" id="lcDel" type="button" title="Chat löschen">🗑</button>
       </div>
+      <div class="lc-closed-bar" id="lcClosedBar"></div>
       <div class="chat-messages" id="lcMsgs"></div>
       <div class="chat-input-row">
         <textarea id="lcInput" rows="1" placeholder="Antwort an den Kunden …" maxlength="1000"></textarea>
@@ -6486,7 +6502,8 @@ document.getElementById('ordersList').addEventListener('click', e => {
    Push bei geschlossener App kommt von api/chat-notify.js (Vercel). Solange das Panel offen
    ist, zeigt dieser Code zusätzlich sofort ein Banner + rote Zahl am Tab. */
 (function(){
-  var lcUnsub = null, lcMsgUnsub = null, lcSessions = [], lcOpenSid = null, lcMsgs = [], lcKnown = {}, lcInit = false, lcToastTimer = null;
+  var lcUnsub = null, lcMsgUnsub = null, lcSessions = [], lcOpenSid = null, lcMsgs = [], lcKnown = {}, lcInit = false, lcToastTimer = null, lcDept = 'active';
+  function lcClosed(s){ return !!(s && s.chatClosed === true); }
   var $ = function(id){ return document.getElementById(id); };
 
   /* KI ist pausiert, solange ein Mitarbeiter in den letzten 30 Min. geantwortet hat (danach antwortet sie wieder) */
@@ -6503,7 +6520,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
     return d.toLocaleDateString('de-CH', {day:'2-digit', month:'2-digit'});
   }
   function lcUpdateBadge(){
-    var n = lcSessions.reduce(function(a,s){ return a + (s.unreadTeam || 0); }, 0);
+    var n = lcSessions.reduce(function(a,s){ return a + (lcClosed(s) ? 0 : (s.unreadTeam || 0)); }, 0);
     var b = $('lcTabBadge'); if (!b) return;
     b.style.display = n > 0 ? 'inline-flex' : 'none';
     b.textContent = n > 99 ? '99+' : n;
@@ -6634,12 +6651,27 @@ document.getElementById('ordersList').addEventListener('click', e => {
   /* ---------- Chat-Liste ---------- */
   function lcRenderList(){
     var box = $('lcList'); if (!box) return;
-    if (!lcSessions.length) {
-      box.innerHTML = '<div class="empty-state">Noch keine Kunden-Chats.<br>Sobald jemand auf der Website schreibt, erscheint der Chat hier.</div>';
+    var act = lcSessions.filter(function(s){ return !lcClosed(s); }), del = lcSessions.filter(lcClosed);
+    var ca = $('lcCntActive'), cd = $('lcCntDeleted'); if (ca) ca.textContent = act.length; if (cd) cd.textContent = del.length;
+    Array.prototype.forEach.call(document.querySelectorAll('#lcTabs .lc-tab'), function(b){ b.classList.toggle('active', b.dataset.dept === lcDept); });
+    var shown = lcDept === 'deleted' ? del : act;
+    if (!shown.length) {
+      box.innerHTML = lcDept === 'deleted'
+        ? '<div class="empty-state">Keine gelöschten Chats.<br>Chats, die die KI wegen Beleidigungen beendet, erscheinen hier mit dem Grund.</div>'
+        : '<div class="empty-state">Noch keine Kunden-Chats.<br>Sobald jemand auf der Website schreibt, erscheint der Chat hier.</div>';
       return;
     }
-    box.innerHTML = lcSessions.map(function(s){
-      var un = s.unreadTeam || 0, nm = s.name || 'Besucher';
+    box.innerHTML = shown.map(function(s){
+      var isDel = lcClosed(s);
+      var un = isDel ? 0 : (s.unreadTeam || 0), nm = s.name || 'Besucher';
+      if (isDel) {
+        return '<div class="lc-item deleted" data-sid="' + esc(s.id) + '">' +
+          '<div class="lc-avatar">' + esc(nm.charAt(0).toUpperCase()) + '</div>' +
+          '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small></div>' +
+          '<div class="lc-del-note">🚫 Dieser Chat wurde gelöscht</div>' +
+          '<div class="lc-last">Grund: ' + esc(s.chatClosedReason || 'Beleidigung') + '</div></div>' +
+          '<div class="lc-side"><span>' + lcWhen(s.chatClosedAt || s.lastMessageAt) + '</span></div></div>';
+      }
       return '<div class="lc-item' + (un ? ' unread' : '') + '" data-sid="' + esc(s.id) + '">' +
         '<div class="lc-avatar">' + esc(nm.charAt(0).toUpperCase()) + '</div>' +
         '<div class="lc-main"><div class="lc-name">' + esc(nm) + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>' + (s.needsHuman && !lcAiPaused(s) ? ' <span title="KI hat an das Team übergeben">🙋 Mitarbeiter gefragt</span>' : '') + '</div>' +
@@ -6651,8 +6683,18 @@ document.getElementById('ordersList').addEventListener('click', e => {
   /* ---------- Einzelner Chat ---------- */
   function lcHeader(){
     var s = lcCur(); if (!s) return;
+    var bar = $('lcClosedBar'), inRow = $('lcConvView') && $('lcConvView').querySelector('.chat-input-row');
+    if (bar) {
+      if (lcClosed(s)) {
+        bar.style.display = 'block';
+        bar.innerHTML = '<b>🚫 Dieser Chat wurde gelöscht</b>Grund: ' + esc(s.chatClosedReason || 'Beleidigung') +
+          (s.chatClosedAt ? ' · ' + esc(fmtTime(s.chatClosedAt)) : '') + ' · von der KI beendet' +
+          (s.chatClosedQuote ? '<em>Letzte Nachricht des Besuchers: «' + esc(s.chatClosedQuote) + '»</em>' : '');
+      } else { bar.style.display = 'none'; bar.innerHTML = ''; }
+    }
+    if (inRow) inRow.style.display = lcClosed(s) ? 'none' : '';
     $('lcConvName').innerHTML = esc(s.name || 'Besucher') + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>';
-    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (lcAiPaused(s) ? ' · KI pausiert (30 Min.)' : ' · KI antwortet') + (s.needsHuman && !lcAiPaused(s) ? ' · 🙋 Mitarbeiter gefragt' : '');
+    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (lcClosed(s) ? ' · 🚫 gelöscht' : (lcAiPaused(s) ? ' · KI pausiert (30 Min.)' : ' · KI antwortet')) + (!lcClosed(s) && s.needsHuman && !lcAiPaused(s) ? ' · 🙋 Mitarbeiter gefragt' : '');
   }
   function lcRenderConv(){
     var box = $('lcMsgs'); if (!box) return;
@@ -6701,7 +6743,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
   }
   async function lcSend(){
     var inp = $('lcInput'), t = inp.value.trim().slice(0, 1000);
-    if (!t || !lcOpenSid) return;
+    if (!t || !lcOpenSid || lcClosed(lcCur())) return;
     var me = currentUser(), agent = (typeof USERS !== 'undefined' && USERS[me] && USERS[me].displayName) || me || 'BlueFix';
     var now = Date.now(), sRef = fbDb.collection('livechat_sessions').doc(lcOpenSid), b = fbDb.batch();
     b.set(sRef, { lastMessageAt: now, lastText: t.slice(0, 140), lastFrom: 'team', lastAgent: agent,
@@ -6729,6 +6771,10 @@ document.getElementById('ordersList').addEventListener('click', e => {
   document.addEventListener('click', function(e){
     var it = e.target.closest && e.target.closest('.lc-item');
     if (it && $('lcList') && $('lcList').contains(it)) lcOpenConv(it.dataset.sid);
+  });
+  document.addEventListener('click', function(e){
+    var tb = e.target.closest && e.target.closest('#lcTabs .lc-tab');
+    if (tb) { lcDept = tb.dataset.dept === 'deleted' ? 'deleted' : 'active'; lcRenderList(); }
   });
   $('lcBack').addEventListener('click', lcBack);
   $('lcDel').addEventListener('click', lcDelete);
