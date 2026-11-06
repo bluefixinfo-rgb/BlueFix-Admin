@@ -731,6 +731,15 @@ input,select,textarea{font-family:var(--sans);}
 .wb-rec b{display:block; font-size:14.5px;}
 .wb-rec small{color:var(--muted); font-size:12.5px;}
 .wb-rec.done{opacity:.65;}
+/* Werbung: nichts darf seitlich überstehen / verschiebbar sein */
+#tab-werbung{overflow-x:hidden; max-width:100%; min-width:0; touch-action:pan-y;}
+#tab-werbung .wb-card{min-width:0; max-width:100%; overflow:hidden;}
+#tab-werbung .wb-row{min-width:0; max-width:100%;}
+#tab-werbung .wb-row>.wb-in,#tab-werbung .wb-row>.wb-sel{min-width:0;}
+#tab-werbung .wb-rec{flex-wrap:wrap; min-width:0; max-width:100%;}
+#tab-werbung .wb-rec>div:first-child{flex:1 1 150px; min-width:0; overflow-wrap:anywhere; word-break:break-word;}
+#tab-werbung .wb-rec>div:last-child{flex:0 0 auto; max-width:100%;}
+#tab-werbung .wb-ta,#tab-werbung .wb-in{max-width:100%;}
 .wb-tools{display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px;}
 .wb-wrap{width:100%; overflow:hidden; border-radius:14px; border:1px solid var(--glass-border-soft); position:relative; margin-top:12px;}
 .wb-stage{position:relative; width:360px; transform-origin:0 0; touch-action:pan-y; overflow:hidden; user-select:none; -webkit-user-select:none;}
@@ -2249,8 +2258,8 @@ function enterTeamApp(u, uKey){
   const statsBtn = document.getElementById('statsTabBtn');
   statsBtn.style.display = (uKey === 'jerome') ? '' : 'none';
   const wbTabBtn = document.getElementById('werbungTabBtn');
-  wbTabBtn.style.display = (uKey === 'jerome') ? '' : 'none';
-  if (uKey !== 'jerome' && wbTabBtn.classList.contains('active')) switchToTab('chat');
+  wbTabBtn.style.display = (uKey === 'jerome' || uKey === 'thierry') ? '' : 'none';
+  if (uKey !== 'jerome' && uKey !== 'thierry' && wbTabBtn.classList.contains('active')) switchToTab('chat');
   const lohnTabBtn = document.getElementById('lohnTabBtn');
   lohnTabBtn.style.display = (uKey === 'jerome') ? '' : 'none';
   if (uKey !== 'jerome' && lohnTabBtn.classList.contains('active')) switchToTab('chat');
