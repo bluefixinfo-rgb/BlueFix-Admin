@@ -613,13 +613,18 @@ input,select,textarea{font-family:var(--sans);}
 .modal-actions .btn{flex:1;}
 
 .pay-options{display:flex; gap:8px; margin-bottom:16px;}
-.pay-opt{
+.pay-opt, .cpay-opt{
   flex:1; background:var(--bg-panel-2); border:1px solid var(--line); border-radius:12px;
   backdrop-filter:var(--glass-blur-sm); -webkit-backdrop-filter:var(--glass-blur-sm);
   box-shadow:inset 0 1px 0 rgba(255,255,255,0.16);
   padding:12px 8px; text-align:center; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted);
 }
-.pay-opt.active{border-color:var(--blue-light); color:var(--white); background:rgba(30,111,239,0.16);}
+.pay-opt.active, .cpay-opt.active{border-color:var(--blue-light); color:var(--white); background:rgba(30,111,239,0.16);}
+.name-sugg{margin:-4px 0 14px; text-align:left;}
+.name-sugg .ns-head{font-size:12px; color:var(--muted); margin-bottom:6px;}
+.name-sugg .ns-item{width:100%; text-align:left; margin-bottom:6px; display:block;}
+.name-sugg .ns-sub{color:var(--muted); font-size:12px; font-weight:400;}
+.cpay-hint{font-size:12px; color:var(--muted); margin-top:8px;}
 
 /* Custom Bestätigungs-Dialog */
 .confirm-modal{max-width:340px !important; text-align:center;}
@@ -1338,6 +1343,7 @@ input,select,textarea{font-family:var(--sans);}
       <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
       <div class="field"><label>Notizen (optional)</label><textarea id="custNotizen" placeholder="Zustand des Geräts, Kundenwünsche…"></textarea></div>
       <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
+      <div class="field"><label>Zahlungsart</label><div class="pay-options" id="custPayOptions" style="margin-bottom:0;"><div class="cpay-opt" data-cpay="twint">Twint</div><div class="cpay-opt" data-cpay="bank">Bank</div><div class="cpay-opt" data-cpay="bar">Bar</div></div><div class="cpay-hint" id="custPayHint">Beim Speichern wird die Rechnung automatisch erstellt.</div></div>
       <div class="field"><label>Rabattcode (optional, Newsletter-Code)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
 
@@ -1448,6 +1454,7 @@ input,select,textarea{font-family:var(--sans);}
       <label>Nachname Kunde</label>
       <input type="text" id="ordNachname" placeholder="Muster">
     </div>
+    <div id="ordSuggest" class="name-sugg" style="display:none;"></div>
     <div class="field">
       <label>Modell</label>
       <input type="text" id="ordModell" placeholder="z.B. iPhone 13 Pro">
@@ -2597,8 +2604,57 @@ function openTeamOrderModal(order){
   document.getElementById('ordAssigned').value = order ? order.assigned : (currentUser() === 'jerome' ? 'Jerome' : 'Thierry');
   document.querySelector('#teamOrderModal h3').textContent = order ? 'Team Auftrag bearbeiten' : 'Team Auftrag';
   document.getElementById('teamOrdSave').textContent = order ? 'Änderungen speichern' : 'Auftrag speichern';
+  document.getElementById('ordSuggest').style.display = 'none';
   document.getElementById('teamOrderModal').classList.add('show');
 }
+
+/* ---- Namensvorschläge im Team Auftrag (bestehende Kunden aus allen Aufträgen) ---- */
+function ordKnownCustomers(){
+  const map = new Map();
+  load(ORDERS_KEY, []).forEach(o => {
+    if (!o || !(o.vorname || o.nachname)) return;
+    const key = normName((o.vorname || '') + ' ' + (o.nachname || ''));
+    const prev = map.get(key);
+    if (!prev) map.set(key, { vorname: o.vorname || '', nachname: o.nachname || '', modell: o.modell || '', last: o.createdAt || 0, n: 1 });
+    else { prev.n++; if ((o.createdAt || 0) > prev.last) { prev.last = o.createdAt || 0; prev.modell = o.modell || prev.modell; prev.vorname = o.vorname || prev.vorname; prev.nachname = o.nachname || prev.nachname; } }
+  });
+  return Array.from(map.values());
+}
+function ordRefreshSuggest(){
+  const box = document.getElementById('ordSuggest');
+  const vn = document.getElementById('ordVorname').value, nn = document.getElementById('ordNachname').value;
+  const tokens = normName(vn + ' ' + nn).split(' ').filter(Boolean);
+  if (!tokens.length) { box.style.display = 'none'; return; }
+  const score = c => {
+    const full = normName(c.vorname + ' ' + c.nachname), words = full.split(' ');
+    let s = 0;
+    for (const tk of tokens) {
+      if (words.some(w => w.startsWith(tk))) s += 2;
+      else if (tk.length >= 3 && full.includes(tk)) s += 1;
+      else return -1;
+    }
+    return s;
+  };
+  const list = ordKnownCustomers().map(c => ({ c, s: score(c) })).filter(x => x.s >= 0)
+    .sort((a, b) => b.s - a.s || b.c.last - a.c.last).slice(0, 5).map(x => x.c);
+  // schon komplett und eindeutig eingetippt → kein Vorschlag mehr nötig
+  if (list.length === 1 && normName(list[0].vorname) === normName(vn) && normName(list[0].nachname) === normName(nn)) { box.style.display = 'none'; return; }
+  if (!list.length) { box.style.display = 'none'; return; }
+  box.style.display = '';
+  box.innerHTML = '<div class="ns-head">Bekannte Kunden – zum Übernehmen antippen:</div>'
+    + list.map((c, i) => '<button type="button" class="btn btn-ghost btn-sm ns-item" data-ns="' + i + '"><strong>' + esc(c.vorname + ' ' + c.nachname) + '</strong>'
+      + '<br><span class="ns-sub">' + esc(c.modell || '') + (c.n > 1 ? (c.modell ? ' · ' : '') + c.n + ' Aufträge' : '') + '</span></button>').join('');
+  box.querySelectorAll('[data-ns]').forEach(b => b.addEventListener('click', () => {
+    const c = list[Number(b.dataset.ns)];
+    if (!c) return;
+    document.getElementById('ordVorname').value = c.vorname;
+    document.getElementById('ordNachname').value = c.nachname;
+    box.style.display = 'none';
+    document.getElementById('ordModell').focus();
+  }));
+}
+document.getElementById('ordVorname').addEventListener('input', ordRefreshSuggest);
+document.getElementById('ordNachname').addEventListener('input', ordRefreshSuggest);
 
 document.getElementById('teamOrdCancel').addEventListener('click', () => document.getElementById('teamOrderModal').classList.remove('show'));
 document.getElementById('teamOrdSave').addEventListener('click', () => {
@@ -2753,6 +2809,53 @@ async function custDiscFinalize(order){
   return true;
 }
 
+/* ---- Zahlungsart im Kunden-Auftrag + automatische Rechnung ---- */
+let custPay = '';
+function custPaySet(v){
+  custPay = v || '';
+  document.querySelectorAll('#custPayOptions .cpay-opt').forEach(p => p.classList.toggle('active', p.dataset.cpay === custPay));
+}
+document.querySelectorAll('#custPayOptions .cpay-opt').forEach(opt => opt.addEventListener('click', () => custPaySet(opt.dataset.cpay)));
+function custInvoiceItems(o){
+  const pos = Array.isArray(o.positionen) ? o.positionen : [];
+  const posSum = pos.reduce((a, p) => a + (Number(p.preis) || 0), 0);
+  if (pos.length > 1 && pos.every(p => Number(p.preis) > 0) && Math.abs(posSum - Number(o.preis)) < 0.005) {
+    return pos.map(p => ({ text: [p.label || p.auftrag, o.modell].filter(Boolean).join(' – '), betrag: invRound2(p.preis) }));
+  }
+  return [{ text: [o.auftrag, o.modell].filter(Boolean).join(' – ') || 'Reparatur', betrag: invRound2(o.preis) }];
+}
+// Erstellt die Rechnung zum Kunden-Auftrag (oder aktualisiert die vorhandene, solange sie nicht bezahlt ist).
+function custSyncInvoice(order, prevPreis){
+  const preis = invRound2(order.preis);
+  if (!custPay || preis <= 0) return null;
+  const invoices = load(INVOICES_KEY, []);
+  const items = custInvoiceItems(order);
+  const kunde = (order.vorname + ' ' + order.nachname).trim();
+  const geraet = order.modell || '';
+  const felder = {
+    kunde, betrag: preis,
+    beschreibung: (geraet ? geraet + ': ' : '') + items.map(p => p.text).join(', '),
+    positionen: items, geraet,
+    imei: order.imei || '', telefon: order.telefon || '', email: order.email || '',
+    zahlungsart: custPay
+  };
+  let inv = invoices.find(i => i.orderId === order.id);
+  if (inv) {
+    if (inv.bezahlt) return inv;
+    inv.kunde = kunde; inv.zahlungsart = custPay;
+    if (prevPreis == null || Math.abs(prevPreis - preis) >= 0.005) Object.assign(inv, felder);
+    save(INVOICES_KEY, invoices);
+  } else {
+    inv = { id: uid(), ...felder, adresse: '', orderId: order.id, bezahlt: false, createdBy: currentUser(), createdAt: Date.now() };
+    invoices.unshift(inv);
+    save(INVOICES_KEY, invoices);
+    invoiceEnsureNr(inv.id);
+    logActivity('💳', 'eine Rechnung erstellt: ' + kunde + ' · CHF ' + preis.toFixed(2));
+  }
+  if (typeof renderInvoices === 'function') renderInvoices();
+  return inv;
+}
+
 function resetCustomerOrderModal(){
   ['custVorname','custNachname','custTelefon','custEmail','custModell','custImei','custNotizen','custPreis','custGarantie'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('custAuftrag').selectedIndex=0;
@@ -2762,6 +2865,7 @@ function resetCustomerOrderModal(){
   document.getElementById('custSave').textContent='Auftrag speichern & PDF erstellen';
   bluefixSig.clear();
   custDiscReset();
+  custPaySet('');
 }
 function openCustomerOrderModal(order=null){
   pendingAiOrderId=null; pendingAiPositions=null;
@@ -2783,6 +2887,7 @@ function openCustomerOrderModal(order=null){
     document.getElementById('custGarantie').value=order.garantie||'';
     document.getElementById('custAgb').checked=!!order.agbAccepted;
     if(order.rabattCode) custDiscLock(order);
+    { const _inv = load(INVOICES_KEY, []).find(i => i.orderId === order.id); custPaySet((_inv && _inv.zahlungsart) || order.zahlungsart || ''); }
   }
   document.getElementById('customerOrderModal').classList.add('show');
 }
@@ -2812,6 +2917,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
   if(!vorname||!nachname||!modell||!imei||!garantie){alert('Bitte Vorname, Nachname, Modell, IMEI und Garantie-Dauer ausfüllen.');return;}
   if(!/^\d{14,16}$/.test(imei)){alert('Bitte eine gültige IMEI-Nummer mit 14–16 Ziffern eingeben.');return;}
   if(!document.getElementById('custAgb').checked){alert('Bitte bestätigen, dass die AGB gelesen und akzeptiert wurden.');return;}
+  if(!document.getElementById('editingCustomerOrderId').value && preis>0 && !custPay){alert('Bitte die Zahlungsart wählen (Twint, Bank oder Bar). Danach wird die Rechnung automatisch erstellt.');return;}
 
   const orders=load(ORDERS_KEY,[]);
   const editingId=document.getElementById('editingCustomerOrderId').value;
@@ -2821,7 +2927,9 @@ document.getElementById('custSave').addEventListener('click', async () => {
     order.vorname=vorname; order.nachname=nachname; order.modell=modell; order.imei=imei;
     order.telefon=document.getElementById('custTelefon').value.trim();
     order.email=document.getElementById('custEmail').value.trim();
+    const prevPreis=Number(order.preis)||0;
     order.garantie=garantie; order.preis=preis;
+    if(custPay) order.zahlungsart=custPay;
     if(!(await custDiscFinalize(order))) return;
     order.auftrag=document.getElementById('custAuftrag').value;
     order.notizen=document.getElementById('custNotizen').value.trim();
@@ -2829,6 +2937,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
     order.updatedBy=currentUser(); order.updatedAt=Date.now();
     if(bluefixSig.hasSignature()) order.bluefixSignature=bluefixSig.getData();
     save(ORDERS_KEY,orders);
+    custSyncInvoice(order, prevPreis);
     logActivity('🧾','den Kunden Auftrag bearbeitet: '+vorname+' '+nachname+' · '+modell);
     if(order.statusToken) publishStatus(order);
     document.getElementById('customerOrderModal').classList.remove('show');
@@ -2847,6 +2956,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
     notizen:document.getElementById('custNotizen').value.trim(),
     agbAccepted:true,
     bluefixSignature:bluefixSig.getData(),
+    zahlungsart:custPay||'',
     createdBy:currentUser(),createdAt:Date.now()
   };
   if(!(await custDiscFinalize(order))) return;
@@ -2854,6 +2964,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
   if(pendingAiPositions && pendingAiPositions.auftrag===order.auftrag){ order.positionen=pendingAiPositions.positionen; }
   pendingAiPositions=null;
   orders.unshift(order); save(ORDERS_KEY,orders);
+  custSyncInvoice(order, null);
   if(pendingAiOrderId){ const _aid=pendingAiOrderId; pendingAiOrderId=null; aiOrdersMutate(arr=>{ const x=arr.find(o=>o.id===_aid); if(x){ x.status='uebernommen'; x.orderId=order.id; x.updatedBy=currentUser(); x.updatedAt=Date.now(); } return arr; }); }
   logActivity('🧾','einen Kunden Auftrag erstellt: '+vorname+' '+nachname+' · '+modell);
   publishStatus(order);
@@ -3950,6 +4061,65 @@ async function invoiceSharePdf(invId){
 
 const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
 
+/* ---------- Twint-Zahlungslink für den Kunden (Kunde zahlt und bestätigt auf zahlung.html) ---------- */
+function invPublishPay(inv){
+  if (!fbReady || !fbDb || !inv || !inv.payToken) return Promise.resolve();
+  return fbDb.collection(STATUS_COLLECTION).doc(inv.payToken).set({
+    typ: 'zahlung',
+    vorname: String(inv.kunde || '').split(' ')[0] || '',
+    betrag: Number(inv.betrag) || 0,
+    nr: inv.nr || '',
+    twint: BANK_INFO.twintNumber,
+    updatedAt: Date.now()
+  }, { merge: true });
+}
+async function invSendTwintLink(id){
+  if (!fbReady || !fbDb) { alert('Keine Verbindung zur Datenbank. Bitte Internet prüfen und nochmals versuchen.'); return; }
+  invoiceEnsureNr(id);
+  const arr = load(INVOICES_KEY, []);
+  const inv = arr.find(i => i.id === id);
+  if (!inv) return;
+  if (!inv.payToken) inv.payToken = newStatusToken();
+  inv.payLinkSentAt = Date.now();
+  save(INVOICES_KEY, arr);
+  try { await invPublishPay(inv); }
+  catch (e) { alert('Der Zahlungslink konnte nicht veröffentlicht werden. Bitte Verbindung prüfen.'); return; }
+  const url = payUrl(inv.payToken);
+  const vn = String(inv.kunde || '').split(' ')[0];
+  const msg = 'Guten Tag ' + vn + '\n\nHier ist der Link für die Twint-Zahlung Ihrer BlueFix-Rechnung (CHF ' + Number(inv.betrag).toFixed(2) + '):\n' + url
+    + '\n\nBitte tippen Sie nach der Zahlung auf der Seite auf «Ich habe bezahlt».\n\nFreundliche Grüsse\nBlueFix';
+  logActivity('🔗', 'den Twint-Zahlungslink für ' + inv.kunde + ' erstellt');
+  renderInvoices();
+  try {
+    if (navigator.share) { await navigator.share({ text: msg }); return; }
+  } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(msg); alert('Nachricht mit Zahlungslink wurde kopiert. Jetzt beim Kunden einfügen und senden.'); }
+  catch (e) { prompt('Diese Nachricht dem Kunden senden:', msg); }
+}
+// Meldet live, wenn der Kunde auf der Zahlungsseite «Ich habe bezahlt» getippt hat
+const payWatch = {};
+function syncPayWatchers(){
+  if (!fbReady || !fbDb) return;
+  const want = {};
+  load(INVOICES_KEY, []).forEach(i => { if (i.payToken && !i.bezahlt && !i.kundeBestaetigt) want[i.payToken] = 1; });
+  Object.keys(payWatch).forEach(t => { if (!want[t]) { payWatch[t](); delete payWatch[t]; } });
+  Object.keys(want).forEach(t => {
+    if (payWatch[t]) return;
+    payWatch[t] = fbDb.collection(STATUS_COLLECTION).doc(t).onSnapshot(doc => {
+      const b = doc.exists && doc.data().bestaetigt;
+      if (!b) return;
+      const arr = load(INVOICES_KEY, []);
+      const inv = arr.find(x => x.payToken === t);
+      if (!inv || inv.kundeBestaetigt) return;
+      inv.kundeBestaetigt = b;
+      save(INVOICES_KEY, arr);
+      logActivity('✅', inv.kunde + ' hat die Twint-Zahlung bestätigt (CHF ' + Number(inv.betrag).toFixed(2) + ')');
+      try { sendPushToOther('BlueFix – Twint-Zahlung bestätigt', inv.kunde + ' hat die Twint-Zahlung (CHF ' + Number(inv.betrag).toFixed(2) + ') bestätigt. Bitte Eingang prüfen.'); } catch (e) {}
+      renderInvoices();
+    }, () => {});
+  });
+}
+
 const expandedInvoices = new Set();
 let invVisibleIds = [];
 function invUpdateToggleAll(invoices){
@@ -3983,7 +4153,7 @@ function renderInvoices(){
           </button>
         </div>
       </div>
-      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}
+      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}${(inv.kundeBestaetigt && !inv.bezahlt) ? '<span class="badge badge-bezahlt" style="margin-left:6px;">✅ Kunde hat bestätigt – Eingang prüfen</span>' : ''}
       <span class="badge badge-nicht" style="margin-left:6px;">${PAY_LABELS[inv.zahlungsart]}</span>
       <div class="card-grid">
         <div><div class="k">Erstellt</div><div class="v">${fmtTime(inv.createdAt)}</div></div>
@@ -4000,6 +4170,7 @@ function renderInvoices(){
         <button class="btn btn-ghost btn-sm" data-pdf-inv="${inv.id}" style="flex:1;">📄 Rechnung (PDF)</button>
         <button class="btn btn-primary btn-sm" data-send-inv="${inv.id}" style="flex:1;">📤 Senden</button>
       </div>
+      ${(inv.zahlungsart === 'twint' && !inv.bezahlt) ? `<button class="btn btn-ghost btn-sm" data-twint-link="${inv.id}" style="width:100%;margin-top:8px;">🔗 ${inv.payToken ? 'Twint-Link erneut senden' : 'Twint-Zahlungslink an Kunden'}</button>` : ''}
       ${isOverdue(inv) ? `<button class="btn btn-danger btn-sm" data-mahn-inv="${inv.id}" style="width:100%;margin-top:8px;">📨 ${mahnCount(inv) ? 'Nächste Mahnung senden' : 'Zahlungserinnerung senden'}</button>` : ''}
     `;
     {
@@ -4018,6 +4189,8 @@ function renderInvoices(){
     list.appendChild(card);
   });
   invUpdateToggleAll(invoices);
+  list.querySelectorAll('[data-twint-link]').forEach(btn => btn.addEventListener('click', () => invSendTwintLink(btn.dataset.twintLink)));
+  try { syncPayWatchers(); } catch (e) {}
 
   list.querySelectorAll('[data-del-inv]').forEach(btn => btn.addEventListener('click', () => {
     showConfirm('Diese Rechnung wirklich löschen?', () => {
@@ -4144,6 +4317,9 @@ function newStatusToken(){
 // Öffentliche Adresse der Status-Seite. Zum Zurückstellen: 'status.html' eintragen (alter Link bleibt immer gültig).
 const STATUS_BASE = 'https://blue-fix.ch/reparatur';
 function statusUrl(token){ return STATUS_BASE + '?t=' + token; }
+// Öffentliche Twint-Zahlungsseite (Datei zahlung.html, erreichbar als blue-fix.ch/zahlung)
+const PAY_BASE = STATUS_BASE.replace(/reparatur\/?$/, 'zahlung');
+function payUrl(token){ return PAY_BASE + '?t=' + token; }
 // Offizieller Tracking-Link der Schweizer Post: öffnet direkt die Sendung, die Nummer ist schon eingetragen
 function trackUrl(nr){
   const t = String(nr || '').trim();
