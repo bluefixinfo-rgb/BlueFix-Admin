@@ -4125,10 +4125,12 @@ function syncPayWatchers(){
       const inv = arr.find(x => x.payToken === t);
       if (!inv || inv.kundeBestaetigt) return;
       inv.kundeBestaetigt = b;
+      // Sofort als bezahlt markieren; bei Zweifel mit «Rückgängig» wieder auf offen setzen
+      inv.bezahlt = true; inv.paidAt = Number(b) || Date.now(); inv.autoBezahlt = true;
       save(INVOICES_KEY, arr);
       const was = inv.zahlungsart === 'bank' ? 'Überweisung' : 'Twint-Zahlung';
-      logActivity('✅', inv.kunde + ' hat die ' + was + ' bestätigt (CHF ' + Number(inv.betrag).toFixed(2) + ')');
-      try { sendPushToOther('BlueFix – ' + was + ' bestätigt', inv.kunde + ' hat die ' + was + ' (CHF ' + Number(inv.betrag).toFixed(2) + ') bestätigt. Bitte Eingang prüfen.'); } catch (e) {}
+      logActivity('✅', inv.kunde + ' hat die ' + was + ' bestätigt – Rechnung (CHF ' + Number(inv.betrag).toFixed(2) + ') automatisch als bezahlt markiert');
+      try { sendPushToUsers(Object.keys(USERS), 'BlueFix – ' + was + ' bestätigt', inv.kunde + ' hat bestätigt (CHF ' + Number(inv.betrag).toFixed(2) + '). Rechnung ist als bezahlt markiert – bitte Eingang prüfen.'); } catch (e) {}
       renderInvoices();
     }, () => {});
   });
@@ -4167,7 +4169,7 @@ function renderInvoices(){
           </button>
         </div>
       </div>
-      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}${(inv.kundeBestaetigt && !inv.bezahlt) ? '<span class="badge badge-bezahlt" style="margin-left:6px;">✅ Kunde hat bestätigt – Eingang prüfen</span>' : ''}
+      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}${(inv.bezahlt && inv.autoBezahlt) ? '<span class="badge badge-nicht" style="margin-left:6px;">Vom Kunden bestätigt – Eingang prüfen</span>' : ((inv.kundeBestaetigt && !inv.bezahlt) ? '<span class="badge badge-offen" style="margin-left:6px;">Kunde hatte bestätigt – wieder offen</span>' : '')}
       <span class="badge badge-nicht" style="margin-left:6px;">${PAY_LABELS[inv.zahlungsart]}</span>
       <div class="card-grid">
         <div><div class="k">Erstellt</div><div class="v">${fmtTime(inv.createdAt)}</div></div>
@@ -4216,12 +4218,12 @@ function renderInvoices(){
   list.querySelectorAll('[data-paid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.paidInv);
-    if (inv) { inv.bezahlt = true; inv.paidAt = Date.now(); save(INVOICES_KEY, invoices); logInvoiceState(inv, true); renderInvoices(); }
+    if (inv) { inv.bezahlt = true; inv.paidAt = Date.now(); delete inv.autoBezahlt; save(INVOICES_KEY, invoices); logInvoiceState(inv, true); renderInvoices(); }
   }));
   list.querySelectorAll('[data-unpaid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.unpaidInv);
-    if (inv) { inv.bezahlt = false; delete inv.paidAt; save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
+    if (inv) { inv.bezahlt = false; delete inv.paidAt; delete inv.autoBezahlt; save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
   }));
   list.querySelectorAll('[data-view-inv]').forEach(btn => btn.addEventListener('click', () => {
     const inv = load(INVOICES_KEY, []).find(i => i.id === btn.dataset.viewInv);
@@ -4305,6 +4307,7 @@ function showInvoiceDetail(inv){
     if (current) {
       current.bezahlt = !current.bezahlt;
       if (current.bezahlt) current.paidAt = Date.now(); else delete current.paidAt;
+      delete current.autoBezahlt;
       save(INVOICES_KEY, invoices);
       logInvoiceState(current, current.bezahlt);
       renderInvoices();
