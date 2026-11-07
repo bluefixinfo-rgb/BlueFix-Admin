@@ -4410,6 +4410,9 @@ function statusUrl(token){ return STATUS_BASE + '?t=' + token; }
 // Öffentliche Twint-Zahlungsseite (Datei zahlung.html im Hauptordner des Vercel-Projekts)
 const PAY_BASE = STATUS_BASE.replace(/reparatur\/?$/, 'zahlung.html');
 function payUrl(token){ return PAY_BASE + '?t=' + token; }
+// Eigene Seite für die Ersatzteil-Meldung (Datei ersatzteil.html im Hauptordner)
+const PARTS_BASE = STATUS_BASE.replace(/reparatur\/?$/, 'ersatzteil.html');
+function partsUrl(token){ return PARTS_BASE + '?t=' + token; }
 // Offizieller Tracking-Link der Schweizer Post: öffnet direkt die Sendung, die Nummer ist schon eingetragen
 function trackUrl(nr){
   const t = String(nr || '').trim();
@@ -4701,7 +4704,7 @@ function openPartsModal(id){
   const o = ensureStatus(id);
   if (!o) return;
   statusModalOrderId = id;
-  const url = statusUrl(o.statusToken);
+  const url = partsUrl(o.statusToken);
   const cached = statusViewCache[o.statusToken] && statusViewCache[o.statusToken].teile;
   partsPhoto = (cached && cached.foto) || '';
   const prevText = (o.teile && o.teile.text) || '';
@@ -4761,7 +4764,7 @@ function sendParts(kind){
   const arr = load(ORDERS_KEY, []);
   const oo = arr.find(x => x.id === o.id);
   if (oo && (phoneRaw !== (oo.telefon || '') || mailRaw !== (oo.email || ''))) { oo.telefon = phoneRaw; oo.email = mailRaw; save(ORDERS_KEY, arr); }
-  const url = statusUrl(o.statusToken);
+  const url = partsUrl(o.statusToken);
   const msg = document.getElementById('ptMsg').value;
   // Zuerst speichern (laeuft im Hintergrund weiter), dann sofort die App öffnen (sonst blockt iOS das Öffnen).
   partsSaveDoc(o, text, partsPhoto).catch(err => { console.warn('Ersatzteil-Meldung:', err); alert('Das Speichern auf dem Server hat nicht geklappt (evtl. Foto zu gross). Der Kunde sieht es erst nach erneutem Versuch.'); });
