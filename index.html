@@ -4317,8 +4317,8 @@ function newStatusToken(){
 // Öffentliche Adresse der Status-Seite. Zum Zurückstellen: 'status.html' eintragen (alter Link bleibt immer gültig).
 const STATUS_BASE = 'https://blue-fix.ch/reparatur';
 function statusUrl(token){ return STATUS_BASE + '?t=' + token; }
-// Öffentliche Twint-Zahlungsseite (Datei zahlung.html, erreichbar als blue-fix.ch/zahlung)
-const PAY_BASE = STATUS_BASE.replace(/reparatur\/?$/, 'zahlung');
+// Öffentliche Twint-Zahlungsseite (Datei zahlung.html im Hauptordner des Vercel-Projekts)
+const PAY_BASE = STATUS_BASE.replace(/reparatur\/?$/, 'zahlung.html');
 function payUrl(token){ return PAY_BASE + '?t=' + token; }
 // Offizieller Tracking-Link der Schweizer Post: öffnet direkt die Sendung, die Nummer ist schon eingetragen
 function trackUrl(nr){
