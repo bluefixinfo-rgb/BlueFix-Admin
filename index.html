@@ -4109,6 +4109,15 @@ async function invSendPayLink(id){
   try { await navigator.clipboard.writeText(msg); alert('Nachricht mit Zahlungslink wurde kopiert. Jetzt beim Kunden einfügen und senden.'); }
   catch (e) { prompt('Diese Nachricht dem Kunden senden:', msg); }
 }
+// Rückgängig: Kunde muss erneut bestätigen (Bestätigung auch auf der Zahlungsseite zurücksetzen)
+function invResetPayConfirm(inv){
+  if (!inv) return;
+  delete inv.kundeBestaetigt;
+  if (inv.payToken && fbReady && fbDb) {
+    fbDb.collection(STATUS_COLLECTION).doc(inv.payToken).update({ bestaetigt: firebase.firestore.FieldValue.delete() })
+      .catch(e => console.warn('Bestätigung nicht zurückgesetzt:', e));
+  }
+}
 // Meldet live, wenn der Kunde auf der Zahlungsseite «Ich habe bezahlt» getippt hat
 const payWatch = {};
 function syncPayWatchers(){
@@ -4169,7 +4178,7 @@ function renderInvoices(){
           </button>
         </div>
       </div>
-      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}${(inv.bezahlt && inv.autoBezahlt) ? '<span class="badge badge-nicht" style="margin-left:6px;">Vom Kunden bestätigt – Eingang prüfen</span>' : ((inv.kundeBestaetigt && !inv.bezahlt) ? '<span class="badge badge-offen" style="margin-left:6px;">Kunde hatte bestätigt – wieder offen</span>' : '')}
+      ${invoiceBadgeHtml(inv)}${mahnBadgeHtml(inv)}${(inv.bezahlt && inv.autoBezahlt) ? '<span class="badge badge-nicht" style="margin-left:6px;">Vom Kunden bestätigt – Eingang prüfen</span>'  : ''}
       <span class="badge badge-nicht" style="margin-left:6px;">${PAY_LABELS[inv.zahlungsart]}</span>
       <div class="card-grid">
         <div><div class="k">Erstellt</div><div class="v">${fmtTime(inv.createdAt)}</div></div>
@@ -4223,7 +4232,7 @@ function renderInvoices(){
   list.querySelectorAll('[data-unpaid-inv]').forEach(btn => btn.addEventListener('click', () => {
     const invoices = load(INVOICES_KEY, []);
     const inv = invoices.find(i => i.id === btn.dataset.unpaidInv);
-    if (inv) { inv.bezahlt = false; delete inv.paidAt; delete inv.autoBezahlt; save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
+    if (inv) { inv.bezahlt = false; delete inv.paidAt; delete inv.autoBezahlt; invResetPayConfirm(inv); save(INVOICES_KEY, invoices); logInvoiceState(inv, false); renderInvoices(); }
   }));
   list.querySelectorAll('[data-view-inv]').forEach(btn => btn.addEventListener('click', () => {
     const inv = load(INVOICES_KEY, []).find(i => i.id === btn.dataset.viewInv);
@@ -4308,6 +4317,7 @@ function showInvoiceDetail(inv){
       current.bezahlt = !current.bezahlt;
       if (current.bezahlt) current.paidAt = Date.now(); else delete current.paidAt;
       delete current.autoBezahlt;
+      if (!current.bezahlt) invResetPayConfirm(current);
       save(INVOICES_KEY, invoices);
       logInvoiceState(current, current.bezahlt);
       renderInvoices();

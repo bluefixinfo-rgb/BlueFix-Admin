@@ -242,7 +242,6 @@ function render(d){
     $('mLead').textContent = 'Sende den Betrag in der Twint-App an diese Nummer.';
     addRow('Twint-Nummer', d.twint || '', { mono: true, copy: String(d.twint || '').replace(/\s/g, '') });
     addRow('Betrag', 'CHF ' + chf(d.betrag), { copy: chf(d.betrag) });
-    if (d.nr) addRow('Mitteilung', d.nr, { mono: true, copy: d.nr });
     addStep('Öffne die Twint-App und wähle «Senden».');
     addStep('Gib die Nummer und den Betrag von oben ein und bestätige die Zahlung in Twint.');
     addStep('Komm danach hierher zurück und tippe unten auf «Ich habe bezahlt».');
