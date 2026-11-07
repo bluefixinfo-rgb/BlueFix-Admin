@@ -961,9 +961,31 @@ input,select,textarea{font-family:var(--sans);}
       <input type="password" id="loginPass" autocomplete="current-password" placeholder="••••••••">
     </div>
     <button class="btn btn-primary" id="loginBtn" style="margin-top:6px;">Einloggen</button>
+    <button class="btn btn-ghost" id="faceScanBtn" type="button" style="display:none; width:100%; margin-top:10px;">📷 Mit Gesichtsscan anmelden</button>
+    <button class="btn btn-ghost btn-sm" id="faceScanOffBtn" type="button" style="display:none; margin:12px auto 0;">Gesichtsscan entfernen (braucht Scan)</button>
     <button class="btn btn-ghost" id="faceIdBtn" type="button" style="display:none; width:100%; margin-top:10px;">🔓 Mit Face ID anmelden</button>
-    <button class="btn btn-ghost btn-sm" id="faceIdOffBtn" type="button" style="display:none; margin:12px auto 0;">Face ID auf diesem Gerät entfernen</button>
+    <button class="btn btn-ghost btn-sm" id="faceIdOffBtn" type="button" style="display:none; margin:12px auto 0;">Face ID entfernen (braucht Face ID)</button>
     <div class="login-error" id="faceIdError" style="margin-top:10px;">Face ID hat nicht geklappt. Bitte mit Passwort anmelden.</div>
+  </div>
+</div>
+
+<!-- ==================== GESICHTSSCAN (Kamera) ==================== -->
+<style>
+#faceScanOverlay{position:fixed; inset:0; z-index:99999; background:rgba(2,6,14,.97); display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:20px; text-align:center; color:#f5f8ff;}
+#faceScanOverlay.show{display:flex;}
+#faceScanOverlay h3{margin:0; font-size:20px;}
+#faceScanVideo{width:min(80vw,340px); aspect-ratio:3/4; object-fit:cover; border-radius:26px; background:#000; transform:scaleX(-1); border:2px solid #4a9cff; box-shadow:0 0 30px rgba(74,156,255,.35);}
+#faceScanVideo.ok{border-color:#2fbf71; box-shadow:0 0 30px rgba(47,191,113,.45);}
+#faceScanVideo.bad{border-color:#ff6b6b; box-shadow:0 0 30px rgba(255,107,107,.4);}
+#faceScanMsg{min-height:44px; max-width:320px; font-size:15.5px; line-height:1.4; color:#d6e0f5;}
+</style>
+<div id="faceScanOverlay" role="dialog" aria-modal="true" aria-labelledby="faceScanTitle">
+  <h3 id="faceScanTitle">Gesichtsscan</h3>
+  <video id="faceScanVideo" playsinline muted autoplay></video>
+  <div id="faceScanMsg"></div>
+  <div style="display:flex; gap:10px;">
+    <button class="btn btn-primary" id="faceScanRetry" type="button" style="display:none;">Nochmals</button>
+    <button class="btn btn-ghost" id="faceScanCancel" type="button">Abbrechen</button>
   </div>
 </div>
 
@@ -1725,8 +1747,8 @@ const HOMEPAGE_B64 = "PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImRlIj4KPGhlYWQ+CjxtZX
 
 /* ===================== KONFIGURATION ===================== */
 const USERS = {
-  jerome:  { password: 'BlueFix2255', displayName: 'Jerome',  role: 'Gründer' },
-  thierry: { password: 'BlueFix1122', displayName: 'Thierry', role: 'Mitarbeiter' }
+  jerome: { salt: '8b48ef28e89519902b5d778aa563266d', iter: 150000, hash: '3df12630bf44b4ad3ceb0277c96d6dcc7f4de7ed33cef397b149b0b5d2676b76', displayName: 'Jerome',  role: 'Gründer' },
+  thierry: { salt: '243021efecfbcb41f44858609068150b', iter: 150000, hash: 'f916011b0f9bc98ec687003664f77c7c9c7b366407b72f51cb98c36d1e588a61', displayName: 'Thierry', role: 'Mitarbeiter' }
 };
 const PHONE_NUMBERS = {
   jerome: '+41762299182',
@@ -2194,7 +2216,13 @@ function goToLogin(){
   loginError.classList.remove('show');
   gateScreen.style.display = 'none';
   loginScreen.classList.add('visible');
-  document.getElementById('loginUser').focus();
+  if (typeof faceScanStored === 'function' && faceScanStored() && faceScanSupported()) {
+    setTimeout(faceScanLogin, 250);                 // Gesichtsscan zuerst, ohne Tastatur
+  } else if (typeof faceIdStored === 'function' && faceIdStored() && faceIdSupported()) {
+    setTimeout(faceIdLogin, 250);
+  } else {
+    document.getElementById('loginUser').focus();
+  }
 }
 
 document.getElementById('gateTeam').addEventListener('click', goToLogin);
@@ -2250,13 +2278,37 @@ function loginAs(uRaw){
   if (window.BlueFixSplash) BlueFixSplash.begin();  // Splash blockiert die Seite ab sofort
   enterArea();
 }
-function doLogin(){
+/* Passwörter stehen nicht mehr im Klartext im Code: nur Salt + PBKDF2-SHA256-Hash (150'000 Runden). */
+const hexToBytes = h => Uint8Array.from(h.match(/../g).map(x => parseInt(x, 16)));
+async function pwVerify(pw, u){
+  try {
+    const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveBits']);
+    const bits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt: hexToBytes(u.salt), iterations: u.iter }, key, 256));
+    const want = hexToBytes(u.hash);
+    let diff = bits.length ^ want.length;
+    for (let i = 0; i < bits.length && i < want.length; i++) diff |= bits[i] ^ want[i];
+    return diff === 0;
+  } catch (e) { return false; }
+}
+async function doLogin(){
   const uRaw = document.getElementById('loginUser').value.trim().toLowerCase();
   const p = document.getElementById('loginPass').value;
   const u = USERS[uRaw];
-  if (u && u.password === p) {
+  const fsc = faceScanStored();
+  if (fsc && fsc.user === uRaw) {                   // Gesichtsscan ist hier Pflicht
+    loginError.classList.remove('show');
+    faceScanLogin();
+    return;
+  }
+  const fid = faceIdStored();
+  if (fid && fid.user === uRaw) {                   // Face ID ist hier Pflicht: Passwort allein reicht nicht
+    loginError.classList.remove('show');
+    faceIdLogin();
+    return;
+  }
+  if (u && await pwVerify(p, u)) {
     loginAs(uRaw);
-    setTimeout(() => { try { faceIdOffer(uRaw); } catch (e) {} }, 3500);
+    setTimeout(() => { try { faceScanOffer(uRaw); } catch (e) {} }, 3500);
   } else {
     loginError.classList.add('show');
   }
@@ -2284,7 +2336,7 @@ async function faceIdOffer(uKey){
   let ok = false;
   try { ok = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); } catch (e) {}
   if (!ok) return;
-  showConfirm('Willst du dich auf diesem Gerät künftig nur mit Face ID anmelden? Dein Gesicht wird vom iPhone geprüft, BlueFix speichert es nicht.',
+  showConfirm('Willst du dich auf diesem Gerät künftig nur noch mit Face ID anmelden? Das Passwort funktioniert für dich hier dann nicht mehr. Dein Gesicht wird vom iPhone geprüft, BlueFix speichert es nicht.',
     () => faceIdEnable(uKey), { title: 'Face ID aktivieren?', ok: 'Aktivieren' });
 }
 async function faceIdEnable(uKey){
@@ -2319,9 +2371,175 @@ async function faceIdLogin(){
     if (!(e && e.name === 'NotAllowedError')) err.classList.add('show');
   }
 }
+
+/* ===================== GESICHTSSCAN (Kamera, läuft nur auf diesem Gerät) =====================
+   Einrichtung: Gesicht wird aus mehreren Winkeln aufgenommen. Gespeichert werden nur Zahlenwerte
+   (Gesichtsmerkmale), keine Fotos, nichts wird hochgeladen. Login: Kamera erkennt das Gesicht und
+   verlangt zusätzlich kurzes Augenschliessen (Lebendigkeitstest gegen ein vorgehaltenes Foto). */
+const FACESCAN_KEY = 'bluefix_facescan';
+const FACE_LIB = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js';
+const FACE_MODELS = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/model/';
+const FACE_MATCH = 0.48;                 // kleiner = strenger
+let faceLibPromise = null, fsStream = null, fsCancelled = false;
+const fsSleep = ms => new Promise(r => setTimeout(r, ms));
+const fsEl = id => document.getElementById(id);
+function faceScanSupported(){ return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext); }
+function faceScanStored(){
+  try { const f = JSON.parse(localStorage.getItem(FACESCAN_KEY) || 'null'); return (f && FACEID_USERS.includes(f.user) && Array.isArray(f.d) && f.d.length) ? f : null; } catch (e) { return null; }
+}
+function faceScanRefresh(){
+  const on = faceScanSupported() && !!faceScanStored();
+  fsEl('faceScanBtn').style.display = on ? '' : 'none';
+  fsEl('faceScanOffBtn').style.display = on ? '' : 'none';
+}
+function faceLoadLib(){
+  if (faceLibPromise) return faceLibPromise;
+  faceLibPromise = new Promise((resolve, reject) => {
+    const sc = document.createElement('script'); sc.src = FACE_LIB;
+    sc.onload = async () => {
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODELS);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODELS);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODELS);
+        resolve();
+      } catch (e) { reject(e); }
+    };
+    sc.onerror = () => reject(new Error('Gesichtserkennung konnte nicht geladen werden'));
+    document.head.appendChild(sc);
+  });
+  faceLibPromise.catch(() => { faceLibPromise = null; });
+  return faceLibPromise;
+}
+function fsMsg(t, state){
+  fsEl('faceScanMsg').textContent = t;
+  const v = fsEl('faceScanVideo'); v.classList.toggle('ok', state === 'ok'); v.classList.toggle('bad', state === 'bad');
+}
+function fsStop(){
+  if (fsStream) { fsStream.getTracks().forEach(t => t.stop()); fsStream = null; }
+  fsEl('faceScanVideo').srcObject = null;
+}
+function fsClose(){ fsCancelled = true; fsStop(); fsEl('faceScanOverlay').classList.remove('show'); }
+async function fsOpen(title){
+  fsCancelled = false;
+  fsEl('faceScanTitle').textContent = title; fsEl('faceScanRetry').style.display = 'none';
+  fsMsg('Gesichtserkennung wird geladen …');
+  fsEl('faceScanOverlay').classList.add('show');
+  await faceLoadLib();
+  if (fsCancelled) throw new Error('abgebrochen');
+  fsMsg('Kamera wird gestartet …');
+  const st = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+  if (fsCancelled) { st.getTracks().forEach(t => t.stop()); throw new Error('abgebrochen'); }   // Kamera nie unbemerkt laufen lassen
+  fsStream = st;
+  const v = fsEl('faceScanVideo'); v.srcObject = fsStream; await v.play();
+}
+const fsDetect = () => faceapi.detectSingleFace(fsEl('faceScanVideo'), new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })).withFaceLandmarks().withFaceDescriptor();
+function fsEar(p, i){
+  const d = (a, b) => Math.hypot(p[a].x - p[b].x, p[a].y - p[b].y);
+  return (d(i + 1, i + 5) + d(i + 2, i + 4)) / (2 * d(i, i + 3));
+}
+function fsErrText(e){
+  const n = e && e.name;
+  if (n === 'NotAllowedError') return 'Kamera-Zugriff wurde nicht erlaubt. Bitte in den Einstellungen erlauben.';
+  if (n === 'NotFoundError') return 'Keine Kamera gefunden.';
+  return 'Das hat nicht geklappt: ' + ((e && e.message) || 'unbekannter Fehler');
+}
+
+// Einrichtung: mehrere Winkel aufnehmen
+async function faceScanEnroll(uKey){
+  if (!faceScanSupported()) { alert('Gesichtsscan braucht eine sichere Verbindung (https) und eine Kamera.'); return false; }
+  try {
+    await fsOpen('Gesicht einrichten');
+    const steps = [['Schau geradeaus', 3], ['Dreh den Kopf leicht nach links', 2], ['Dreh den Kopf leicht nach rechts', 2], ['Wieder geradeaus', 2]];
+    const out = []; let guard = 0;
+    for (const [txt, n] of steps) {
+      let got = 0, last = 0; fsMsg(txt);
+      while (got < n) {
+        if (fsCancelled) return false;
+        if (++guard > 400) throw new Error('Gesicht wurde zu selten erkannt. Bitte bei gutem Licht nochmals versuchen.');
+        const det = await fsDetect();
+        if (det && det.detection.score > 0.7 && Date.now() - last > 600) {
+          // Alle Aufnahmen müssen zur selben Person gehören
+          if (out.length && faceapi.euclideanDistance(out[0], det.descriptor) > 0.55) { fsMsg('Bitte nur eine Person im Bild.', 'bad'); await fsSleep(400); continue; }
+          out.push(Array.from(det.descriptor)); got++; last = Date.now(); fsMsg(txt, 'ok');
+        } else if (!det) fsMsg('Kein Gesicht erkannt. Bitte ins Bild kommen.');
+        await fsSleep(60);
+      }
+    }
+    localStorage.setItem(FACESCAN_KEY, JSON.stringify({ user: uKey, d: out, ts: Date.now() }));
+    fsMsg('Gesicht gespeichert. ✅', 'ok'); await fsSleep(900);
+    return true;
+  } catch (e) {
+    fsMsg(fsErrText(e), 'bad'); await fsSleep(2800); return false;
+  } finally { fsClose(); faceScanRefresh(); }
+}
+
+// Prüfung: Gesicht muss passen UND die Augen müssen kurz geschlossen werden
+async function faceScanVerify(){
+  const stored = faceScanStored(); if (!stored) return false;
+  for (;;) {
+    let retry = false;
+    try {
+      await fsOpen('Gesichtsscan');
+      fsMsg('Schau in die Kamera');
+      const t0 = Date.now(); let base = 0, before = 0, sawClosed = false, after = 0, wrong = 0;
+      while (Date.now() - t0 < 30000) {
+        if (fsCancelled) return false;
+        const det = await fsDetect();
+        if (!det) { fsMsg('Kein Gesicht erkannt. Bitte ins Bild kommen.'); await fsSleep(60); continue; }
+        const dist = Math.min(...stored.d.map(d => faceapi.euclideanDistance(d, det.descriptor)));
+        const pts = det.landmarks.positions;
+        const ear = (fsEar(pts, 36) + fsEar(pts, 42)) / 2;
+        base = Math.max(base * 0.99, ear);
+        const closed = ear < base * 0.72;
+        const match = dist < FACE_MATCH;
+        if (!closed) {
+          if (!match) { wrong++; if (wrong > 12) fsMsg('Gesicht nicht erkannt.', 'bad'); }
+          else {
+            wrong = 0;
+            if (!sawClosed) { before++; if (before >= 3) fsMsg('Erkannt. Schliesse jetzt kurz die Augen.', 'ok'); }
+            else { after++; if (after >= 2) { fsMsg('Willkommen zurück ✅', 'ok'); await fsSleep(500); return true; } }
+          }
+        } else if (before >= 3) { sawClosed = true; }
+        await fsSleep(40);
+      }
+      fsMsg('Nicht erkannt.', 'bad');
+      fsEl('faceScanRetry').style.display = '';
+      retry = await new Promise(res => {
+        const ok = () => { cleanup(); res(true); }, no = () => { cleanup(); res(false); };
+        const cleanup = () => { fsEl('faceScanRetry').removeEventListener('click', ok); fsEl('faceScanCancel').removeEventListener('click', no); };
+        fsEl('faceScanRetry').addEventListener('click', ok); fsEl('faceScanCancel').addEventListener('click', no);
+      });
+    } catch (e) {
+      fsMsg(fsErrText(e), 'bad'); await fsSleep(2800); return false;
+    } finally { fsStop(); if (!retry) fsClose(); }
+    if (!retry) return false;
+  }
+}
+async function faceScanLogin(){
+  const stored = faceScanStored(); if (!stored) return;
+  if (await faceScanVerify()) loginAs(stored.user);
+}
+function faceScanOffer(uKey){
+  if (!FACEID_USERS.includes(uKey) || !faceScanSupported() || faceScanStored()) return;
+  showConfirm('Willst du dich auf diesem Gerät künftig nur noch per Gesichtsscan anmelden? Du richtest es jetzt kurz mit der Kamera ein. Das Passwort funktioniert für dich hier dann nicht mehr. Es werden keine Fotos gespeichert.',
+    () => faceScanEnroll(uKey), { title: 'Gesichtsscan einrichten?', ok: 'Einrichten' });
+}
+fsEl('faceScanCancel').addEventListener('click', fsClose);
+fsEl('faceScanBtn').addEventListener('click', faceScanLogin);
+fsEl('faceScanOffBtn').addEventListener('click', async () => {
+  if (await faceScanVerify()) { localStorage.removeItem(FACESCAN_KEY); faceScanRefresh(); }
+});
+faceScanRefresh();
+
 document.getElementById('faceIdBtn').addEventListener('click', faceIdLogin);
-document.getElementById('faceIdOffBtn').addEventListener('click', () => {
-  localStorage.removeItem(FACEID_KEY); faceIdRefresh();
+document.getElementById('faceIdOffBtn').addEventListener('click', async () => {
+  const f = faceIdStored(); if (!f) { faceIdRefresh(); return; }
+  try {
+    const ch = crypto.getRandomValues(new Uint8Array(32));
+    await navigator.credentials.get({ publicKey: { challenge: ch, userVerification: 'required', timeout: 60000,
+      allowCredentials: [{ type: 'public-key', id: b64u.dec(f.id), transports: ['internal'] }] }});
+    localStorage.removeItem(FACEID_KEY); faceIdRefresh();   // nur mit Face ID entfernbar
+  } catch (e) { /* abgebrochen: bleibt aktiv */ }
 });
 faceIdRefresh();
 document.getElementById('loginBtn').addEventListener('click', doLogin);
