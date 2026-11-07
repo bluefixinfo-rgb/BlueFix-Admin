@@ -4546,6 +4546,7 @@ function repBoxHtml(o){
   else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
   else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät bei BlueFix ab</b></div>`;
   if (w && (w.changes || 0) >= 1) info += `<div class="rep-info">🔒 Kunde hat seine Auswahl schon geändert – weitere Änderungen sind gesperrt.</div>`;
+  if (o.teile && o.teile.at) info += `<div class="rep-info">🔩 <b>Ersatzteile gemeldet</b> · ${esc(fmtTime(o.teile.at))}${o.teile.text ? '<br><span style="opacity:.8;">' + esc(o.teile.text) + '</span>' : ''}<br>${o.teile.bestaetigtAt ? '✅ <b>Kunde hat bestätigt</b> · ' + esc(fmtTime(o.teile.bestaetigtAt)) : '⏳ Kunde hat noch nicht bestätigt'}</div>`;
   return `<div class="rep-box">
     <div class="order-section-title">📱 Status für den Kunden</div>
     <div class="rep-steps">${steps}</div>
@@ -4553,6 +4554,7 @@ function repBoxHtml(o){
     ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
       <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link / QR</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-parts="${esc(o.id)}">🔩 Ersatzteil bestellt</button>
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Kundenauswahl zurücksetzen</button>` : ''}
       <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
       ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
@@ -4649,8 +4651,143 @@ function syncViewWatchers(){
     statusViewUnsubs[t] = fbDb.collection(STATUS_COLLECTION).doc(t).onSnapshot(doc => {
       statusViewCache[t] = doc.exists ? doc.data() : null;
       document.querySelectorAll('[data-view-badge="' + t + '"]').forEach(n => { n.innerHTML = viewBadgeInner(t); });
+      partsConfirmCheck(t, doc.exists ? doc.data() : null);
     }, err => console.warn('Aufrufe-Watcher:', err));
   });
+}
+
+/* ===================== ERSATZTEILE BESTELLT (mit Foto, Kunde bestätigt auf seiner Status-Seite) =====================
+   Speichert in bluefix_status/<Token> das Feld teile = { text, foto (JPEG als data-URL), at, bestaetigtAt }.
+   Die Status-Seite des Kunden zeigt Text + Foto und hat einen Button «Gesehen»; er schreibt teile.bestaetigtAt.
+   Hier im Panel wird das live übernommen (Auftragskarte + Benachrichtigung). */
+let partsPhoto = '';
+function partsCompressPhoto(file){
+  return new Promise((res, rej) => {
+    const img = new Image(), u = URL.createObjectURL(file);
+    img.onload = () => {
+      const sc = Math.min(1, 1000 / Math.max(img.width, img.height));
+      const w = Math.round(img.width * sc), h = Math.round(img.height * sc);
+      const c = document.createElement('canvas'); c.width = w; c.height = h;
+      c.getContext('2d').drawImage(img, 0, 0, w, h);
+      URL.revokeObjectURL(u);
+      let q = 0.75, d = c.toDataURL('image/jpeg', q);
+      while (d.length > 450000 && q > 0.3) { q -= 0.1; d = c.toDataURL('image/jpeg', q); }
+      res(d);
+    };
+    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Bild nicht lesbar')); };
+    img.src = u;
+  });
+}
+function partsMessage(o, text, url, sie){
+  const dev = o.modell ? (sie ? 'Ihr ' : 'dein ') + o.modell : (sie ? 'Ihr Gerät' : 'dein Gerät');
+  const hello = sie ? '' : (o.vorname ? 'Hallo ' + o.vorname + ', ' : 'Hallo, ');
+  const what = text ? '\n\n' + text : '';
+  const ask = sie ? 'So sieht das Ersatzteil aus. Bitte bestätigen Sie kurz, dass Sie es gesehen haben:' : 'So sieht das Ersatzteil aus. Bitte bestätige kurz, dass du es gesehen hast:';
+  const line = 'wir haben die Ersatzteile für ' + dev + ' bestellt 🔩📦';
+  return hello + (sie ? line.charAt(0).toUpperCase() + line.slice(1) : line) + what + '\n\n' + ask + '\n' + url;
+}
+function partsSaveDoc(o, text, foto){
+  const at = Date.now();
+  const arr = load(ORDERS_KEY, []);
+  const oo = arr.find(x => x.id === o.id);
+  if (oo) { oo.teile = { text, at, hasFoto: !!foto }; oo.updatedBy = currentUser(); oo.updatedAt = at; save(ORDERS_KEY, arr); }
+  logActivity('🔩', 'die Ersatzteil-Bestellung für ' + o.vorname + ' ' + o.nachname + ' dem Kunden gemeldet');
+  renderOrders();
+  const teile = { text, at, bestaetigtAt: firebase.firestore.FieldValue.delete() };
+  teile.foto = foto || firebase.firestore.FieldValue.delete();
+  return fbDb.collection(STATUS_COLLECTION).doc(o.statusToken).set({ teile }, { merge: true });
+}
+function openPartsModal(id){
+  const o = ensureStatus(id);
+  if (!o) return;
+  statusModalOrderId = id;
+  const url = statusUrl(o.statusToken);
+  const cached = statusViewCache[o.statusToken] && statusViewCache[o.statusToken].teile;
+  partsPhoto = (cached && cached.foto) || '';
+  const prevText = (o.teile && o.teile.text) || '';
+  document.getElementById('statusModalTitle').textContent = '🔩 Ersatzteil bestellt';
+  document.getElementById('statusModalBody').innerHTML = `
+    <p class="card-sub">${esc(o.vorname)} ${esc(o.nachname)} · ${esc(o.modell)}</p>
+    <div class="field" style="margin-top:12px;"><label>Welche Teile / wann kommen sie?</label><textarea id="ptText" rows="3" placeholder="z.B. Display Premium + Akku bestellt, Lieferung ca. Do–Fr">${esc(prevText)}</textarea></div>
+    <div class="field"><label>Foto vom Ersatzteil (optional)</label><input type="file" id="ptFile" accept="image/*"></div>
+    <img id="ptPrev" alt="" style="display:${partsPhoto ? 'block' : 'none'};max-width:100%;max-height:220px;border-radius:12px;margin:6px 0;" ${partsPhoto ? 'src="' + partsPhoto + '"' : ''}>
+    <button class="btn btn-ghost btn-sm" type="button" id="ptNoPhoto" style="display:${partsPhoto ? 'inline-block' : 'none'};">Foto entfernen</button>
+    <div class="status-link-row"><input type="text" id="ptLink" readonly value="${esc(url)}"></div>
+    <div class="card-sub" id="ptConf" style="margin-top:8px;">${o.teile && o.teile.bestaetigtAt ? '✅ Kunde hat bestätigt · ' + esc(fmtTime(o.teile.bestaetigtAt)) : (o.teile && o.teile.at ? '⏳ Noch nicht bestätigt (gemeldet ' + esc(fmtTime(o.teile.at)) + ')' : '')}</div>
+    <div class="field" style="margin-top:14px;"><label>Handynummer Kunde</label><input type="tel" id="ptPhone" inputmode="tel" value="${esc(o.telefon || '')}" placeholder="z.B. 079 123 45 67"></div>
+    <div class="field"><label>E-Mail Kunde</label><input type="email" id="ptMail" inputmode="email" autocapitalize="off" value="${esc(o.email || '')}" placeholder="z.B. max@muster.ch"></div>
+    <div class="field"><label>Nachricht</label><textarea id="ptMsg" rows="5"></textarea></div>
+    <div class="status-send">
+      <button class="btn btn-primary" type="button" id="ptWa">WhatsApp</button>
+      <button class="btn btn-ghost" type="button" id="ptSms">SMS</button>
+      <button class="btn btn-ghost" type="button" id="ptMailBtn">E-Mail</button>
+    </div>
+    <button class="btn btn-ghost status-save" type="button" id="ptSave">💾 Nur speichern (ohne Nachricht)</button>`;
+  const refresh = () => { document.getElementById('ptMsg').value = partsMessage(o, document.getElementById('ptText').value.trim(), url, false); };
+  refresh();
+  document.getElementById('ptText').addEventListener('input', refresh);
+  document.getElementById('ptFile').addEventListener('change', async ev => {
+    const f = ev.target.files && ev.target.files[0];
+    if (!f) return;
+    try {
+      partsPhoto = await partsCompressPhoto(f);
+      const im = document.getElementById('ptPrev'); im.src = partsPhoto; im.style.display = 'block';
+      document.getElementById('ptNoPhoto').style.display = 'inline-block';
+    } catch (err) { alert('Das Foto konnte nicht geladen werden. Bitte ein anderes versuchen.'); }
+  });
+  document.getElementById('ptNoPhoto').addEventListener('click', () => {
+    partsPhoto = '';
+    document.getElementById('ptPrev').style.display = 'none';
+    document.getElementById('ptNoPhoto').style.display = 'none';
+    document.getElementById('ptFile').value = '';
+  });
+  document.getElementById('ptWa').addEventListener('click', () => sendParts('wa'));
+  document.getElementById('ptSms').addEventListener('click', () => sendParts('sms'));
+  document.getElementById('ptMailBtn').addEventListener('click', () => sendParts('mail'));
+  document.getElementById('ptSave').addEventListener('click', () => sendParts('save'));
+  document.getElementById('statusModal').classList.add('show');
+}
+function sendParts(kind){
+  const o = load(ORDERS_KEY, []).find(x => x.id === statusModalOrderId);
+  if (!o) return;
+  if (!fbReady || !fbDb) { alert('Keine Verbindung zum Server. Bitte Internet prüfen und nochmals versuchen.'); return; }
+  const text = document.getElementById('ptText').value.trim();
+  if (!text && !partsPhoto) { alert('Bitte einen Text eingeben oder ein Foto hinzufügen.'); return; }
+  const phoneRaw = document.getElementById('ptPhone').value.trim();
+  const mailRaw = document.getElementById('ptMail').value.trim();
+  const num = normPhone(phoneRaw);
+  if ((kind === 'wa' || kind === 'sms') && !num) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
+  if (kind === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailRaw)) { alert('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+  const arr = load(ORDERS_KEY, []);
+  const oo = arr.find(x => x.id === o.id);
+  if (oo && (phoneRaw !== (oo.telefon || '') || mailRaw !== (oo.email || ''))) { oo.telefon = phoneRaw; oo.email = mailRaw; save(ORDERS_KEY, arr); }
+  const url = statusUrl(o.statusToken);
+  const msg = document.getElementById('ptMsg').value;
+  // Zuerst speichern (laeuft im Hintergrund weiter), dann sofort die App öffnen (sonst blockt iOS das Öffnen).
+  partsSaveDoc(o, text, partsPhoto).catch(err => { console.warn('Ersatzteil-Meldung:', err); alert('Das Speichern auf dem Server hat nicht geklappt (evtl. Foto zu gross). Der Kunde sieht es erst nach erneutem Versuch.'); });
+  if (kind === 'save') { document.getElementById('statusModal').classList.remove('show'); return; }
+  if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+  else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
+  else openGmailCompose(mailRaw, 'BlueFix - Ersatzteile bestellt', buildMailBody(o, partsMessage(o, text, url, true)));
+}
+// Kunde hat auf seiner Status-Seite «Gesehen» getippt -> in Auftrag übernehmen + melden
+function partsConfirmCheck(token, data){
+  const tt = data && data.teile;
+  if (!tt || !tt.bestaetigtAt) return;
+  const arr = load(ORDERS_KEY, []);
+  const o = arr.find(x => x.statusToken === token);
+  if (!o) return;
+  if (!o.teile || o.teile.bestaetigtAt !== tt.bestaetigtAt) {
+    o.teile = { ...(o.teile || {}), text: (o.teile && o.teile.text) || tt.text || '', at: (o.teile && o.teile.at) || tt.at, bestaetigtAt: tt.bestaetigtAt };
+    save(ORDERS_KEY, arr);
+    renderOrders();
+  }
+  const seen = load('bluefix_parts_seen', {});
+  if (seen[token] !== tt.bestaetigtAt) {
+    seen[token] = tt.bestaetigtAt;
+    save('bluefix_parts_seen', seen);
+    notifyOther('BlueFix – Ersatzteil bestätigt', (o.vorname || 'Kunde') + ' hat das Ersatzteil gesehen und bestätigt', 'parts-' + token);
+  }
 }
 
 let statusModalOrderId = null;
@@ -4751,6 +4888,8 @@ document.getElementById('statusClose').addEventListener('click', () => {
 });
 
 document.getElementById('ordersList').addEventListener('click', e => {
+  const prt = e.target.closest('[data-parts]');
+  if (prt) { openPartsModal(prt.dataset.parts); return; }
   const dlv = e.target.closest('[data-delivered]');
   if (dlv) { showConfirm('Das Paket wird als angekommen markiert. Beim Kunden ändert sich das Bild (Lieferwagen steht vor dem Haus). Danach kannst du ihm die Ankunfts-Mail schicken.', () => markDelivered(dlv.dataset.delivered), { title: 'Paket ist angekommen?', ok: 'Ja, angekommen' }); return; }
   const udl = e.target.closest('[data-undeliver]');
