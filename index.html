@@ -963,9 +963,6 @@ input,select,textarea{font-family:var(--sans);}
     <button class="btn btn-primary" id="loginBtn" style="margin-top:6px;">Einloggen</button>
     <button class="btn btn-ghost" id="faceScanBtn" type="button" style="display:none; width:100%; margin-top:10px;">📷 Mit Gesichtsscan anmelden</button>
     <button class="btn btn-ghost btn-sm" id="faceScanOffBtn" type="button" style="display:none; margin:12px auto 0;">Gesichtsscan entfernen (braucht Scan)</button>
-    <button class="btn btn-ghost" id="faceIdBtn" type="button" style="display:none; width:100%; margin-top:10px;">🔓 Mit Face ID anmelden</button>
-    <button class="btn btn-ghost btn-sm" id="faceIdOffBtn" type="button" style="display:none; margin:12px auto 0;">Face ID entfernen (braucht Face ID)</button>
-    <div class="login-error" id="faceIdError" style="margin-top:10px;">Face ID hat nicht geklappt. Bitte mit Passwort anmelden.</div>
   </div>
 </div>
 
@@ -2218,8 +2215,6 @@ function goToLogin(){
   loginScreen.classList.add('visible');
   if (typeof faceScanStored === 'function' && faceScanStored() && faceScanSupported()) {
     setTimeout(faceScanLogin, 250);                 // Gesichtsscan zuerst, ohne Tastatur
-  } else if (typeof faceIdStored === 'function' && faceIdStored() && faceIdSupported()) {
-    setTimeout(faceIdLogin, 250);
   } else {
     document.getElementById('loginUser').focus();
   }
@@ -2300,12 +2295,6 @@ async function doLogin(){
     faceScanLogin();
     return;
   }
-  const fid = faceIdStored();
-  if (fid && fid.user === uRaw) {                   // Face ID ist hier Pflicht: Passwort allein reicht nicht
-    loginError.classList.remove('show');
-    faceIdLogin();
-    return;
-  }
   if (u && await pwVerify(p, u)) {
     loginAs(uRaw);
     setTimeout(() => { try { faceScanOffer(uRaw); } catch (e) {} }, 3500);
@@ -2314,64 +2303,8 @@ async function doLogin(){
   }
 }
 
-/* ===================== FACE ID (Passkey / WebAuthn) =====================
-   Das Gesicht wird vom iPhone selbst geprüft (Face ID). Die Seite bekommt nur «ja» oder «nein»,
-   nie ein Foto oder Gesichtsdaten. Aktivierung einmalig nach einem normalen Login mit Passwort.
-   Hinweis: Wie das bisherige Login läuft auch das im Browser, es ist ein Komfort-Login für dieses Gerät. */
-const FACEID_KEY = 'bluefix_faceid';
-const FACEID_USERS = ['jerome'];
-const b64u = {
-  enc: buf => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
-  dec: str => Uint8Array.from(atob(str.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))
-};
-function faceIdSupported(){ return !!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext); }
-function faceIdStored(){ const f = load(FACEID_KEY, null); return (f && f.user && f.id && FACEID_USERS.includes(f.user)) ? f : null; }
-function faceIdRefresh(){
-  const on = faceIdSupported() && !!faceIdStored();
-  document.getElementById('faceIdBtn').style.display = on ? '' : 'none';
-  document.getElementById('faceIdOffBtn').style.display = on ? '' : 'none';
-}
-async function faceIdOffer(uKey){
-  if (!FACEID_USERS.includes(uKey) || !faceIdSupported() || faceIdStored()) return;
-  let ok = false;
-  try { ok = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); } catch (e) {}
-  if (!ok) return;
-  showConfirm('Willst du dich auf diesem Gerät künftig nur noch mit Face ID anmelden? Das Passwort funktioniert für dich hier dann nicht mehr. Dein Gesicht wird vom iPhone geprüft, BlueFix speichert es nicht.',
-    () => faceIdEnable(uKey), { title: 'Face ID aktivieren?', ok: 'Aktivieren' });
-}
-async function faceIdEnable(uKey){
-  try {
-    const cred = await navigator.credentials.create({ publicKey: {
-      challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rp: { name: 'BlueFix' },
-      user: { id: new TextEncoder().encode('bluefix-' + uKey), name: uKey, displayName: USERS[uKey].displayName },
-      pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-      authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
-      attestation: 'none', timeout: 60000
-    }});
-    save(FACEID_KEY, { user: uKey, id: b64u.enc(cred.rawId), ts: Date.now() });
-    faceIdRefresh();
-  } catch (e) { console.warn('Face ID Aktivierung abgebrochen:', e); }
-}
-async function faceIdLogin(){
-  const f = faceIdStored(); const err = document.getElementById('faceIdError');
-  err.classList.remove('show');
-  if (!f) { faceIdRefresh(); return; }
-  try {
-    const challenge = crypto.getRandomValues(new Uint8Array(32));
-    const a = await navigator.credentials.get({ publicKey: {
-      challenge, userVerification: 'required', timeout: 60000,
-      allowCredentials: [{ type: 'public-key', id: b64u.dec(f.id), transports: ['internal'] }]
-    }});
-    const cd = JSON.parse(new TextDecoder().decode(a.response.clientDataJSON));
-    if (cd.type !== 'webauthn.get' || cd.challenge !== b64u.enc(challenge)) throw new Error('Ungültige Antwort');
-    loginAs(f.user);
-  } catch (e) {
-    console.warn('Face ID Login fehlgeschlagen:', e);
-    if (!(e && e.name === 'NotAllowedError')) err.classList.add('show');
-  }
-}
-
+const FACESCAN_USERS = ['jerome'];
+try { localStorage.removeItem('bluefix_faceid'); } catch (e) {}   // Reste der entfernten Face-ID-Funktion
 /* ===================== GESICHTSSCAN (Kamera, läuft nur auf diesem Gerät) =====================
    Einrichtung: Gesicht wird aus mehreren Winkeln aufgenommen. Gespeichert werden nur Zahlenwerte
    (Gesichtsmerkmale), keine Fotos, nichts wird hochgeladen. Login: Kamera erkennt das Gesicht und
@@ -2385,7 +2318,7 @@ const fsSleep = ms => new Promise(r => setTimeout(r, ms));
 const fsEl = id => document.getElementById(id);
 function faceScanSupported(){ return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.isSecureContext); }
 function faceScanStored(){
-  try { const f = JSON.parse(localStorage.getItem(FACESCAN_KEY) || 'null'); return (f && FACEID_USERS.includes(f.user) && Array.isArray(f.d) && f.d.length) ? f : null; } catch (e) { return null; }
+  try { const f = JSON.parse(localStorage.getItem(FACESCAN_KEY) || 'null'); return (f && FACESCAN_USERS.includes(f.user) && Array.isArray(f.d) && f.d.length) ? f : null; } catch (e) { return null; }
 }
 function faceScanRefresh(){
   const on = faceScanSupported() && !!faceScanStored();
@@ -2520,7 +2453,7 @@ async function faceScanLogin(){
   if (await faceScanVerify()) loginAs(stored.user);
 }
 function faceScanOffer(uKey){
-  if (!FACEID_USERS.includes(uKey) || !faceScanSupported() || faceScanStored()) return;
+  if (!FACESCAN_USERS.includes(uKey) || !faceScanSupported() || faceScanStored()) return;
   showConfirm('Willst du dich auf diesem Gerät künftig nur noch per Gesichtsscan anmelden? Du richtest es jetzt kurz mit der Kamera ein. Das Passwort funktioniert für dich hier dann nicht mehr. Es werden keine Fotos gespeichert.',
     () => faceScanEnroll(uKey), { title: 'Gesichtsscan einrichten?', ok: 'Einrichten' });
 }
@@ -2531,17 +2464,6 @@ fsEl('faceScanOffBtn').addEventListener('click', async () => {
 });
 faceScanRefresh();
 
-document.getElementById('faceIdBtn').addEventListener('click', faceIdLogin);
-document.getElementById('faceIdOffBtn').addEventListener('click', async () => {
-  const f = faceIdStored(); if (!f) { faceIdRefresh(); return; }
-  try {
-    const ch = crypto.getRandomValues(new Uint8Array(32));
-    await navigator.credentials.get({ publicKey: { challenge: ch, userVerification: 'required', timeout: 60000,
-      allowCredentials: [{ type: 'public-key', id: b64u.dec(f.id), transports: ['internal'] }] }});
-    localStorage.removeItem(FACEID_KEY); faceIdRefresh();   // nur mit Face ID entfernbar
-  } catch (e) { /* abgebrochen: bleibt aktiv */ }
-});
-faceIdRefresh();
 document.getElementById('loginBtn').addEventListener('click', doLogin);
 document.getElementById('loginPass').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
 
