@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js" onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';document.head.appendChild(s)"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 <style>
@@ -105,6 +106,8 @@ body{margin:0;min-height:100vh;color:var(--white);font-family:'Outfit',-apple-sy
 @keyframes draw{to{stroke-dashoffset:0}}
 .ok h1{font-size:25px;margin:0 0 8px}
 .ok p{color:var(--muted);font-size:15px;line-height:1.55;margin:0}
+.qrbox{background:#fff;border-radius:18px;padding:14px;max-width:280px;margin:14px auto 0}
+.qrbox img{display:block;width:100%;height:auto}
 .hide{display:none!important}
 @media (prefers-reduced-motion:reduce){.sheet,.ok circle,.ok path{animation:none;stroke-dashoffset:0}}
 </style>
@@ -134,6 +137,14 @@ body{margin:0;min-height:100vh;color:var(--white);font-family:'Outfit',-apple-sy
       <div class="h2"><span class="ico" id="mIco"></span><span id="mTitle"></span></div>
       <p class="lead" id="mLead"></p>
       <div class="rows" id="rows"></div>
+    </div>
+
+    <div class="card hide" id="qrCard">
+      <div class="h2"><span class="ico" id="qIco"></span>QR-Rechnung</div>
+      <p class="lead">Scanne den Code in deiner Bank-App (Zahlung per QR-Rechnung) oder speichere das Bild und lade es in der Bank-App aus der Galerie.</p>
+      <div class="qrbox"><img id="qrImg" alt="QR-Rechnung mit IBAN, Betrag und Auftragsnummer"></div>
+      <button class="btn ghost" id="qrSave" type="button">QR-Code als Bild speichern</button>
+      <div class="err" id="qrErr">Das Speichern hat nicht geklappt. Halte das Bild gedrückt und wähle «Bild sichern».</div>
     </div>
 
     <div class="card">
@@ -209,6 +220,77 @@ function addRow(label, value, opts){
 }
 function addStep(text){ const li = document.createElement('li'); li.innerHTML = '<span class="n"></span><p></p>'; li.querySelector('p').textContent = text; $('steps').append(li); }
 
+/* ---------- Schweizer QR-Rechnung (Swiss QR Code, SPC 0200) ---------- */
+function parseAdresse(a){
+  const m = /^(.*?)\s+(\d+[a-zA-Z]?)\s*,\s*(\d{4})\s+(.+)$/.exec(String(a || '').trim());
+  return m ? { str: m[1], nr: m[2], plz: m[3], ort: m[4] } : null;
+}
+function qrPayload(d){
+  const iban = String(d.iban || '').replace(/\s/g, '').toUpperCase();
+  const ad = parseAdresse(d.adresse);
+  if (!/^(CH|LI)\d{19}$/.test(iban) || !ad || !d.empfaenger) return null;
+  const amt = Number(d.betrag) > 0 ? Number(d.betrag).toFixed(2) : '';
+  const L = [
+    'SPC', '0200', '1', iban,
+    'S', d.empfaenger, ad.str, ad.nr, ad.plz, ad.ort, 'CH',
+    '', '', '', '', '', '', '',          // Endgültiger Zahlungsempfänger (leer)
+    amt, 'CHF',
+    '', '', '', '', '', '', '',          // Zahlungspflichtiger (leer)
+    'NON', '',                           // keine Referenz
+    String(d.nr || '').slice(0, 140),    // Mitteilung = Auftragsnummer
+    'EPD'
+  ];
+  return L.join('\n');
+}
+let qrBlob = null, qrName = 'QR-Rechnung.png';
+function drawQr(payload){
+  qrcode.stringToBytes = s => Array.from(new TextEncoder().encode(s));   // UTF-8 laut Spezifikation
+  const qr = qrcode(0, 'M'); qr.addData(payload, 'Byte'); qr.make();
+  const n = qr.getModuleCount(), quiet = 4;
+  const sc = Math.max(4, Math.floor(1000 / (n + quiet * 2)));
+  const size = (n + quiet * 2) * sc;
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, size, size);
+  g.fillStyle = '#000';
+  for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (qr.isDark(r, k)) g.fillRect((k + quiet) * sc, (r + quiet) * sc, sc, sc);
+  // Schweizer Kreuz in der Mitte
+  const Q = n * sc, S = Q * 7 / 46, mid = size / 2, f = S * 0.12;
+  g.fillStyle = '#fff'; g.fillRect(mid - S / 2 - f, mid - S / 2 - f, S + 2 * f, S + 2 * f);
+  g.fillStyle = '#000'; g.fillRect(mid - S / 2, mid - S / 2, S, S);
+  const L = S * 0.62, T = S * 0.2;
+  g.fillStyle = '#fff'; g.fillRect(mid - L / 2, mid - T / 2, L, T); g.fillRect(mid - T / 2, mid - L / 2, T, L);
+  return c;
+}
+function buildQr(d){
+  try {
+    if (typeof qrcode === 'undefined') return;
+    const payload = qrPayload(d); if (!payload) return;
+    const c = drawQr(payload);
+    $('qrImg').src = c.toDataURL('image/png');
+    $('qIco').innerHTML = SVG.bank;
+    qrName = 'QR-Rechnung-' + (d.nr || 'BlueFix') + '.png';
+    c.toBlob(b => { qrBlob = b; }, 'image/png');
+    $('qrCard').classList.remove('hide');
+  } catch (e) { /* QR ist optional, die Angaben oben genügen */ }
+}
+async function saveQr(){
+  $('qrErr').style.display = 'none';
+  try {
+    const blob = qrBlob || await (await fetch($('qrImg').src)).blob();
+    const file = new File([blob], qrName, { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: qrName }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = qrName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  } catch (e) { $('qrErr').style.display = 'block'; }
+}
+$('qrSave').addEventListener('click', saveQr);
+
 function render(d){
   const bank = d.methode === 'bank';
   $('hello').textContent = d.vorname ? 'Hallo ' + d.vorname + ', deine Rechnung' : 'Deine Rechnung';
@@ -234,7 +316,8 @@ function render(d){
     addRow('Betrag', 'CHF ' + chf(d.betrag), { copy: chf(d.betrag) });
     if (d.nr) addRow('Zahlungszweck', d.nr, { mono: true, copy: d.nr });
     addStep('Öffne dein E-Banking und erfasse eine neue Zahlung.');
-    addStep('Kopiere die Angaben oben und gib als Zahlungszweck die Rechnungsnummer an.');
+    addStep('Kopiere die Angaben oben und gib als Zahlungszweck die Auftragsnummer an. Oder scanne bzw. importiere den QR-Code, dann ist alles ausgefüllt.');
+    buildQr(d);
     addStep('Löse die Überweisung aus und tippe danach unten auf «Ich habe bezahlt».');
     $('sheetText').textContent = 'Mit der Bestätigung teilst du BlueFix mit, dass du CHF ' + chf(d.betrag) + ' überwiesen hast.';
   } else {
@@ -242,10 +325,16 @@ function render(d){
     $('mLead').textContent = 'Sende den Betrag in der Twint-App an diese Nummer.';
     addRow('Twint-Nummer', d.twint || '', { mono: true, copy: String(d.twint || '').replace(/\s/g, '') });
     addRow('Betrag', 'CHF ' + chf(d.betrag), { copy: chf(d.betrag) });
+    if (d.nr) addRow('Mitteilung (Pflicht)', d.nr, { mono: true, copy: d.nr });
+    $('mLead').textContent = d.nr
+      ? 'Sende den Betrag in der Twint-App an diese Nummer und schreibe zwingend die Auftragsnummer in die Mitteilung.'
+      : 'Sende den Betrag in der Twint-App an diese Nummer.';
     addStep('Öffne die Twint-App und wähle «Senden».');
-    addStep('Gib die Nummer und den Betrag von oben ein und bestätige die Zahlung in Twint.');
+    addStep('Gib die Nummer und den Betrag von oben ein.');
+    if (d.nr) addStep('Schreibe die Auftragsnummer ' + d.nr + ' in das Feld «Mitteilung». Ohne Mitteilung können wir die Zahlung nicht zuordnen.');
+    addStep('Bestätige die Zahlung in Twint.');
     addStep('Komm danach hierher zurück und tippe unten auf «Ich habe bezahlt».');
-    $('sheetText').textContent = 'Mit der Bestätigung teilst du BlueFix mit, dass du CHF ' + chf(d.betrag) + ' per Twint gesendet hast.';
+    $('sheetText').textContent = 'Mit der Bestätigung teilst du BlueFix mit, dass du CHF ' + chf(d.betrag) + ' per Twint gesendet hast' + (d.nr ? ' und die Auftragsnummer ' + d.nr + ' als Mitteilung angegeben hast.' : '.');
   }
 }
 
