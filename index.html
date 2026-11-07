@@ -2121,6 +2121,25 @@ function save(key, val){
   }
 }
 function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+/* Einheitliche Auftragsnummer (BF-3914, BF-3915, ...): steht im Garantie-Schein UND als Zahlungszweck. */
+const BF_NR_START = 3914;
+function nextBfNr(){
+  let max = BF_NR_START - 1;
+  [ORDERS_KEY, INVOICES_KEY].forEach(k => load(k, []).forEach(x => {
+    const m = /^BF-(\d{4,})$/.exec((x && x.nr) || '');
+    if (m) max = Math.max(max, Number(m[1]));
+  }));
+  return 'BF-' + (max + 1);
+}
+function orderEnsureNr(orderId){
+  const arr = load(ORDERS_KEY, []);
+  const o = arr.find(x => x.id === orderId);
+  if (!o) return '';
+  if (o.nr) return o.nr;
+  o.nr = nextBfNr();
+  save(ORDERS_KEY, arr);
+  return o.nr;
+}
 function fmtTime(ts){ const d = new Date(ts); return d.toLocaleString('de-CH', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}); }
 function currentUser(){ const s = load(SESSION_KEY, null); return s ? s.user : null; }
 
@@ -2948,7 +2967,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
 
   if(!bluefixSig.hasSignature()){alert('Bitte die BlueFix-Unterschrift erfassen. Der Kunde unterschreibt später direkt auf dem PDF.');return;}
   const order={
-    id:uid(), typ:'kunde', vorname,nachname,modell,imei,preis,garantie,
+    id:uid(), nr:nextBfNr(), typ:'kunde', vorname,nachname,modell,imei,preis,garantie,
     telefon:document.getElementById('custTelefon').value.trim(),
     email:document.getElementById('custEmail').value.trim(),
     repStatus:'angenommen', statusToken:newStatusToken(), statusUpdatedAt:Date.now(),
@@ -3388,6 +3407,7 @@ function linkify(v){
   });
 }
 function generateWarrantyPDF(o){
+  { const _nr = orderEnsureNr(o.id); if (_nr) o = { ...o, nr: _nr }; }
   if(!window.jspdf || !window.jspdf.jsPDF){alert('PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung prüfen. Der Auftrag wurde trotzdem gespeichert.');return;}
   const {jsPDF}=window.jspdf, doc=new jsPDF({unit:'mm',format:'a4'});
   const date=new Date(o.createdAt).toLocaleDateString('de-CH');
@@ -3404,7 +3424,7 @@ function generateWarrantyPDF(o){
 
   let y=54;
   doc.setTextColor(...muted); doc.setFontSize(8); doc.text('AUFTRAG',margin,y); doc.text('AUSGESTELLT AM',120,y);
-  doc.setTextColor(...text); doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text(String(o.id||'—'),margin,y+6); doc.text(date,120,y+6);
+  doc.setTextColor(...text); doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text(String(o.nr||o.id||'—'),margin,y+6); doc.text(date,120,y+6);
 
   y=72;
   doc.setFillColor(...soft); doc.setDrawColor(...line); doc.roundedRect(margin,y,pageW-margin*2,78,5,5,'FD');
@@ -3433,11 +3453,11 @@ function generateWarrantyPDF(o){
   if(o.bluefixSignature) doc.addImage(o.bluefixSignature,'PNG',118,237,74,26);
 
   doc.setDrawColor(...line); doc.setLineWidth(.3); doc.line(margin,282,pageW-margin,282);
-  doc.setTextColor(...muted); doc.setFontSize(7.5); doc.setFont(undefined,'normal'); doc.text('BlueFix · Garantie-Schein',margin,288); doc.text('Auftrags-Nr. '+String(o.id||'—'),pageW-margin,288,{align:'right'});
+  doc.setTextColor(...muted); doc.setFontSize(7.5); doc.setFont(undefined,'normal'); doc.text('BlueFix · Garantie-Schein',margin,288); doc.text('Auftrags-Nr. '+String(o.nr||o.id||'—'),pageW-margin,288,{align:'right'});
   // Garantie-PDF in der App selbst anzeigen statt die Seite zu verlassen
   // (siehe showFilePreview) - kein Zurück-Pfeil-Problem mehr.
   const pdfUrl=doc.output('bloburl');
-  showFilePreview(pdfUrl, 'Garantie-Schein · '+(o.id||''), 'application/pdf');
+  showFilePreview(pdfUrl, 'Garantie-Schein · '+(o.nr||o.id||''), 'application/pdf');
 }
 // Sendungsnummer -> Link je nach Versanddienst (ein eingefügter Link wird unverändert verwendet)
 const CARRIERS = {
@@ -3475,7 +3495,7 @@ function renderOrders(){
     const isCustomer=o.typ==='kunde';
     const signedFile=o.signedFile;
     card.innerHTML=`<div class="card-top">
-      <div><p class="card-title"><button type="button" class="cust-link" data-cust="${esc(o.vorname+' '+o.nachname)}" data-cust-phone="${esc(o.telefon||'')}">${esc(o.vorname)} ${esc(o.nachname)}</button>${(isCustomer?!signedFile:o.status!=='erledigt')?'<span class="order-live-dot" title="Auftrag offen"></span>':''}</p><p class="card-sub">${esc(o.modell)} · ${esc(o.auftrag)} · ${isCustomer?'Kunden Auftrag':'Team Auftrag'}</p></div>
+      <div><p class="card-title"><button type="button" class="cust-link" data-cust="${esc(o.vorname+' '+o.nachname)}" data-cust-phone="${esc(o.telefon||'')}">${esc(o.vorname)} ${esc(o.nachname)}</button>${(isCustomer?!signedFile:o.status!=='erledigt')?'<span class="order-live-dot" title="Auftrag offen"></span>':''}</p><p class="card-sub">${isCustomer&&o.nr?esc(o.nr)+' · ':''}${esc(o.modell)} · ${esc(o.auftrag)} · ${isCustomer?'Kunden Auftrag':'Team Auftrag'}</p></div>
       <div class="card-actions">
         <button class="icon-btn-sm" data-del="${esc(o.id)}" title="Löschen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
       </div>
@@ -3912,11 +3932,20 @@ function invoiceEnsureNr(invId){
   const arr = load(INVOICES_KEY, []);
   const inv = arr.find(i => i.id === invId);
   if (!inv) return '';
+  // Gehört die Rechnung zu einem Auftrag, ist ihre Nummer immer die Auftragsnummer (BF-3914).
+  if (inv.orderId) {
+    const onr = orderEnsureNr(inv.orderId);
+    if (onr) {
+      if (inv.nr !== onr && !inv.bezahlt) {
+        inv.nr = onr;
+        save(INVOICES_KEY, arr);
+        if (inv.payToken && typeof invPublishPay === 'function') { try { invPublishPay(inv); } catch (e) {} }
+      }
+      if (inv.nr) return inv.nr;
+    }
+  }
   if (inv.nr) return inv.nr;
-  const year = new Date(inv.createdAt || Date.now()).getFullYear();
-  let max = 0;
-  arr.forEach(i => { const m = /^BF-(\d{4})-(\d+)$/.exec(i.nr || ''); if (m && Number(m[1]) === year) max = Math.max(max, Number(m[2])); });
-  inv.nr = 'BF-' + year + '-' + String(max + 1).padStart(3, '0');
+  inv.nr = nextBfNr();
   save(INVOICES_KEY, arr);
   return inv.nr;
 }
