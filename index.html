@@ -4061,19 +4061,31 @@ async function invoiceSharePdf(invId){
 
 const PAY_LABELS = { twint:'Twint', bank:'Banküberweisung', bar:'Barzahlung' };
 
-/* ---------- Twint-Zahlungslink für den Kunden (Kunde zahlt und bestätigt auf zahlung.html) ---------- */
+/* ---------- Zahlungslink für den Kunden (Twint oder Bank; Kunde zahlt und bestätigt auf zahlung.html) ---------- */
 function invPublishPay(inv){
   if (!fbReady || !fbDb || !inv || !inv.payToken) return Promise.resolve();
-  return fbDb.collection(STATUS_COLLECTION).doc(inv.payToken).set({
+  const bank = inv.zahlungsart === 'bank';
+  const data = {
     typ: 'zahlung',
+    methode: bank ? 'bank' : 'twint',
     vorname: String(inv.kunde || '').split(' ')[0] || '',
     betrag: Number(inv.betrag) || 0,
     nr: inv.nr || '',
-    twint: BANK_INFO.twintNumber,
+    faellig: (inv.createdAt || Date.now()) + INVOICE_OVERDUE_DAYS * 864e5,
     updatedAt: Date.now()
-  }, { merge: true });
+  };
+  if (bank) {
+    Object.assign(data, {
+      iban: BANK_INFO.iban, empfaenger: BANK_INFO.name,
+      adresse: BANK_INFO.strasse + ' ' + BANK_INFO.hausnr + ', ' + BANK_INFO.plz + ' ' + BANK_INFO.ort,
+      bank: BANK_INFO.bank, bic: BANK_INFO.bic
+    });
+  } else {
+    data.twint = BANK_INFO.twintNumber;
+  }
+  return fbDb.collection(STATUS_COLLECTION).doc(inv.payToken).set(data, { merge: true });
 }
-async function invSendTwintLink(id){
+async function invSendPayLink(id){
   if (!fbReady || !fbDb) { alert('Keine Verbindung zur Datenbank. Bitte Internet prüfen und nochmals versuchen.'); return; }
   invoiceEnsureNr(id);
   const arr = load(INVOICES_KEY, []);
@@ -4086,9 +4098,10 @@ async function invSendTwintLink(id){
   catch (e) { alert('Der Zahlungslink konnte nicht veröffentlicht werden. Bitte Verbindung prüfen.'); return; }
   const url = payUrl(inv.payToken);
   const vn = String(inv.kunde || '').split(' ')[0];
-  const msg = 'Guten Tag ' + vn + '\n\nHier ist der Link für die Twint-Zahlung Ihrer BlueFix-Rechnung (CHF ' + Number(inv.betrag).toFixed(2) + '):\n' + url
-    + '\n\nBitte tippen Sie nach der Zahlung auf der Seite auf «Ich habe bezahlt».\n\nFreundliche Grüsse\nBlueFix';
-  logActivity('🔗', 'den Twint-Zahlungslink für ' + inv.kunde + ' erstellt');
+  const bank = inv.zahlungsart === 'bank';
+  const msg = 'Guten Tag ' + vn + '\n\nHier ist der Link für die ' + (bank ? 'Überweisung' : 'Twint-Zahlung') + ' Ihrer BlueFix-Rechnung (CHF ' + Number(inv.betrag).toFixed(2) + '):\n' + url
+    + '\n\nBitte tippen Sie ' + (bank ? 'nach der Überweisung' : 'nach der Zahlung') + ' auf der Seite auf «Ich habe bezahlt».\n\nFreundliche Grüsse\nBlueFix';
+  logActivity('🔗', 'den ' + (bank ? 'Überweisungs' : 'Twint-Zahlungs') + 'link für ' + inv.kunde + ' erstellt');
   renderInvoices();
   try {
     if (navigator.share) { await navigator.share({ text: msg }); return; }
@@ -4113,8 +4126,9 @@ function syncPayWatchers(){
       if (!inv || inv.kundeBestaetigt) return;
       inv.kundeBestaetigt = b;
       save(INVOICES_KEY, arr);
-      logActivity('✅', inv.kunde + ' hat die Twint-Zahlung bestätigt (CHF ' + Number(inv.betrag).toFixed(2) + ')');
-      try { sendPushToOther('BlueFix – Twint-Zahlung bestätigt', inv.kunde + ' hat die Twint-Zahlung (CHF ' + Number(inv.betrag).toFixed(2) + ') bestätigt. Bitte Eingang prüfen.'); } catch (e) {}
+      const was = inv.zahlungsart === 'bank' ? 'Überweisung' : 'Twint-Zahlung';
+      logActivity('✅', inv.kunde + ' hat die ' + was + ' bestätigt (CHF ' + Number(inv.betrag).toFixed(2) + ')');
+      try { sendPushToOther('BlueFix – ' + was + ' bestätigt', inv.kunde + ' hat die ' + was + ' (CHF ' + Number(inv.betrag).toFixed(2) + ') bestätigt. Bitte Eingang prüfen.'); } catch (e) {}
       renderInvoices();
     }, () => {});
   });
@@ -4170,7 +4184,7 @@ function renderInvoices(){
         <button class="btn btn-ghost btn-sm" data-pdf-inv="${inv.id}" style="flex:1;">📄 Rechnung (PDF)</button>
         <button class="btn btn-primary btn-sm" data-send-inv="${inv.id}" style="flex:1;">📤 Senden</button>
       </div>
-      ${(inv.zahlungsart === 'twint' && !inv.bezahlt) ? `<button class="btn btn-ghost btn-sm" data-twint-link="${inv.id}" style="width:100%;margin-top:8px;">🔗 ${inv.payToken ? 'Twint-Link erneut senden' : 'Twint-Zahlungslink an Kunden'}</button>` : ''}
+      ${((inv.zahlungsart === 'twint' || inv.zahlungsart === 'bank') && !inv.bezahlt) ? `<button class="btn btn-ghost btn-sm" data-pay-link="${inv.id}" style="width:100%;margin-top:8px;">🔗 ${inv.payToken ? 'Zahlungslink erneut senden' : (inv.zahlungsart === 'bank' ? 'Überweisungslink an Kunden' : 'Twint-Zahlungslink an Kunden')}</button>` : ''}
       ${isOverdue(inv) ? `<button class="btn btn-danger btn-sm" data-mahn-inv="${inv.id}" style="width:100%;margin-top:8px;">📨 ${mahnCount(inv) ? 'Nächste Mahnung senden' : 'Zahlungserinnerung senden'}</button>` : ''}
     `;
     {
@@ -4189,7 +4203,7 @@ function renderInvoices(){
     list.appendChild(card);
   });
   invUpdateToggleAll(invoices);
-  list.querySelectorAll('[data-twint-link]').forEach(btn => btn.addEventListener('click', () => invSendTwintLink(btn.dataset.twintLink)));
+  list.querySelectorAll('[data-pay-link]').forEach(btn => btn.addEventListener('click', () => invSendPayLink(btn.dataset.payLink)));
   try { syncPayWatchers(); } catch (e) {}
 
   list.querySelectorAll('[data-del-inv]').forEach(btn => btn.addEventListener('click', () => {
