@@ -2655,6 +2655,16 @@ function setupSignaturePad(canvasId, clearId){
 const bluefixSig=setupSignaturePad('blueSigCanvas','clearBlueSig');
 
 /* ---- Rabattcode im Kunden-Auftrag (Newsletter-Code BL-XXXX, 10%) ---- */
+function setAuftragSelect(val){
+  const sel = document.getElementById('custAuftrag');
+  const v = String(val || '').trim() || 'Display';
+  if (!Array.from(sel.options).some(o => o.value === v)) {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v; opt.dataset.dyn = '1';
+    sel.appendChild(opt);
+  }
+  sel.value = v;
+}
 let custDisc = null;   // { code, docId, prozent, claimed, existing, preisOriginal }
 const NL_PROZENT = 10;
 function chf5(x){ return Math.round(x * 20) / 20; }
@@ -2754,7 +2764,8 @@ function resetCustomerOrderModal(){
   custDiscReset();
 }
 function openCustomerOrderModal(order=null){
-  pendingAiOrderId=null;
+  pendingAiOrderId=null; pendingAiPositions=null;
+  document.querySelectorAll('#custAuftrag option[data-dyn]').forEach(o => o.remove());
   resetCustomerOrderModal();
   if(order){
     document.getElementById('editingCustomerOrderId').value=order.id;
@@ -2766,7 +2777,7 @@ function openCustomerOrderModal(order=null){
     document.getElementById('custEmail').value=order.email||'';
     document.getElementById('custModell').value=order.modell||'';
     document.getElementById('custImei').value=order.imei||'';
-    document.getElementById('custAuftrag').value=order.auftrag||'Display';
+    setAuftragSelect(order.auftrag);
     document.getElementById('custNotizen').value=order.notizen||'';
     document.getElementById('custPreis').value=order.preis??'';
     document.getElementById('custGarantie').value=order.garantie||'';
@@ -2789,7 +2800,7 @@ function updateOrderFilterButtons(){
   document.getElementById('customerOrderBtn').classList.toggle('active', orderTypeFilter==='kunde');
   document.getElementById('teamOrderBtn').classList.toggle('active', orderTypeFilter==='team');
 }
-document.getElementById('custCancel').addEventListener('click', () => { pendingAiOrderId=null; document.getElementById('customerOrderModal').classList.remove('show'); });
+document.getElementById('custCancel').addEventListener('click', () => { pendingAiOrderId=null; pendingAiPositions=null; document.getElementById('customerOrderModal').classList.remove('show'); });
 
 document.getElementById('custSave').addEventListener('click', async () => {
   const vorname=document.getElementById('custVorname').value.trim();
@@ -2840,6 +2851,8 @@ document.getElementById('custSave').addEventListener('click', async () => {
   };
   if(!(await custDiscFinalize(order))) return;
   if(pendingAiOrderId){ order.fromAiOrder=pendingAiOrderId; }
+  if(pendingAiPositions && pendingAiPositions.auftrag===order.auftrag){ order.positionen=pendingAiPositions.positionen; }
+  pendingAiPositions=null;
   orders.unshift(order); save(ORDERS_KEY,orders);
   if(pendingAiOrderId){ const _aid=pendingAiOrderId; pendingAiOrderId=null; aiOrdersMutate(arr=>{ const x=arr.find(o=>o.id===_aid); if(x){ x.status='uebernommen'; x.orderId=order.id; x.updatedBy=currentUser(); x.updatedAt=Date.now(); } return arr; }); }
   logActivity('🧾','einen Kunden Auftrag erstellt: '+vorname+' '+nachname+' · '+modell);
@@ -3449,6 +3462,7 @@ const AI_STATUS_LABELS = { neu:'Neu', kontaktiert:'Kunde kontaktiert', uebernomm
 let aiOrdersSeg = 'own';
 let aiOrdersFilter = 'open';
 let pendingAiOrderId = null;
+let pendingAiPositions = null;   // { auftrag, positionen } der KI (mehrere Reparaturen in einem Auftrag)
 
 function aiOrdersMutate(mutator){
   const done = arr => {
@@ -3515,7 +3529,9 @@ function renderAiOrders(){
     const preis = (o.preis === null || o.preis === undefined || o.preis === '')
       ? 'Auf Anfrage'
       : 'CHF ' + Number(o.preis).toFixed(2);
-    const detail = [o.qualitaet, o.kamera ? 'Kamera ' + o.kamera : ''].filter(Boolean).join(' · ');
+    const detail = (Array.isArray(o.positionen) && o.positionen.length > 1)
+      ? o.positionen.map(p => (p.label || p.auftrag) + (p.preis != null ? ' CHF ' + Number(p.preis).toFixed(2) : '')).join(' · ')
+      : [o.qualitaet, o.kamera ? 'Kamera ' + o.kamera : ''].filter(Boolean).join(' · ');
     return `<div class="card ai-card">
       <div class="card-top">
         <div>
@@ -3595,12 +3611,15 @@ function convertAiOrder(o){
   set('custVorname', o.vorname); set('custNachname', o.nachname);
   set('custTelefon', o.telefon); set('custEmail', o.email);
   set('custModell', o.modell); set('custImei', o.imei);
-  if (o.auftrag) set('custAuftrag', o.auftrag);
+  if (o.auftrag) setAuftragSelect(o.auftrag);
+  const multi = Array.isArray(o.positionen) && o.positionen.length > 1;
+  pendingAiPositions = multi ? { auftrag: o.auftrag, positionen: o.positionen } : null;
   set('custPreis', o.preis); set('custGarantie', o.garantie || '6 Monate');
   if (o.rabattCode) custDiscLock(o);
   const notiz = [
-    o.qualitaet ? o.qualitaet + '-Display' : '',
-    o.kamera ? 'Kamera ' + o.kamera : '',
+    multi ? 'Reparaturen:\n' + o.positionen.map(p => '- ' + (p.label || p.auftrag) + (p.preis != null ? ': CHF ' + Number(p.preis).toFixed(2) : ': Preis auf Anfrage')).join('\n') : '',
+    !multi && o.qualitaet ? o.qualitaet + '-Display' : '',
+    !multi && o.kamera ? 'Kamera ' + o.kamera : '',
     o.wunsch ? 'Wunsch: ' + o.wunsch : '',
     o.notizen || '',
     'Aufgenommen von der KI (Chat #' + (o.short || '—') + ')'
@@ -3647,8 +3666,14 @@ function invFillFromOrder(o, onlyEmpty){
   const hasItems = invReadItems().length > 0 || Array.from(document.querySelectorAll('#invItems .inv-item-desc')).some(i => i.value.trim());
   if (!onlyEmpty || !hasItems) {
     document.getElementById('invItems').innerHTML = '';
-    const label = [o.auftrag, o.modell].filter(Boolean).join(' – ') || 'Reparatur';
-    invAddItemRow(label, Number(o.preis) > 0 ? Number(o.preis) : '');
+    const pos = Array.isArray(o.positionen) ? o.positionen : [];
+    const posSum = pos.reduce((a, p) => a + (Number(p.preis) || 0), 0);
+    if (pos.length > 1 && pos.every(p => Number(p.preis) > 0) && Math.abs(posSum - Number(o.preis)) < 0.005) {
+      pos.forEach(p => invAddItemRow([p.label || p.auftrag, o.modell].filter(Boolean).join(' – '), Number(p.preis)));
+    } else {
+      const label = [o.auftrag, o.modell].filter(Boolean).join(' – ') || 'Reparatur';
+      invAddItemRow(label, Number(o.preis) > 0 ? Number(o.preis) : '');
+    }
     invUpdateTotal();
   }
   invCtx = { name: normName((o.vorname || '') + ' ' + (o.nachname || '')), orderId: o.id, telefon: o.telefon || '', email: o.email || '' };
