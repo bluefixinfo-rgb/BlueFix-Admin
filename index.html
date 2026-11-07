@@ -989,7 +989,7 @@ input,select,textarea{font-family:var(--sans);}
       <div class="chip-icon">🧾</div>
       <div>
         <div class="chip-num" id="dashOrdersCount">0</div>
-        <div class="chip-label">Offene Aufträge</div>
+        <div class="chip-label" id="dashOrdersLabel">Offene Aufträge</div>
       </div>
       <span class="chip-dot" id="dashOrdersDot"></span>
     </div>
@@ -2330,6 +2330,7 @@ function switchToTab(tabName){
   }
   if (tabName === 'chat') { scrollChatToBottom(); markMessagesAsRead(); }
   if (tabName === 'livechats' && typeof lcOnTabOpen === 'function') lcOnTabOpen();
+  try { renderDashboard(); } catch (e) {}
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => switchToTab(btn.dataset.tab));
@@ -2369,7 +2370,16 @@ function renderDashboard(){
 
   const orders = load(ORDERS_KEY, []);
   const aiNew = load(AI_ORDERS_KEY, []).filter(o => o && (o.status || 'neu') === 'neu').length;
-  const openOrders = orders.filter(o => o.typ === 'kunde' ? !o.signedFile : o.status !== 'erledigt').length + aiNew;
+  const isOpen = o => o.typ === 'kunde' ? !o.signedFile : o.status !== 'erledigt';
+  // Auf dem Tab «Aufträge» (eigene Aufträge) folgt die Anzeige dem gewählten Typ: Kunden oder Team.
+  const tabEl = document.getElementById('tab-orders'), ownWrap = document.getElementById('ownOrdersWrap');
+  const onOwnOrders = !!(tabEl && tabEl.classList.contains('active') && ownWrap && !ownWrap.hidden);
+  const typ = onOwnOrders ? orderTypeFilter : null;
+  const openOrders = typ
+    ? orders.filter(o => o.typ === typ && isOpen(o)).length
+    : orders.filter(isOpen).length + aiNew;
+  const lbl = document.getElementById('dashOrdersLabel');
+  if (lbl) lbl.textContent = typ === 'kunde' ? 'Offene Kunden-Aufträge' : typ === 'team' ? 'Offene Team-Aufträge' : 'Offene Aufträge';
 
   const invoices = load(INVOICES_KEY, []);
   const openInvoices = invoices.filter(i => !i.bezahlt).length;
@@ -3485,6 +3495,10 @@ function renderOrders(){
   const orders=load(ORDERS_KEY,[]), list=document.getElementById('ordersList');
   const q=(document.getElementById('orderSearch')?.value||'').trim().toLowerCase();
   list.innerHTML='';
+  if(!orderTypeFilter && !reviewFilter){
+    list.innerHTML='<div class="empty-state">Wähle oben «👤 Kunden Auftrag» oder «👥 Team Auftrag», um die Aufträge zu sehen.</div>';
+    return;
+  }
   const filtered=orders.filter(o=>(!orderTypeFilter||o.typ===orderTypeFilter)&&orderMatchesSearch(o,q)&&(!reviewFilter||reviewDue(o)));
   if(!filtered.length){
     list.innerHTML=`<div class="empty-state">${orders.length?'Keine Aufträge für diese Suche.':'Noch keine Aufträge. Wähle „Kunden Auftrag“ oder „Team Auftrag“.'}</div>`;
@@ -3632,6 +3646,7 @@ function setAiSeg(seg){
   document.getElementById('ownOrdersWrap').hidden = seg !== 'own';
   document.getElementById('aiOrdersWrap').hidden = seg !== 'ai';
   renderAiOrders();
+  try { renderDashboard(); } catch (e) {}
 }
 
 function renderAiOrders(){
