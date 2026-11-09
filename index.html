@@ -622,6 +622,11 @@ input,select,textarea{font-family:var(--sans);}
   padding:12px 8px; text-align:center; cursor:pointer; font-size:13px; font-weight:600; color:var(--muted);
 }
 .pay-opt.active, .cpay-opt.active{border-color:var(--blue-light); color:var(--white); background:rgba(30,111,239,0.16);}
+.extra-options{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:8px; margin-bottom:0;}
+.extra-options .cpay-opt{flex:none; display:flex; align-items:center; justify-content:center; min-height:46px; padding:10px 8px; white-space:nowrap; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; transition:border-color .15s, background .15s, color .15s;}
+.combo-row{display:flex; gap:8px;}
+.combo-row .btn{flex:1; justify-content:center; padding-top:12px; padding-bottom:12px;}
+.combo-note{margin-top:8px; line-height:1.45;}
 .name-sugg{margin:-4px 0 14px; text-align:left;}
 .name-sugg .ns-head{font-size:12px; color:var(--muted); margin-bottom:6px;}
 .name-sugg .ns-item{width:100%; text-align:left; margin-bottom:6px; display:block;}
@@ -1344,10 +1349,10 @@ input,select,textarea{font-family:var(--sans);}
     <div class="order-section">
       <div class="order-section-title">Reparatur</div>
       <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display Budget</option><option>Display Premium</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera vorne</option><option>Kamera hinten</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
-      <div class="field"><label>Weitere Reparaturen (optional, für den Kombi-Rabatt)</label><div class="pay-options" id="custExtraOptions" style="margin-bottom:0;flex-wrap:wrap;"><div class="cpay-opt" data-extra="Display Budget">Display Budget</div><div class="cpay-opt" data-extra="Display Premium">Display Premium</div><div class="cpay-opt" data-extra="Akku">Akku</div><div class="cpay-opt" data-extra="Ladebuchse">Ladebuchse</div><div class="cpay-opt" data-extra="Kamera vorne">Kamera vorne</div><div class="cpay-opt" data-extra="Kamera hinten">Kamera hinten</div></div></div>
+      <div class="field"><label>Weitere Reparaturen (optional, für den Kombi-Rabatt)</label><div class="extra-options" id="custExtraOptions"><div class="cpay-opt" data-extra="Display Budget">Display Budget</div><div class="cpay-opt" data-extra="Display Premium">Display Premium</div><div class="cpay-opt" data-extra="Akku">Akku</div><div class="cpay-opt" data-extra="Ladebuchse">Ladebuchse</div><div class="cpay-opt" data-extra="Kamera vorne">Kamera vorne</div><div class="cpay-opt" data-extra="Kamera hinten">Kamera hinten</div></div></div>
       <div class="field"><label>Notizen (optional)</label><textarea id="custNotizen" placeholder="Zustand des Geräts, Kundenwünsche…"></textarea></div>
       <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"><div id="custPreisHint" class="order-file-meta" style="margin-top:6px;"></div></div>
-      <div class="field" id="custComboField" style="display:none;"><label id="custComboLabel">Kombi-Rabatt (2 Reparaturen 20%, 3 oder mehr 25% auf den ganzen Auftrag)</label><div style="display:flex; gap:8px;"><button type="button" class="btn btn-ghost btn-sm" id="custComboBtn">20% Kombi-Rabatt anwenden</button></div><div id="custComboMsg" class="order-file-meta" style="margin-top:6px;">Display, Akku, Ladebuchse oder Kamera zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.</div></div>
+      <div class="field" id="custComboField" style="display:none;"><label id="custComboLabel">Kombi-Rabatt (2 Reparaturen 20%, 3 oder mehr 25% auf den ganzen Auftrag)</label><div class="combo-row"><button type="button" class="btn btn-ghost btn-sm" id="custComboBtn">20% Kombi-Rabatt anwenden</button></div><div id="custComboMsg" class="order-file-meta combo-note">Display, Akku, Ladebuchse oder Kamera zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.</div></div>
       <div class="field"><label>Zahlungsart</label><div class="pay-options" id="custPayOptions" style="margin-bottom:0;"><div class="cpay-opt" data-cpay="twint">Twint</div><div class="cpay-opt" data-cpay="bank">Bank</div><div class="cpay-opt" data-cpay="bar">Bar</div></div><div class="cpay-hint" id="custPayHint">Beim Speichern wird die Rechnung automatisch erstellt.</div></div>
       <div class="field"><label>Rabattcode (optional, Newsletter-Code, nicht mit Kombi-Rabatt kombinierbar)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
@@ -2874,7 +2879,29 @@ function custComboProzent(){
 }
 let custCombo = null;               // { prozent, preisOriginal, existing }
 const custExtras = new Set();
+let custSonstigesAuto = false;       // Dropdown wurde automatisch auf "Sonstiges" gesetzt (Akku + Ladebuchse)
+function custSyncSonstiges(){
+  const sel = document.getElementById('custAuftrag');
+  const chips = document.querySelectorAll('#custExtraOptions .cpay-opt');
+  const setChip = (v, on) => chips.forEach(c => { if (c.dataset.extra === v) c.classList.toggle('active', on); });
+  if (custSonstigesAuto) {
+    if (!(custExtras.has('Akku') && custExtras.has('Ladebuchse'))) {   // eine wieder abgewählt: zurück
+      const rest = custExtras.has('Akku') ? 'Akku' : custExtras.has('Ladebuchse') ? 'Ladebuchse' : null;
+      custSonstigesAuto = false;
+      if (rest) { custExtras.delete(rest); setChip(rest, false); sel.value = rest; }
+    }
+    return;
+  }
+  const main = sel.value;
+  const other = main === 'Akku' ? 'Ladebuchse' : main === 'Ladebuchse' ? 'Akku' : null;
+  if (other && custExtras.has(other)) {
+    custExtras.add(main); setChip(main, true);
+    sel.value = 'Sonstiges';
+    custSonstigesAuto = true;
+  }
+}
 function custAuftragText(){
+  if (custSonstigesAuto && custExtras.size) return [...custExtras].join(' + ');
   const base = document.getElementById('custAuftrag').value;
   const add = [...custExtras].filter(x => !base.includes(x) && !base.includes(custPriceKind(x)));
   return add.length ? base + ' + ' + add.join(' + ') : base;
@@ -2920,6 +2947,7 @@ function custComboReset(){
   const _h = document.getElementById('custPreisHint'); if (_h) _h.textContent = '';
   custCombo = null;
   custExtras.clear();
+  custSonstigesAuto = false;
   document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(c => c.classList.remove('active'));
   custComboMsg('');
   custComboUpdate();
@@ -2941,9 +2969,14 @@ document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(chip => chip.ad
   const v = chip.dataset.extra;
   if (custExtras.has(v)) custExtras.delete(v); else custExtras.add(v);
   chip.classList.toggle('active', custExtras.has(v));
+  custSyncSonstiges();
   custComboUpdate();
 }));
-document.getElementById('custAuftrag').addEventListener('change', custComboUpdate);
+document.getElementById('custAuftrag').addEventListener('change', () => {
+  custSonstigesAuto = false;         // von Hand gewählt: Automatik neu auswerten
+  custSyncSonstiges();
+  custComboUpdate();
+});
 document.getElementById('custPreis').addEventListener('input', () => {
   // Preis von Hand geändert: Rabatt gilt nicht mehr als automatisch berechnet
   if (custCombo && !custCombo.existing) { custCombo = null; custComboMsg(''); custComboUpdate(); }
@@ -3008,7 +3041,7 @@ function custAutoPrice(){
   const m = custPriceFind(modell);
   if (!m) { custPriceHint('Modell nicht in der Preisliste, Preis von Hand eintragen.'); return; }
   const labels = [], kinds = new Set();
-  [main, ...custExtras].forEach(l => { const k = custPriceKind(l); if (!kinds.has(k)) { kinds.add(k); labels.push(l); } });
+  (custSonstigesAuto ? [...custExtras] : [main, ...custExtras]).forEach(l => { const k = custPriceKind(l); if (!kinds.has(k)) { kinds.add(k); labels.push(l); } });
   let total = 0, parts = [], missing = [];
   for (const l of labels) {
     const i = PRICE_KEYS.indexOf(l);
