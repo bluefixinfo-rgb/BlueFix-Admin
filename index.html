@@ -7058,7 +7058,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
   var $ = function(id){ return document.getElementById(id); };
 
   /* KI ist pausiert, solange ein Mitarbeiter in den letzten 30 Min. geantwortet hat (danach antwortet sie wieder) */
-  function lcAiPaused(s){ return !!(s && s.humanAt && (Date.now() - s.humanAt) < 30*60*1000); }
+  function lcAiPaused(s){ return !!(s && s.humanAt); }   // sobald ein Mensch geschrieben hat, bleibt die KI in diesem Chat aus
   function lcCur(){ return lcSessions.find(function(s){ return s.id === lcOpenSid; }) || null; }
   function lcViewActive(){
     var b = document.querySelector('.tab-btn.active');
@@ -7245,7 +7245,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
     }
     if (inRow) inRow.style.display = lcClosed(s) ? 'none' : '';
     $('lcConvName').innerHTML = esc(s.name || 'Besucher') + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>';
-    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (lcClosed(s) ? ' · 🚫 gelöscht' : (lcAiPaused(s) ? ' · KI pausiert (30 Min.)' : ' · KI antwortet')) + (!lcClosed(s) && s.needsHuman && !lcAiPaused(s) ? ' · 🙋 Mitarbeiter gefragt' : '');
+    $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (lcClosed(s) ? ' · 🚫 gelöscht' : (lcAiPaused(s) ? ' · KI aus (Mitarbeiter hat übernommen)' : ' · KI antwortet')) + (!lcClosed(s) && s.needsHuman && !lcAiPaused(s) ? ' · 🙋 Mitarbeiter gefragt' : '');
   }
   function lcRenderConv(){
     var box = $('lcMsgs'); if (!box) return;
