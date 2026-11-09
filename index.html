@@ -1055,6 +1055,7 @@ input,select,textarea{font-family:var(--sans);}
       <div class="lc-head">
         <button class="icon-btn" id="lcBack" type="button" title="Zurück" style="font-size:22px;">‹</button>
         <div class="lc-title"><div class="lc-name" id="lcConvName"></div><div class="lc-last" id="lcConvSub"></div></div>
+        <button class="icon-btn" id="lcAiOn" type="button" title="KI in diesem Chat wieder aktivieren" style="display:none;font-size:20px;">🤖</button>
         <button class="icon-btn" id="lcDel" type="button" title="Chat löschen">🗑</button>
       </div>
       <div class="lc-closed-bar" id="lcClosedBar"></div>
@@ -7244,6 +7245,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
       } else { bar.style.display = 'none'; bar.innerHTML = ''; }
     }
     if (inRow) inRow.style.display = lcClosed(s) ? 'none' : '';
+    var aiOnBtn = $('lcAiOn'); if (aiOnBtn) aiOnBtn.style.display = (!lcClosed(s) && lcAiPaused(s)) ? '' : 'none';
     $('lcConvName').innerHTML = esc(s.name || 'Besucher') + ' <small>#' + esc(s.short || s.id.slice(0,4).toUpperCase()) + '</small>';
     $('lcConvSub').textContent = 'Gestartet ' + (s.createdAt ? fmtTime(s.createdAt) : '') + (s.page ? ' · Seite ' + s.page : '') + (lcClosed(s) ? ' · 🚫 gelöscht' : (lcAiPaused(s) ? ' · KI aus (Mitarbeiter hat übernommen)' : ' · KI antwortet')) + (!lcClosed(s) && s.needsHuman && !lcAiPaused(s) ? ' · 🙋 Mitarbeiter gefragt' : '');
   }
@@ -7303,6 +7305,15 @@ document.getElementById('ordersList').addEventListener('click', e => {
     inp.value = ''; inp.style.height = 'auto';
     try { await b.commit(); } catch(e) { inp.value = t; alert('Antwort konnte nicht gesendet werden. Bitte Verbindung prüfen.'); }
   }
+  // KI in diesem Chat wieder einschalten. Nachrichten von Mitarbeitern vor diesem Zeitpunkt zählen nicht mehr.
+  function lcAiResume(){
+    var s = lcCur(); if (!s || !lcOpenSid) return;
+    showConfirm('KI in diesem Chat wieder aktivieren? Sie antwortet dann wieder auf Nachrichten des Kunden.', async function(){
+      try {
+        await fbDb.collection('livechat_sessions').doc(lcOpenSid).set({ humanAt: 0, aiResumeAt: Date.now(), aiPaused: false, needsHuman: false }, { merge: true });
+      } catch(e) { alert('KI konnte nicht aktiviert werden. Bitte Verbindung prüfen.'); }
+    });
+  }
   function lcDelete(){
     var s = lcCur(); if (!s) return;
     showConfirm('Chat mit «' + (s.name || 'Besucher') + '» wirklich löschen?', function(){ lcDeleteDo(s); });
@@ -7331,6 +7342,7 @@ document.getElementById('ordersList').addEventListener('click', e => {
   });
   $('lcBack').addEventListener('click', lcBack);
   $('lcDel').addEventListener('click', lcDelete);
+  $('lcAiOn').addEventListener('click', lcAiResume);
   $('lcSend').addEventListener('click', lcSend);
   $('lcInput').addEventListener('input', function(){ this.style.height = 'auto'; this.style.height = Math.min(this.scrollHeight, 100) + 'px'; });
   $('lcInput').addEventListener('keydown', function(e){
