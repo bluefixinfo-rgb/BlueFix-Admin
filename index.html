@@ -7263,7 +7263,8 @@ document.getElementById('ordersList').addEventListener('click', e => {
         var seen = s.visitorSeenAt && s.visitorSeenAt >= m.ts;
         meta += '<span class="read-status' + (seen ? ' is-read' : '') + '">' + (seen ? '✓✓ Gelesen' : '✓ Gesendet') + '</span>';
       }
-      return '<div class="msg ' + (mine ? 'me' : 'them') + '"><div class="bubble">' + esc(m.text) + '</div><div class="meta">' + meta + '</div></div>';
+      var quote = m.replyText ? '<div style="border-left:3px solid #4a9cff;padding:3px 8px;margin:0 0 6px;font-size:12px;opacity:.85;background:rgba(127,127,127,.15);border-radius:5px;"><b style="display:block;font-size:11px;opacity:.8;">' + esc(m.replyFrom === 'visitor' ? (s.name || 'Besucher') : (m.replyWho || 'BlueFix')) + '</b>' + esc(m.replyText) + '</div>' : '';
+      return '<div class="msg ' + (mine ? 'me' : 'them') + '"><div class="bubble">' + quote + esc(m.text) + '</div><div class="meta">' + meta + '</div></div>';
     }).join('');
     if (near) box.scrollTop = box.scrollHeight;
   }
