@@ -1343,11 +1343,11 @@ input,select,textarea{font-family:var(--sans);}
     </div>
     <div class="order-section">
       <div class="order-section-title">Reparatur</div>
-      <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
-      <div class="field"><label>Weitere Reparaturen (optional, für den Kombi-Rabatt)</label><div class="pay-options" id="custExtraOptions" style="margin-bottom:0;flex-wrap:wrap;"><div class="cpay-opt" data-extra="Display">Display</div><div class="cpay-opt" data-extra="Akku">Akku</div><div class="cpay-opt" data-extra="Ladebuchse">Ladebuchse</div><div class="cpay-opt" data-extra="Backcover">Backcover</div><div class="cpay-opt" data-extra="Kamera">Kamera</div></div></div>
+      <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display Budget</option><option>Display Premium</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera vorne</option><option>Kamera hinten</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
+      <div class="field"><label>Weitere Reparaturen (optional, für den Kombi-Rabatt)</label><div class="pay-options" id="custExtraOptions" style="margin-bottom:0;flex-wrap:wrap;"><div class="cpay-opt" data-extra="Display Budget">Display Budget</div><div class="cpay-opt" data-extra="Display Premium">Display Premium</div><div class="cpay-opt" data-extra="Akku">Akku</div><div class="cpay-opt" data-extra="Ladebuchse">Ladebuchse</div><div class="cpay-opt" data-extra="Kamera vorne">Kamera vorne</div><div class="cpay-opt" data-extra="Kamera hinten">Kamera hinten</div></div></div>
       <div class="field"><label>Notizen (optional)</label><textarea id="custNotizen" placeholder="Zustand des Geräts, Kundenwünsche…"></textarea></div>
-      <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
-      <div class="field" id="custComboField" style="display:none;"><label>Kombi-Rabatt (25% auf den ganzen Auftrag)</label><div style="display:flex; gap:8px;"><button type="button" class="btn btn-ghost btn-sm" id="custComboBtn">25% Kombi-Rabatt anwenden</button></div><div id="custComboMsg" class="order-file-meta" style="margin-top:6px;">Display, Akku oder Ladebuchse zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.</div></div>
+      <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"><div id="custPreisHint" class="order-file-meta" style="margin-top:6px;"></div></div>
+      <div class="field" id="custComboField" style="display:none;"><label id="custComboLabel">Kombi-Rabatt (2 Reparaturen 20%, 3 oder mehr 25% auf den ganzen Auftrag)</label><div style="display:flex; gap:8px;"><button type="button" class="btn btn-ghost btn-sm" id="custComboBtn">20% Kombi-Rabatt anwenden</button></div><div id="custComboMsg" class="order-file-meta" style="margin-top:6px;">Display, Akku, Ladebuchse oder Kamera zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.</div></div>
       <div class="field"><label>Zahlungsart</label><div class="pay-options" id="custPayOptions" style="margin-bottom:0;"><div class="cpay-opt" data-cpay="twint">Twint</div><div class="cpay-opt" data-cpay="bank">Bank</div><div class="cpay-opt" data-cpay="bar">Bar</div></div><div class="cpay-hint" id="custPayHint">Beim Speichern wird die Rechnung automatisch erstellt.</div></div>
       <div class="field"><label>Rabattcode (optional, Newsletter-Code, nicht mit Kombi-Rabatt kombinierbar)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
@@ -2764,7 +2764,7 @@ const bluefixSig=setupSignaturePad('blueSigCanvas','clearBlueSig');
 /* ---- Rabattcode im Kunden-Auftrag (Newsletter-Code BL-XXXX, 10%) ---- */
 function setAuftragSelect(val){
   const sel = document.getElementById('custAuftrag');
-  const v = String(val || '').trim() || 'Display';
+  const v = String(val || '').trim() || 'Display Budget';
   if (!Array.from(sel.options).some(o => o.value === v)) {
     const opt = document.createElement('option');
     opt.value = v; opt.textContent = v; opt.dataset.dyn = '1';
@@ -2861,20 +2861,26 @@ async function custDiscFinalize(order){
   return true;
 }
 
-/* ---- Kombi-Rabatt: 25% auf den ganzen Auftrag, wenn mindestens zwei von Display, Akku, Ladebuchse gemacht werden.
+/* ---- Kombi-Rabatt: 20% bei zwei, 25% bei drei oder mehr von Display, Akku, Ladebuchse, Kamera (auf den ganzen Auftrag).
         Dann kann kein Newsletter-Code eingelöst werden (gleich wie im KI-Chat). ---- */
-const COMBO_PROZENT = 25;
-const COMBO_KINDS = ['Display', 'Akku', 'Ladebuchse'];
+const COMBO_KINDS = ['Display', 'Akku', 'Ladebuchse', 'Kamera'];
+function custComboCount(){
+  const txt = custAuftragText();
+  return COMBO_KINDS.filter(k => txt.includes(k)).length;
+}
+function custComboProzent(){
+  const n = custComboCount();
+  return n >= 3 ? 25 : n === 2 ? 20 : 0;
+}
 let custCombo = null;               // { prozent, preisOriginal, existing }
 const custExtras = new Set();
 function custAuftragText(){
   const base = document.getElementById('custAuftrag').value;
-  const add = [...custExtras].filter(x => !base.includes(x));
+  const add = [...custExtras].filter(x => !base.includes(x) && !base.includes(custPriceKind(x)));
   return add.length ? base + ' + ' + add.join(' + ') : base;
 }
 function custComboEligible(){
-  const txt = custAuftragText();
-  return COMBO_KINDS.filter(k => txt.includes(k)).length >= 2;
+  return custComboCount() >= 2;
 }
 function custComboMsg(t, ok){
   const el = document.getElementById('custComboMsg');
@@ -2885,7 +2891,7 @@ function custComboUpdate(){
   const eligible = custComboEligible();
   const priceEl = document.getElementById('custPreis');
   // Nicht mehr berechtigt (Reparatur entfernt): Preis zurück
-  if (custCombo && !custCombo.existing && !eligible) {
+  if (custCombo && !custCombo.existing && (!eligible || custCombo.prozent !== custComboProzent())) {
     priceEl.value = custCombo.preisOriginal;
     custCombo = null;
     custComboMsg('');
@@ -2904,13 +2910,14 @@ function custComboUpdate(){
   else if (!nlLocked && !custDisc) custDiscMsg('');
   document.getElementById('custComboField').style.display = (eligible || custCombo) ? '' : 'none';
   const btn = document.getElementById('custComboBtn');
-  btn.textContent = custCombo ? (custCombo.existing ? 'Kombi-Rabatt angewendet' : 'Rabatt zurücknehmen') : COMBO_PROZENT + '% Kombi-Rabatt anwenden';
+  btn.textContent = custCombo ? (custCombo.existing ? 'Kombi-Rabatt angewendet' : 'Rabatt zurücknehmen') : (custComboProzent() || 20) + '% Kombi-Rabatt anwenden';
   btn.disabled = !!(custCombo && custCombo.existing);
   if (!custCombo && !document.getElementById('custComboMsg').textContent) {
-    custComboMsg('Display, Akku oder Ladebuchse zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.');
+    custComboMsg('Display, Akku, Ladebuchse oder Kamera zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.');
   }
 }
 function custComboReset(){
+  const _h = document.getElementById('custPreisHint'); if (_h) _h.textContent = '';
   custCombo = null;
   custExtras.clear();
   document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(c => c.classList.remove('active'));
@@ -2924,7 +2931,7 @@ function custComboLock(o){
 }
 function custComboFinalize(order){
   if (custCombo) {
-    order.kombiRabatt = custCombo.prozent || COMBO_PROZENT;
+    order.kombiRabatt = custCombo.prozent || custComboProzent();
     if (custCombo.preisOriginal != null) order.preisOriginal = custCombo.preisOriginal;
   } else {
     delete order.kombiRabatt;
@@ -2953,12 +2960,78 @@ document.getElementById('custComboBtn').addEventListener('click', () => {
   if (custDisc && custDisc.existing) { custComboMsg('Dieser Auftrag hat schon einen Newsletter-Rabatt, der Kombi-Rabatt ist deshalb nicht möglich.', false); return; }
   const preis = parseFloat(priceEl.value) || 0;
   if (!(preis > 0)) { custComboMsg('Bitte zuerst den Gesamtpreis aller Reparaturen eintragen, der Rabatt wird davon abgezogen.', false); return; }
-  const neu = chf5(preis * (100 - COMBO_PROZENT) / 100);
-  custCombo = { prozent: COMBO_PROZENT, preisOriginal: preis, existing: false };
+  const pz = custComboProzent();
+  const neu = chf5(preis * (100 - pz) / 100);
+  custCombo = { prozent: pz, preisOriginal: preis, existing: false };
   priceEl.value = neu.toFixed(2);
   custComboUpdate();
-  custComboMsg('✓ ' + COMBO_PROZENT + '% Kombi-Rabatt: CHF ' + preis.toFixed(2) + ' → CHF ' + neu.toFixed(2), true);
+  custComboMsg('✓ ' + pz + '% Kombi-Rabatt: CHF ' + preis.toFixed(2) + ' → CHF ' + neu.toFixed(2), true);
 });
+
+
+/* ---- Preisliste: Preis kommt automatisch aus Modell + gewählter Reparatur ----
+        Reihenfolge: Display Budget, Display Premium, Akku, Ladebuchse, Backcover, Kamera vorne, Kamera hinten (null = auf Anfrage) ---- */
+const PRICE_KEYS = ['Display Budget', 'Display Premium', 'Akku', 'Ladebuchse', 'Backcover', 'Kamera vorne', 'Kamera hinten'];
+const PRICE_LIST = {"iPhone SE (2020)":[105,120,75,64,90,70,80],"iPhone SE (2022)":[105,120,75,70,95,70,80],"iPhone 8":[105,110,75,60,110,70,125],"iPhone 8 Plus":[105,115,75,60,110,80,160],"iPhone X":[110,125,80,64,105,70,150],"iPhone XS":[110,125,80,64,105,80,180],"iPhone XS Max":[110,135,80,64,105,100,180],"iPhone XR":[115,125,78,57,95,65,90],"iPhone 11":[120,125,80,65,90,65,75],"iPhone 11 Pro":[110,125,82,80,105,75,150],"iPhone 11 Pro Max":[115,145,82,80,105,75,150],"iPhone 12":[115,135,80,62,90,70,90],"iPhone 12 mini":[130,155,80,62,90,90,105],"iPhone 12 Pro":[115,135,82,64,105,70,180],"iPhone 12 Pro Max":[145,165,82,64,105,70,170],"iPhone 13":[125,165,82,64,105,70,75],"iPhone 13 mini":[100,150,82,64,105,80,75],"iPhone 13 Pro":[125,161,84,64,110,70,75],"iPhone 13 Pro Max":[125,149,84,64,110,78,130],"iPhone 14":[120,175,84,64,95,90,110],"iPhone 14 Plus":[125,165,84,64,95,110,130],"iPhone 14 Pro":[145,185,86,68,105,100,150],"iPhone 14 Pro Max":[155,195,86,68,105,110,140],"iPhone 15":[135,205,74,78,115,90,100],"iPhone 15 Plus":[175,225,84,68,115,100,120],"iPhone 15 Pro":[135,240,88,71,115,80,130],"iPhone 15 Pro Max":[145,225,88,71,115,100,140],"iPhone 16":[150,220,78,81,135,100,140],"iPhone 16 Plus":[155,225,88,71,135,100,150],"iPhone 16e":[115,165,88,71,135,null,140],"iPhone 16 Pro":[155,250,90,68,115,80,180],"iPhone 16 Pro Max":[165,265,90,68,115,150,150],"iPhone 17":[175,275,90,75,115,110,130],"iPhone 17 Air":[145,195,90,75,115,null,null],"iPhone 17 Pro":[170,275,92,140,100,130,150],"iPhone 17 Pro Max":[170,275,92,140,100,130,150],"Galaxy Note 20":[180,205,72,64,70,75,70],"Galaxy Note 20 Ultra":[180,205,72,64,75,75,75],"Galaxy A05":[null,null,60,56,70,70,60],"Galaxy A05s":[null,null,60,56,70,65,60],"Galaxy A06":[null,null,64,60,75,60,65],"Galaxy A13":[null,null,66,62,75,65,70],"Galaxy A14":[null,null,66,62,75,65,70],"Galaxy A15":[null,null,66,62,75,65,70],"Galaxy A16":[null,null,66,62,75,65,70],"Galaxy A17":[null,null,68,64,77,65,70],"Galaxy A22":[null,null,66,62,75,65,70],"Galaxy A23":[null,null,66,62,75,65,70],"Galaxy A24":[null,null,68,64,80,65,70],"Galaxy A25":[null,null,68,64,80,65,70],"Galaxy A26":[null,null,69,64,80,65,75],"Galaxy A32":[null,null,68,64,80,65,75],"Galaxy A33":[null,null,68,64,80,65,75],"Galaxy A34":[null,null,68,64,80,65,75],"Galaxy A35":[null,null,68,64,80,65,75],"Galaxy A36":[null,null,68,64,80,65,75],"Galaxy A37":[null,null,69,64,80,65,75],"Galaxy A42 5G":[null,null,69,65,80,70,75],"Galaxy A52":[null,null,70,65,85,70,80],"Galaxy A52s":[null,null,70,65,85,70,80],"Galaxy A53":[null,null,70,65,80,70,80],"Galaxy A54":[null,null,70,65,80,70,80],"Galaxy A55":[null,null,70,65,80,70,80],"Galaxy A56":[null,null,70,65,80,70,80],"Galaxy A57":[null,null,72,66,85,70,80],"Galaxy A72":[null,null,74,68,85,70,80],"Galaxy A73":[null,null,74,68,85,70,80],"Galaxy S21":[110,175,70,65,85,75,85],"Galaxy S21+":[115,135,70,65,85,75,85],"Galaxy S21 Ultra":[125,175,72,67,85,75,85],"Galaxy S21 FE":[110,125,70,65,85,80,85],"Galaxy S22":[115,145,70,65,85,75,85],"Galaxy S22+":[170,190,70,65,85,75,85],"Galaxy S22 Ultra":[155,180,72,68,85,75,85],"Galaxy S23":[135,195,70,65,85,75,80],"Galaxy S23+":[105,170,70,65,85,75,80],"Galaxy S23 FE":[135,150,70,65,85,75,80],"Galaxy S23 Ultra":[140,205,72,68,90,75,85],"Galaxy S24":[145,175,72,66,90,70,80],"Galaxy S24+":[145,175,72,66,90,70,80],"Galaxy S24 FE":[150,180,72,66,90,70,80],"Galaxy S24 Ultra":[175,235,74,69,95,75,85],"Galaxy S25":[175,195,74,67,95,75,85],"Galaxy S25+":[195,215,74,67,95,75,85],"Galaxy S25 Edge":[175,195,76,69,95,75,85],"Galaxy S25 Ultra":[185,205,78,70,100,75,85]};
+function custPriceKind(l){ l = String(l); return l.startsWith('Display') ? 'Display' : l.startsWith('Kamera') ? 'Kamera' : l; }
+function priceNorm(x){ return String(x || '').toLowerCase().replace(/[^a-z0-9+]/g, ''); }
+const PRICE_INDEX = (() => {
+  const idx = {};
+  Object.keys(PRICE_LIST).forEach(m => {
+    const n = priceNorm(m);
+    idx[n] = m;
+    if (n.startsWith('galaxy')) idx[n.slice(6)] = m;
+    if (n.startsWith('iphone')) idx[n.slice(6)] = m;
+  });
+  return idx;
+})();
+function custPriceFind(txt){
+  let n = priceNorm(txt).replace(/^(samsung|apple)/, '');
+  return PRICE_INDEX[n] || PRICE_INDEX[n.replace(/^galaxy/, '')] || null;
+}
+(function(){
+  const dl = document.createElement('datalist');
+  dl.id = 'custModelList';
+  Object.keys(PRICE_LIST).forEach(m => { const o = document.createElement('option'); o.value = m; dl.appendChild(o); });
+  document.body.appendChild(dl);
+  document.getElementById('custModell').setAttribute('list', 'custModelList');
+})();
+let custAutoLast = null;
+function custPriceHint(t){ const el = document.getElementById('custPreisHint'); if (el) el.textContent = t || ''; }
+function custAutoPrice(){
+  if (document.getElementById('editingCustomerOrderId').value) return;
+  if ((custCombo && custCombo.existing) || (custDisc && custDisc.existing)) return;
+  const modell = document.getElementById('custModell').value.trim();
+  const main = document.getElementById('custAuftrag').value;
+  if (main === 'Wasserschaden') { custPriceHint('Diagnose CHF 50.–, Wasserschaden-Reparatur ab CHF 90.– (Preis von Hand eintragen)'); return; }
+  if (!modell) { custPriceHint(''); return; }
+  const m = custPriceFind(modell);
+  if (!m) { custPriceHint('Modell nicht in der Preisliste, Preis von Hand eintragen.'); return; }
+  const labels = [], kinds = new Set();
+  [main, ...custExtras].forEach(l => { const k = custPriceKind(l); if (!kinds.has(k)) { kinds.add(k); labels.push(l); } });
+  let total = 0, parts = [], missing = [];
+  for (const l of labels) {
+    const i = PRICE_KEYS.indexOf(l);
+    if (i < 0) { custPriceHint(''); return; }          // z.B. Sonstiges: kein Listenpreis
+    const v = PRICE_LIST[m][i];
+    if (v == null) missing.push(l); else { total += v; parts.push(l + ' ' + v); }
+  }
+  if (missing.length) { custPriceHint(m + ': ' + missing.join(', ') + ' auf Anfrage, Preis von Hand eintragen.'); return; }
+  const priceEl = document.getElementById('custPreis');
+  const cur = parseFloat(priceEl.value);
+  const canOverwrite = priceEl.value === '' || cur === custAutoLast || (custCombo && !custCombo.existing) || (custDisc && !custDisc.existing);
+  if (!canOverwrite) { custPriceHint('Preisliste: CHF ' + total.toFixed(2) + ' (' + m + '), der Preis wurde von Hand geändert.'); return; }
+  if (custCombo && !custCombo.existing) { custCombo = null; custComboMsg(''); }
+  if (custDisc && !custDisc.existing) custDiscReset();
+  priceEl.value = total.toFixed(2);
+  custAutoLast = total;
+  custPriceHint('Preisliste ' + m + ': ' + parts.join(' + ') + (parts.length > 1 ? ' = CHF ' + total.toFixed(2) : ''));
+  custComboUpdate();
+}
+document.getElementById('custModell').addEventListener('input', custAutoPrice);
+document.getElementById('custModell').addEventListener('change', custAutoPrice);
+document.getElementById('custAuftrag').addEventListener('change', custAutoPrice);
+document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(chip => chip.addEventListener('click', custAutoPrice));
 
 /* ---- Zahlungsart im Kunden-Auftrag + automatische Rechnung ---- */
 let custPay = '';
