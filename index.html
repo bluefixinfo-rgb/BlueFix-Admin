@@ -624,6 +624,7 @@ input,select,textarea{font-family:var(--sans);}
 .pay-opt.active, .cpay-opt.active{border-color:var(--blue-light); color:var(--white); background:rgba(30,111,239,0.16);}
 .extra-options{display:grid; grid-template-columns:repeat(auto-fit,minmax(132px,1fr)); gap:8px; margin-bottom:0;}
 .extra-options .cpay-opt{flex:none; display:flex; align-items:center; justify-content:center; min-height:46px; padding:10px 8px; white-space:nowrap; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; transition:border-color .15s, background .15s, color .15s;}
+.extra-options .cpay-opt.is-locked{opacity:.38; pointer-events:none; cursor:not-allowed;}
 .combo-row{display:flex; gap:8px;}
 .combo-row .btn{flex:1; justify-content:center; padding-top:12px; padding-bottom:12px;}
 .combo-note{margin-top:8px; line-height:1.45;}
@@ -2881,6 +2882,16 @@ function custComboProzent(){
 let custCombo = null;               // { prozent, preisOriginal, existing }
 const custExtras = new Set();
 let custSonstigesAuto = false;       // Dropdown wurde automatisch auf "Sonstiges" gesetzt (Akku + Ladebuchse)
+function custChipLock(){
+  // Die im Dropdown gewählte Reparatur (bzw. gleiche Art, z.B. Display) kann unten nicht nochmal angetippt werden
+  const mk = custSonstigesAuto ? null : custPriceKind(document.getElementById('custAuftrag').value);
+  document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(c => {
+    const lock = !!mk && COMBO_KINDS.includes(mk) && custPriceKind(c.dataset.extra) === mk;
+    if (lock) { custExtras.delete(c.dataset.extra); c.classList.remove('active'); }
+    c.classList.toggle('is-locked', lock);
+    c.setAttribute('aria-disabled', lock ? 'true' : 'false');
+  });
+}
 function custSyncSonstiges(){
   const sel = document.getElementById('custAuftrag');
   const chips = document.querySelectorAll('#custExtraOptions .cpay-opt');
@@ -2919,6 +2930,7 @@ function custComboMsg(t, ok){
   el.style.color = ok === true ? '#7fd6a0' : ok === false ? '#ff9a9a' : '';
 }
 function custComboUpdate(){
+  custChipLock();
   const eligible = custComboEligible();
   const priceEl = document.getElementById('custPreis');
   // Nicht mehr berechtigt (Reparatur entfernt): Preis zurück
@@ -2968,6 +2980,7 @@ function custComboFinalize(order){
 }
 document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(chip => chip.addEventListener('click', () => {
   const v = chip.dataset.extra;
+  if (chip.classList.contains('is-locked')) return;
   if (custExtras.has(v)) custExtras.delete(v); else custExtras.add(v);
   chip.classList.toggle('active', custExtras.has(v));
   custSyncSonstiges();
@@ -2975,6 +2988,7 @@ document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(chip => chip.ad
 }));
 document.getElementById('custAuftrag').addEventListener('change', () => {
   custSonstigesAuto = false;         // von Hand gewählt: Automatik neu auswerten
+  custChipLock();
   custSyncSonstiges();
   custComboUpdate();
 });
