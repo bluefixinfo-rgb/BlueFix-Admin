@@ -1343,10 +1343,12 @@ input,select,textarea{font-family:var(--sans);}
     <div class="order-section">
       <div class="order-section-title">Reparatur</div>
       <div class="field"><label>Was muss repariert werden</label><select id="custAuftrag"><option>Display</option><option>Akku</option><option>Ladebuchse</option><option>Backcover</option><option>Kamera</option><option>Wasserschaden</option><option>Sonstiges</option></select></div>
+      <div class="field"><label>Weitere Reparaturen (optional, für den Kombi-Rabatt)</label><div class="pay-options" id="custExtraOptions" style="margin-bottom:0;flex-wrap:wrap;"><div class="cpay-opt" data-extra="Display">Display</div><div class="cpay-opt" data-extra="Akku">Akku</div><div class="cpay-opt" data-extra="Ladebuchse">Ladebuchse</div><div class="cpay-opt" data-extra="Backcover">Backcover</div><div class="cpay-opt" data-extra="Kamera">Kamera</div></div></div>
       <div class="field"><label>Notizen (optional)</label><textarea id="custNotizen" placeholder="Zustand des Geräts, Kundenwünsche…"></textarea></div>
       <div class="field"><label>Preis (CHF)</label><input type="number" id="custPreis" min="0" step="0.05" placeholder="z.B. 149.90"></div>
+      <div class="field" id="custComboField" style="display:none;"><label>Kombi-Rabatt (25% auf den ganzen Auftrag)</label><div style="display:flex; gap:8px;"><button type="button" class="btn btn-ghost btn-sm" id="custComboBtn">25% Kombi-Rabatt anwenden</button></div><div id="custComboMsg" class="order-file-meta" style="margin-top:6px;">Display, Akku oder Ladebuchse zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.</div></div>
       <div class="field"><label>Zahlungsart</label><div class="pay-options" id="custPayOptions" style="margin-bottom:0;"><div class="cpay-opt" data-cpay="twint">Twint</div><div class="cpay-opt" data-cpay="bank">Bank</div><div class="cpay-opt" data-cpay="bar">Bar</div></div><div class="cpay-hint" id="custPayHint">Beim Speichern wird die Rechnung automatisch erstellt.</div></div>
-      <div class="field"><label>Rabattcode (optional, Newsletter-Code)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
+      <div class="field"><label>Rabattcode (optional, Newsletter-Code, nicht mit Kombi-Rabatt kombinierbar)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
 
     </div>
@@ -2808,6 +2810,7 @@ async function nlFindCode(code){
 }
 document.getElementById('custRabattBtn').addEventListener('click', async () => {
   if (custDisc && custDisc.existing) return;
+  if (custCombo || custComboEligible()) { custDiscMsg('Beim Kombi-Rabatt kann kein Newsletter-Code eingelöst werden.', false); return; }
   const code = normNlCode(document.getElementById('custRabatt').value);
   if (!code) { custDiscMsg('Bitte einen Code im Format BL-XXXX eingeben.', false); return; }
   const preis = parseFloat(document.getElementById('custPreis').value) || 0;
@@ -2856,6 +2859,105 @@ async function custDiscFinalize(order){
   if (custDisc.preisOriginal != null) order.preisOriginal = custDisc.preisOriginal;
   return true;
 }
+
+/* ---- Kombi-Rabatt: 25% auf den ganzen Auftrag, wenn mindestens zwei von Display, Akku, Ladebuchse gemacht werden.
+        Dann kann kein Newsletter-Code eingelöst werden (gleich wie im KI-Chat). ---- */
+const COMBO_PROZENT = 25;
+const COMBO_KINDS = ['Display', 'Akku', 'Ladebuchse'];
+let custCombo = null;               // { prozent, preisOriginal, existing }
+const custExtras = new Set();
+function custAuftragText(){
+  const base = document.getElementById('custAuftrag').value;
+  const add = [...custExtras].filter(x => !base.includes(x));
+  return add.length ? base + ' + ' + add.join(' + ') : base;
+}
+function custComboEligible(){
+  const txt = custAuftragText();
+  return COMBO_KINDS.filter(k => txt.includes(k)).length >= 2;
+}
+function custComboMsg(t, ok){
+  const el = document.getElementById('custComboMsg');
+  el.textContent = t || '';
+  el.style.color = ok === true ? '#7fd6a0' : ok === false ? '#ff9a9a' : '';
+}
+function custComboUpdate(){
+  const eligible = custComboEligible();
+  const priceEl = document.getElementById('custPreis');
+  // Nicht mehr berechtigt (Reparatur entfernt): Preis zurück
+  if (custCombo && !custCombo.existing && !eligible) {
+    priceEl.value = custCombo.preisOriginal;
+    custCombo = null;
+    custComboMsg('');
+  }
+  const nlBox = document.getElementById('custRabatt'), nlBtn = document.getElementById('custRabattBtn');
+  const nlLocked = !!(custDisc && custDisc.existing);
+  const block = (eligible || !!custCombo) && !nlLocked;
+  // Newsletter-Rabatt zurücknehmen, sobald der Kombi-Rabatt gilt
+  if (block && custDisc && !custDisc.existing) {
+    priceEl.value = custDisc.preisOriginal;
+    custDisc = null;
+    nlBox.value = '';
+  }
+  if (!nlLocked) { nlBox.disabled = block; nlBtn.disabled = block; }
+  if (block) custDiscMsg('Beim Kombi-Rabatt kann kein Newsletter-Code eingelöst werden.', false);
+  else if (!nlLocked && !custDisc) custDiscMsg('');
+  document.getElementById('custComboField').style.display = (eligible || custCombo) ? '' : 'none';
+  const btn = document.getElementById('custComboBtn');
+  btn.textContent = custCombo ? (custCombo.existing ? 'Kombi-Rabatt angewendet' : 'Rabatt zurücknehmen') : COMBO_PROZENT + '% Kombi-Rabatt anwenden';
+  btn.disabled = !!(custCombo && custCombo.existing);
+  if (!custCombo && !document.getElementById('custComboMsg').textContent) {
+    custComboMsg('Display, Akku oder Ladebuchse zusammen: das Handy ist dann schon offen. Den Gesamtpreis oben eintragen, dann anwenden.');
+  }
+}
+function custComboReset(){
+  custCombo = null;
+  custExtras.clear();
+  document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(c => c.classList.remove('active'));
+  custComboMsg('');
+  custComboUpdate();
+}
+function custComboLock(o){
+  custCombo = { prozent: o.kombiRabatt, preisOriginal: o.preisOriginal, existing: true };
+  custComboMsg('✓ ' + o.kombiRabatt + '% Kombi-Rabatt angewendet' + (o.preisOriginal != null ? ' · Preis vorher CHF ' + Number(o.preisOriginal).toFixed(2) : ''), true);
+  custComboUpdate();
+}
+function custComboFinalize(order){
+  if (custCombo) {
+    order.kombiRabatt = custCombo.prozent || COMBO_PROZENT;
+    if (custCombo.preisOriginal != null) order.preisOriginal = custCombo.preisOriginal;
+  } else {
+    delete order.kombiRabatt;
+  }
+}
+document.querySelectorAll('#custExtraOptions .cpay-opt').forEach(chip => chip.addEventListener('click', () => {
+  const v = chip.dataset.extra;
+  if (custExtras.has(v)) custExtras.delete(v); else custExtras.add(v);
+  chip.classList.toggle('active', custExtras.has(v));
+  custComboUpdate();
+}));
+document.getElementById('custAuftrag').addEventListener('change', custComboUpdate);
+document.getElementById('custPreis').addEventListener('input', () => {
+  // Preis von Hand geändert: Rabatt gilt nicht mehr als automatisch berechnet
+  if (custCombo && !custCombo.existing) { custCombo = null; custComboMsg(''); custComboUpdate(); }
+});
+document.getElementById('custComboBtn').addEventListener('click', () => {
+  if (custCombo && custCombo.existing) return;
+  const priceEl = document.getElementById('custPreis');
+  if (custCombo) {                       // zurücknehmen
+    priceEl.value = custCombo.preisOriginal;
+    custCombo = null; custComboMsg(''); custComboUpdate();
+    return;
+  }
+  if (!custComboEligible()) return;
+  if (custDisc && custDisc.existing) { custComboMsg('Dieser Auftrag hat schon einen Newsletter-Rabatt, der Kombi-Rabatt ist deshalb nicht möglich.', false); return; }
+  const preis = parseFloat(priceEl.value) || 0;
+  if (!(preis > 0)) { custComboMsg('Bitte zuerst den Gesamtpreis aller Reparaturen eintragen, der Rabatt wird davon abgezogen.', false); return; }
+  const neu = chf5(preis * (100 - COMBO_PROZENT) / 100);
+  custCombo = { prozent: COMBO_PROZENT, preisOriginal: preis, existing: false };
+  priceEl.value = neu.toFixed(2);
+  custComboUpdate();
+  custComboMsg('✓ ' + COMBO_PROZENT + '% Kombi-Rabatt: CHF ' + preis.toFixed(2) + ' → CHF ' + neu.toFixed(2), true);
+});
 
 /* ---- Zahlungsart im Kunden-Auftrag + automatische Rechnung ---- */
 let custPay = '';
@@ -2914,6 +3016,7 @@ function resetCustomerOrderModal(){
   bluefixSig.clear();
   custDiscReset();
   custPaySet('');
+  custComboReset();
 }
 function openCustomerOrderModal(order=null){
   pendingAiOrderId=null; pendingAiPositions=null;
@@ -2935,6 +3038,7 @@ function openCustomerOrderModal(order=null){
     document.getElementById('custGarantie').value=order.garantie||'';
     document.getElementById('custAgb').checked=!!order.agbAccepted;
     if(order.rabattCode) custDiscLock(order);
+    if(order.kombiRabatt) custComboLock(order);
     { const _inv = load(INVOICES_KEY, []).find(i => i.orderId === order.id); custPaySet((_inv && _inv.zahlungsart) || order.zahlungsart || ''); }
   }
   document.getElementById('customerOrderModal').classList.add('show');
@@ -2979,7 +3083,8 @@ document.getElementById('custSave').addEventListener('click', async () => {
     order.garantie=garantie; order.preis=preis;
     if(custPay) order.zahlungsart=custPay;
     if(!(await custDiscFinalize(order))) return;
-    order.auftrag=document.getElementById('custAuftrag').value;
+    custComboFinalize(order);
+    order.auftrag=custAuftragText();
     order.notizen=document.getElementById('custNotizen').value.trim();
     order.agbAccepted=true;
     order.updatedBy=currentUser(); order.updatedAt=Date.now();
@@ -3000,7 +3105,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
     telefon:document.getElementById('custTelefon').value.trim(),
     email:document.getElementById('custEmail').value.trim(),
     repStatus:'angenommen', statusToken:newStatusToken(), statusUpdatedAt:Date.now(),
-    auftrag:document.getElementById('custAuftrag').value,
+    auftrag:custAuftragText(),
     notizen:document.getElementById('custNotizen').value.trim(),
     agbAccepted:true,
     bluefixSignature:bluefixSig.getData(),
@@ -3008,6 +3113,7 @@ document.getElementById('custSave').addEventListener('click', async () => {
     createdBy:currentUser(),createdAt:Date.now()
   };
   if(!(await custDiscFinalize(order))) return;
+  custComboFinalize(order);
   if(pendingAiOrderId){ order.fromAiOrder=pendingAiOrderId; }
   if(pendingAiPositions && pendingAiPositions.auftrag===order.auftrag){ order.positionen=pendingAiPositions.positionen; }
   pendingAiPositions=null;
@@ -3458,7 +3564,7 @@ function generateWarrantyPDF(o){
   y=72;
   doc.setFillColor(...soft); doc.setDrawColor(...line); doc.roundedRect(margin,y,pageW-margin*2,78,5,5,'FD');
   doc.setTextColor(...blue); doc.setFontSize(10); doc.setFont(undefined,'bold'); doc.text('AUFTRAGSDATEN',margin+8,y+11);
-  const rows=[['Kunde',o.vorname+' '+o.nachname],['Gerät',o.modell],['IMEI',o.imei],['Reparatur',o.auftrag],['Preis','CHF '+Number(o.preis||0).toFixed(2)+(o.rabattCode?' ('+(o.rabattProzent||10)+'% Rabatt, '+o.rabattCode+')':'')],['Garantiedauer',o.garantie||'—']];
+  const rows=[['Kunde',o.vorname+' '+o.nachname],['Gerät',o.modell],['IMEI',o.imei],['Reparatur',o.auftrag],['Preis','CHF '+Number(o.preis||0).toFixed(2)+(o.kombiRabatt?' ('+o.kombiRabatt+'% Kombi-Rabatt)':'')+(o.rabattCode?' ('+(o.rabattProzent||10)+'% Rabatt, '+o.rabattCode+')':'')],['Garantiedauer',o.garantie||'—']];
   const colX=[margin+8,108];
   rows.forEach(([k,v],i)=>{ const col=i%2,row=Math.floor(i/2),yy=y+22+row*17; doc.setTextColor(...muted);doc.setFontSize(7.5);doc.setFont(undefined,'bold');doc.text(k.toUpperCase(),colX[col],yy);doc.setTextColor(...text);doc.setFontSize(10);doc.setFont(undefined,'normal');doc.text(String(v||'—'),colX[col],yy+6); });
 
@@ -3538,7 +3644,7 @@ function renderOrders(){
       ${!isCustomer?`<div><div class="k">Zugewiesen an</div><div class="v">${esc(o.assigned)}</div></div>`:''}
       <div><div class="k">Angelegt</div><div class="v">${fmtTime(o.createdAt)}</div></div>
       ${o.updatedAt?`<div><div class="k">Zuletzt aktualisiert</div><div class="v">${fmtTime(o.updatedAt)}</div></div>`:''}
-      ${isCustomer?`<div><div class="k">IMEI</div><div class="v">${esc(o.imei)}</div></div><div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis||0).toFixed(2)}${o.rabattCode?`<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.rabattProzent||10)}% Rabatt · Code ${esc(o.rabattCode)}${o.preisOriginal!=null?' · vorher CHF '+Number(o.preisOriginal).toFixed(2):''}</div>`:''}</div></div><div><div class="k">Garantie</div><div class="v">${esc(o.garantie||'—')}</div></div>`:''}
+      ${isCustomer?`<div><div class="k">IMEI</div><div class="v">${esc(o.imei)}</div></div><div><div class="k">Preis</div><div class="v">CHF ${Number(o.preis||0).toFixed(2)}${o.kombiRabatt?`<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.kombiRabatt)}% Kombi-Rabatt${o.preisOriginal!=null?' · vorher CHF '+Number(o.preisOriginal).toFixed(2):''}</div>`:''}${o.rabattCode?`<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.rabattProzent||10)}% Rabatt · Code ${esc(o.rabattCode)}${o.preisOriginal!=null?' · vorher CHF '+Number(o.preisOriginal).toFixed(2):''}</div>`:''}</div></div><div><div class="k">Garantie</div><div class="v">${esc(o.garantie||'—')}</div></div>`:''}
       ${o.tracking?`<div><div class="k">Sendungsnr.</div><div class="v" style="word-break:break-all;">${trackingHtml(o.tracking, o.carrier)}</div></div>`:''}
       ${o.link?`<div><div class="k">Bestellt bei</div><div class="v"><a href="${esc(o.link)}" target="_blank" rel="noopener" class="link-glow">Link öffnen ↗</a></div></div>`:''}
       ${o.notizen?`<div style="grid-column:1/-1;"><div class="k">Notizen</div><div class="v">${linkify(o.notizen)}</div></div>`:''}
@@ -3711,8 +3817,9 @@ function renderAiOrders(){
       <div class="card-grid">
         <div><div class="k">Handynummer</div><div class="v">${o.telefon ? `<a class="link-glow" href="tel:${esc(tel)}">${esc(o.telefon)}</a>` : '—'}</div></div>
         <div><div class="k">E-Mail</div><div class="v">${o.email ? `<a class="link-glow" href="mailto:${esc(o.email)}">${esc(o.email)}</a>` : '—'}</div></div>
-        <div><div class="k">Preis</div><div class="v">${esc(preis)}${o.rabattCode ? `<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.rabattProzent || 10)}% Rabatt · Code ${esc(o.rabattCode)}${o.preisOriginal != null ? ' · vorher CHF ' + Number(o.preisOriginal).toFixed(2) : ''}</div>` : ''}${o.preisInfo ? `<div style="color:var(--muted);font-size:11.5px;">${esc(o.preisInfo)}</div>` : ''}</div></div>
+        <div><div class="k">Preis</div><div class="v">${esc(preis)}${o.kombiRabatt ? `<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.kombiRabatt)}% Kombi-Rabatt${o.preisOriginal != null ? ' · vorher CHF ' + Number(o.preisOriginal).toFixed(2) : ''}</div>` : ''}${o.rabattCode ? `<div style="color:#7fd6a0;font-size:11.5px;">🏷️ ${esc(o.rabattProzent || 10)}% Rabatt · Code ${esc(o.rabattCode)}${o.preisOriginal != null ? ' · vorher CHF ' + Number(o.preisOriginal).toFixed(2) : ''}</div>` : ''}${o.preisInfo ? `<div style="color:var(--muted);font-size:11.5px;">${esc(o.preisInfo)}</div>` : ''}</div></div>
         <div><div class="k">Garantie</div><div class="v">${esc(o.garantie || '—')}</div></div>
+        <div><div class="k">Zahlung</div><div class="v">${esc(o.zahlung || '—')}</div></div>
         <div><div class="k">IMEI</div><div class="v">${esc(o.imei || 'Noch offen')}</div></div>
         <div><div class="k">Wunsch</div><div class="v">${esc(o.wunsch || '—')}</div></div>
         <div><div class="k">Aufgenommen</div><div class="v">${o.createdAt ? fmtTime(o.createdAt) : '—'}${o.short ? ' · Chat #' + esc(o.short) : ''}</div></div>
@@ -3781,6 +3888,8 @@ function convertAiOrder(o){
   pendingAiPositions = multi ? { auftrag: o.auftrag, positionen: o.positionen } : null;
   set('custPreis', o.preis); set('custGarantie', o.garantie || '6 Monate');
   if (o.rabattCode) custDiscLock(o);
+  if (o.kombiRabatt) custComboLock(o); else custComboUpdate();
+  custPaySet(({ 'Twint': 'twint', 'Banküberweisung': 'bank', 'Bar': 'bar' })[o.zahlung] || '');
   const notiz = [
     multi ? 'Reparaturen:\n' + o.positionen.map(p => '- ' + (p.label || p.auftrag) + (p.preis != null ? ': CHF ' + Number(p.preis).toFixed(2) : ': Preis auf Anfrage')).join('\n') : '',
     !multi && o.qualitaet ? o.qualitaet + '-Display' : '',
