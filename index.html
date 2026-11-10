@@ -5203,7 +5203,7 @@ function orderConfirmHtml(o){
       '<td style="padding:6px 10px;border-bottom:1px solid #e0e6ee">' + esc(r[1]) + '</td></tr>'
     ).join('') +
     '</table>' +
-    (t.postHint ? '<p><b>' + esc(t.postHint) + '</b></p>' : '') +
+    (t.postHint ? '<p><b>' + esc(t.postHint).replace('Weierbuckstrasse 1, 8213 Neunkirch', '<a href="https://www.google.com/maps/search/?api=1&amp;query=Weierbuckstrasse+1%2C+8213+Neunkirch" style="color:#1a56db;text-decoration:underline">Weierbuckstrasse 1, 8213 Neunkirch</a>') + '</b></p>' : '') +
     '<p>' + esc(t.outro) + '</p><p>Freundliche Grüsse<br>Dein BlueFix-Team</p></div>';
 }
 function openOrderConfirmModal(id){
