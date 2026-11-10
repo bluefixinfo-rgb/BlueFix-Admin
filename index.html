@@ -393,6 +393,8 @@ input,select,textarea{font-family:var(--sans);}
 .rep-step{flex:1; padding:10px 4px; border-radius:10px; border:1px solid var(--glass-border-soft); background:rgba(255,255,255,0.05); color:var(--muted); font-size:12.5px; font-weight:600; cursor:pointer; text-align:center; transition:background .2s var(--ease-glass), color .2s var(--ease-glass);}
 .rep-step.on{color:#fff; background:linear-gradient(135deg,var(--blue),#0b3f8a); border-color:rgba(255,255,255,0.4);}
 .rep-step.on.done{background:linear-gradient(135deg,#1f9d5c,#146c3e);}
+.rep-step.view-only{pointer-events:none; cursor:default; -webkit-user-select:none; user-select:none;}
+.rep-actions .btn.is-locked{opacity:.45; filter:saturate(.5);}
 .rep-actions{display:flex; gap:8px; flex-wrap:wrap;}
 .rep-actions .btn{flex:1; min-width:140px;}
 .status-qr{display:block; margin:14px auto 12px; background:#fff; padding:8px; border-radius:12px;}
@@ -4784,7 +4786,7 @@ function undoDelivered(id){
 function repBoxHtml(o){
   const rs = o.repStatus || 'angenommen', w = o.wunsch;
   const steps = Object.entries(REP_LABELS).map(([k, v]) =>
-    `<button type="button" class="rep-step${rs === k ? ' on' : ''}${rs === k && k === 'fertig' ? ' done' : ''}" data-rep-set="${esc(o.id)}|${k}">${v}</button>`).join('');
+    `<button type="button" class="rep-step view-only${rs === k ? ' on' : ''}${rs === k && k === 'fertig' ? ' done' : ''}" tabindex="-1" aria-disabled="true">${v}</button>`).join('');   // nur Anzeige: weiter geht es über den Button unten rechts
   let info = '';
   if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>` + (o.zugestellt ? `<div class="rep-info">📬 <b>Paket ist angekommen</b> · ${esc(fmtTime(o.zugestellt))}</div>` : '');
   else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
@@ -4801,7 +4803,9 @@ function repBoxHtml(o){
       <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link</button>
       <button class="btn btn-ghost btn-sm" type="button" data-parts="${esc(o.id)}">🔩 Ersatzteil bestellt</button>
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Auswahl zurücksetzen</button>` : ''}
-      <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
+      ${rs === 'angenommen'
+        ? `<button class="btn btn-primary btn-sm${o.statusLinkSent ? '' : ' is-locked'}" type="button" data-start-repair="${esc(o.id)}" aria-disabled="${o.statusLinkSent ? 'false' : 'true'}">🛠️ In Reparatur</button>`
+        : `<button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>`}
       ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
       ${rs === 'fertig' && o.sendungsnr && !o.zugestellt ? `<button class="btn btn-primary btn-sm" type="button" data-delivered="${esc(o.id)}">📬 Paket ist angekommen</button>` : ''}
       ${o.sendungsnr && o.zugestellt ? `<button class="btn btn-ghost btn-sm" type="button" data-undeliver="${esc(o.id)}">↩️ Zustellung zurücknehmen</button>` : ''}
@@ -5036,6 +5040,7 @@ function partsConfirmCheck(token, data){
 }
 
 let statusModalOrderId = null;
+let statusModalMode = null;
 let statusViewsUnsub = null;
 /* Zeigt im Status-Link-Fenster, ob/wie oft/wann der Kunde seinen Link schon geöffnet hat */
 function renderStatusViews(data){
@@ -5060,6 +5065,7 @@ function openStatusModal(id, mode){
   const o = ensureStatus(id);
   if (!o) return;
   statusModalOrderId = id;
+  statusModalMode = mode;
   const url = statusUrl(o.statusToken);
   const ship = mode === 'ship';
   document.getElementById('statusModalTitle').textContent = ship ? '📦 Versand per Post' : mode === 'done' ? '✅ Gerät ist fertig' : mode === 'delivered' ? '📬 Paket ist angekommen' : '🔗 Status-Link';
@@ -5114,6 +5120,7 @@ function sendStatus(kind){
   if (phoneRaw !== (o.telefon || '')) { o.telefon = phoneRaw; dirty = true; }
   if (mailRaw !== (o.email || '')) { o.email = mailRaw; dirty = true; }
   if (trEl && track !== (o.sendungsnr || '')) { o.sendungsnr = track; o.statusUpdatedAt = Date.now(); dirty = true; }
+  if (kind !== 'save' && statusModalMode === 'link' && !o.statusLinkSent) { o.statusLinkSent = Date.now(); dirty = true; }
   if (dirty) { o.updatedBy = currentUser(); o.updatedAt = Date.now(); save(ORDERS_KEY, arr); publishStatus(o); renderOrders(); }
   if (kind === 'save') { document.getElementById('statusModal').classList.remove('show'); return; }
   const msg = document.getElementById('stMsg').value;
@@ -5281,6 +5288,14 @@ document.getElementById('ordersList').addEventListener('click', e => {
   if (link) { openStatusModal(link.dataset.statusLink, 'link'); return; }
   const shp = e.target.closest('[data-ship]');
   if (shp) { openStatusModal(shp.dataset.ship, 'ship'); return; }
+  const sr = e.target.closest('[data-start-repair]');
+  if (sr) {
+    const so = load(ORDERS_KEY, []).find(x => x.id === sr.dataset.startRepair);
+    if (!so) return;
+    if (!so.statusLinkSent) { alert('Bitte zuerst den Status-Link an den Kunden schicken (Button «Status-Link»).'); return; }
+    setRepStatus(so.id, 'reparatur');
+    return;
+  }
   const done = e.target.closest('[data-device-done]');
   if (done) { const id = done.dataset.deviceDone; setRepStatus(id, 'fertig'); openStatusModal(id, 'done'); }
 });
