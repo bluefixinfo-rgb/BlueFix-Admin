@@ -5175,9 +5175,7 @@ function orderConfirmParts(o){
     ['Telefon', o.telefon],
     ['IMEI', o.imei]
   ].filter(r => r[1]);
-  const postHint = post
-    ? 'Bitte schick das Paket noch nicht los. Wir melden uns bei dir und sagen dir, wann du es senden kannst. Unsere Adresse für später: ' + POST_ADDR + '.'
-    : '';
+  const postHint = '';
   return {
     intro: 'Hallo ' + (o.vorname || '') + ',',
     mid: 'vielen Dank für deinen Auftrag bei BlueFix Handy Reparatur. Er ist bei uns eingegangen. Unser Team meldet sich innerhalb von 24 Stunden bei dir.',
@@ -5220,8 +5218,7 @@ function openOrderConfirmModal(id){
       <button class="btn btn-primary" type="button" id="ocWa">WhatsApp</button>
       <button class="btn btn-ghost" type="button" id="ocSms">SMS</button>
       <button class="btn btn-ghost" type="button" id="ocMailBtn">E-Mail</button>
-    </div>
-    <div class="card-sub" style="margin-top:10px;">E-Mail: Das Design der Mail (Tabelle wie bei der KI) wird kopiert und Gmail öffnet sich. Dort ins Textfeld tippen und «Einfügen» wählen. Änderungen am Text oben gelten nur für WhatsApp und SMS.</div>`;
+    </div>`;
   document.getElementById('ocWa').addEventListener('click', () => sendOrderConfirm('wa'));
   document.getElementById('ocSms').addEventListener('click', () => sendOrderConfirm('sms'));
   document.getElementById('ocMailBtn').addEventListener('click', () => sendOrderConfirm('mail'));
