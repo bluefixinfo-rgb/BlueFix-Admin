@@ -4797,6 +4797,10 @@ function repBoxHtml(o){
   else if (w && w.art === 'abholen') info = `<div class="rep-info">🏬 <b>Kunde holt das Gerät bei BlueFix ab</b></div>`;
   if (w && (w.changes || 0) >= 1) info += `<div class="rep-info">🔒 Kunde hat seine Auswahl schon geändert – weitere Änderungen sind gesperrt.</div>`;
   if (o.teile && o.teile.at) info += `<div class="rep-info">🔩 <b>Ersatzteile gemeldet</b> · ${esc(fmtTime(o.teile.at))}${o.teile.text ? '<br><span style="opacity:.8;">' + esc(o.teile.text) + '</span>' : ''}<br>${o.teile.bestaetigtAt ? '✅ <b>Kunde hat bestätigt</b> · ' + esc(fmtTime(o.teile.bestaetigtAt)) : '⏳ Kunde hat noch nicht bestätigt'}</div>`;
+  // Reihenfolge bei neuen Aufträgen: 1. Bestätigung senden, 2. Ersatzteil bestellt, 3. Status-Link, 4. In Reparatur
+  const chain = rs === 'angenommen' && !o.statusLinkSent;
+  const partsLocked = chain && !o.bestaetigtGesendet && !(o.teile && o.teile.at);
+  const linkLocked = chain && !(o.teile && o.teile.at);
   return `<div class="rep-box">
     <div class="order-section-title">📱 Status für den Kunden</div>
     <div class="rep-steps">${steps}</div>
@@ -4804,8 +4808,8 @@ function repBoxHtml(o){
     ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
       <button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Bestätigung senden</button>
-      ${rs === 'fertig' ? '' : `<button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link</button>`}
-      <button class="btn btn-ghost btn-sm" type="button" data-parts="${esc(o.id)}">🔩 Ersatzteil bestellt</button>
+      ${rs === 'fertig' ? '' : `<button class="btn btn-ghost btn-sm${linkLocked ? ' is-locked' : ''}" type="button" data-status-link="${esc(o.id)}"${linkLocked ? ' data-lock-msg="Bitte zuerst Bestätigung senden und Ersatzteil bestellt melden."' : ''}>🔗 Status-Link</button>`}
+      <button class="btn btn-ghost btn-sm${partsLocked ? ' is-locked' : ''}" type="button" data-parts="${esc(o.id)}"${partsLocked ? ' data-lock-msg="Bitte zuerst die Bestätigung an den Kunden senden."' : ''}>🔩 Ersatzteil bestellt</button>
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Auswahl zurücksetzen</button>` : ''}
       ${rs === 'angenommen'
         ? `<button class="btn btn-primary btn-sm${o.statusLinkSent ? '' : ' is-locked'}" type="button" data-start-repair="${esc(o.id)}" aria-disabled="${o.statusLinkSent ? 'false' : 'true'}">🛠️ In Reparatur</button>`
@@ -5276,6 +5280,8 @@ document.getElementById('statusClose').addEventListener('click', () => {
 });
 
 document.getElementById('ordersList').addEventListener('click', e => {
+  const lk = e.target.closest('.is-locked[data-lock-msg]');
+  if (lk) { alert(lk.dataset.lockMsg); return; }
   const ocb = e.target.closest('[data-order-confirm]');
   if (ocb) { openOrderConfirmModal(ocb.dataset.orderConfirm); return; }
   const prt = e.target.closest('[data-parts]');
