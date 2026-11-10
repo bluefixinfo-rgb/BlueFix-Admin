@@ -394,6 +394,11 @@ input,select,textarea{font-family:var(--sans);}
 .rep-step.on{color:#fff; background:linear-gradient(135deg,var(--blue),#0b3f8a); border-color:rgba(255,255,255,0.4);}
 .rep-step.on.done{background:linear-gradient(135deg,#1f9d5c,#146c3e);}
 .rep-step.view-only{pointer-events:none; cursor:default; -webkit-user-select:none; user-select:none;}
+/* alle Buttons im Status-Bereich: gleiche Farbe */
+.rep-actions .btn, .rep-actions .btn-ghost, .rep-actions .btn-primary{
+  background:linear-gradient(135deg, var(--blue-light), var(--blue)) !important; color:#fff !important;
+  border:1px solid rgba(255,255,255,0.18) !important; box-shadow:var(--glow-sm), inset 0 1px 0 rgba(255,255,255,0.4);
+}
 .rep-actions .btn.is-locked{opacity:.4 !important; filter:grayscale(.6); box-shadow:none !important;}
 .rep-actions{display:flex; gap:8px; flex-wrap:wrap;}
 .rep-actions .btn{flex:1; min-width:140px;}
