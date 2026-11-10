@@ -4785,8 +4785,12 @@ function undoDelivered(id){
 
 function repBoxHtml(o){
   const rs = o.repStatus || 'angenommen', w = o.wunsch;
-  const steps = Object.entries(REP_LABELS).map(([k, v]) =>
-    `<button type="button" class="rep-step view-only${rs === k ? ' on' : ''}${rs === k && k === 'fertig' ? ' done' : ''}" tabindex="-1" aria-disabled="true">${v}</button>`).join('');   // nur Anzeige: weiter geht es über den Button unten rechts
+  const steps = Object.entries(REP_LABELS).map(([k, v]) => {
+    const back = rs === 'fertig' && k !== 'fertig';   // ist das Gerät fertig, kann man oben nur noch zurück
+    return back
+      ? `<button type="button" class="rep-step" data-rep-back="${esc(o.id)}|${k}">${v}</button>`
+      : `<button type="button" class="rep-step view-only${rs === k ? ' on' : ''}${rs === k && k === 'fertig' ? ' done' : ''}" tabindex="-1" aria-disabled="true">${v}</button>`;
+  }).join('');   // sonst nur Anzeige: weiter geht es über den Button unten rechts
   let info = '';
   if (o.sendungsnr) info = `<div class="rep-info">📦 Versendet · Sendungsnr. <b>${esc(o.sendungsnr)}</b></div>` + (o.zugestellt ? `<div class="rep-info">📬 <b>Paket ist angekommen</b> · ${esc(fmtTime(o.zugestellt))}</div>` : '');
   else if (w && w.art === 'post') info = `<div class="rep-info">📦 <b>Kunde wünscht Versand per Post</b><br>${esc(w.name)}<br>${esc(w.strasse)}<br>${esc(w.plz)} ${esc(w.ort)}${w.land && w.land !== 'Schweiz' ? '<br>' + esc(w.land) : ''}</div>`;
@@ -4800,7 +4804,7 @@ function repBoxHtml(o){
     ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
       <button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Bestätigung senden</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link</button>
+      ${rs === 'fertig' ? '' : `<button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link</button>`}
       <button class="btn btn-ghost btn-sm" type="button" data-parts="${esc(o.id)}">🔩 Ersatzteil bestellt</button>
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Auswahl zurücksetzen</button>` : ''}
       ${rs === 'angenommen'
@@ -5282,6 +5286,12 @@ document.getElementById('ordersList').addEventListener('click', e => {
   if (udl) { showConfirm('Beim Kunden fährt der Lieferwagen wieder.', () => undoDelivered(udl.dataset.undeliver), { title: 'Zustellung zurücknehmen?', ok: 'Zurücknehmen' }); return; }
   const rst = e.target.closest('[data-wish-reset]');
   if (rst) { showConfirm('Der Kunde kann danach wieder neu wählen (Abholung oder Post) und hat wieder eine Änderung frei.', () => resetWish(rst.dataset.wishReset), { title: 'Auswahl zurücksetzen?', ok: 'Zurücksetzen' }); return; }
+  const bk = e.target.closest('[data-rep-back]');
+  if (bk) {
+    const [bid, bst] = bk.dataset.repBack.split('|');
+    showConfirm('Der Status wird auf «' + REP_LABELS[bst] + '» zurückgesetzt. Beim Kunden ändert sich die Anzeige.', () => setRepStatus(bid, bst), { title: 'Status zurücksetzen?', ok: 'Zurücksetzen' });
+    return;
+  }
   const step = e.target.closest('[data-rep-set]');
   if (step) { const [id, st] = step.dataset.repSet.split('|'); setRepStatus(id, st); return; }
   const link = e.target.closest('[data-status-link]');
