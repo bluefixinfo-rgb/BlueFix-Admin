@@ -5308,7 +5308,12 @@ document.getElementById('ordersList').addEventListener('click', e => {
   const step = e.target.closest('[data-rep-set]');
   if (step) { const [id, st] = step.dataset.repSet.split('|'); setRepStatus(id, st); return; }
   const link = e.target.closest('[data-status-link]');
-  if (link) { openStatusModal(link.dataset.statusLink, 'link'); return; }
+  if (link) {
+    // Schon das Öffnen von «Status-Link» schaltet «In Reparatur» frei
+    const lid = link.dataset.statusLink, arr = load(ORDERS_KEY, []), lo = arr.find(x => x.id === lid);
+    if (lo && !lo.statusLinkSent) { lo.statusLinkSent = Date.now(); lo.updatedBy = currentUser(); lo.updatedAt = Date.now(); save(ORDERS_KEY, arr); renderOrders(); }
+    openStatusModal(lid, 'link'); return;
+  }
   const shp = e.target.closest('[data-ship]');
   if (shp) { openStatusModal(shp.dataset.ship, 'ship'); return; }
   const sr = e.target.closest('[data-start-repair]');
