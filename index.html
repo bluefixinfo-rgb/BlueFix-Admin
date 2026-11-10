@@ -4814,14 +4814,14 @@ function repBoxHtml(o){
     ${info}
     ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
-      <button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Bestätigung senden</button>
+      ${stepConf ? '' : `<button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Bestätigung senden</button>`}
       ${rs === 'fertig' ? '' : `<button class="btn btn-ghost btn-sm${linkLocked ? ' is-locked' : ''}" type="button" data-status-link="${esc(o.id)}"${linkLocked ? ' data-lock-msg="Bitte zuerst die Bestätigung senden und «Ersatzteil bestellt» melden."' : ''}>🔗 Status-Link</button>`}
-      <button class="btn btn-ghost btn-sm${partsLocked ? ' is-locked' : ''}" type="button" data-parts="${esc(o.id)}"${partsLocked ? ' data-lock-msg="Bitte zuerst die Bestätigung an den Kunden senden."' : ''}>🔩 Ersatzteil bestellt</button>
-      ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Auswahl zurücksetzen</button>` : ''}
+      ${stepParts ? '' : `<button class="btn btn-ghost btn-sm${partsLocked ? ' is-locked' : ''}" type="button" data-parts="${esc(o.id)}"${partsLocked ? ' data-lock-msg="Bitte zuerst die Bestätigung an den Kunden senden."' : ''}>🔩 Ersatzteil bestellt</button>`}
+      ${w && (w.changes || 0) >= 1 && !o.sendungsnr ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Auswahl zurücksetzen</button>` : ''}
       ${rs === 'angenommen'
         ? `<button class="btn btn-primary btn-sm${repairLocked ? ' is-locked' : ''}" type="button" data-start-repair="${esc(o.id)}" aria-disabled="${repairLocked ? 'true' : 'false'}"${repairLocked ? ' data-lock-msg="' + repairMsg + '"' : ''}>🛠️ In Reparatur</button>`
         : `<button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>`}
-      ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
+      ${rs === 'fertig' && !o.zugestellt && !(w && w.art === 'abholen' && !o.sendungsnr) ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
       ${rs === 'fertig' && o.sendungsnr && !o.zugestellt ? `<button class="btn btn-primary btn-sm" type="button" data-delivered="${esc(o.id)}">📬 Paket ist angekommen</button>` : ''}
       ${o.sendungsnr && o.zugestellt ? `<button class="btn btn-ghost btn-sm" type="button" data-undeliver="${esc(o.id)}">↩️ Zustellung zurücknehmen</button>` : ''}
     </div>
