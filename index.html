@@ -5128,7 +5128,7 @@ function sendStatus(kind){
   }
 }
 /* ---- Auftragsbestätigung an den Kunden (WhatsApp / SMS / E-Mail) ---- */
-function orderConfirmMessage(o){
+function orderConfirmParts(o){
   // Gleicher Text und Aufbau wie die Bestätigungs-Mail der KI (chat-ai.js, orderMail)
   const fmt = n => Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2);
   const chf = n => Number.isInteger(Number(n)) ? Number(n) + '.–' : Number(n).toFixed(2);
@@ -5148,6 +5148,7 @@ function orderConfirmMessage(o){
       });
     }
   }
+  const lab = x => String(x == null ? '' : x).replace(/Display (Premium|Budget)/g, 'Display ($1)');   // wie in der KI-Mail
   const multi = items.length > 1;
   let preis = '';
   if (o.preis !== null && o.preis !== undefined && o.preis !== '' && !isNaN(Number(o.preis))) {
@@ -5165,8 +5166,8 @@ function orderConfirmMessage(o){
     ['Auftrags-Nr.', o.nr || ''],
     ['Gerät', o.modell],
     ...(multi
-      ? items.map((it, i) => ['Reparatur ' + (i + 1), it.label + ' – ' + (it.preis != null ? 'CHF ' + chf(it.preis) : 'Preis folgt vom Team')])
-      : [['Reparatur', o.auftrag]]),
+      ? items.map((it, i) => ['Reparatur ' + (i + 1), lab(it.label) + ' – ' + (it.preis != null ? 'CHF ' + chf(it.preis) : 'Preis folgt vom Team')])
+      : [['Reparatur', lab(o.auftrag)]]),
     [multi ? 'Gesamtpreis' : 'Preis', preis],
     ['Zahlung', zahlung],
     ['Garantie', o.garantie || '6 Monate'],
@@ -5177,11 +5178,33 @@ function orderConfirmMessage(o){
   const postHint = post
     ? 'Bitte schick das Paket noch nicht los. Wir melden uns bei dir und sagen dir, wann du es senden kannst. Unsere Adresse für später: ' + POST_ADDR + '.'
     : '';
-  return 'Hallo ' + (o.vorname || '') + ',\n\n' +
-    'vielen Dank für deinen Auftrag bei BlueFix Handy Reparatur. Er ist bei uns eingegangen. Unser Team meldet sich innerhalb von 24 Stunden bei dir.\n\n' +
-    rows.map(r => r[0] + ': ' + r[1]).join('\n') +
-    (postHint ? '\n\n' + postHint : '') +
-    '\n\nBei Fragen oder wenn es dringend ist, ruf uns an unter 076 229 91 82 oder antworte einfach auf diese E-Mail.\n\nFreundliche Grüsse\nDein BlueFix-Team';
+  return {
+    intro: 'Hallo ' + (o.vorname || '') + ',',
+    mid: 'vielen Dank für deinen Auftrag bei BlueFix Handy Reparatur. Er ist bei uns eingegangen. Unser Team meldet sich innerhalb von 24 Stunden bei dir.',
+    rows, postHint,
+    outro: 'Bei Fragen oder wenn es dringend ist, ruf uns an unter 076 229 91 82 oder antworte einfach auf diese E-Mail.'
+  };
+}
+function orderConfirmMessage(o){
+  const t = orderConfirmParts(o);
+  return t.intro + '\n\n' + t.mid + '\n\n' +
+    t.rows.map(r => r[0] + ': ' + r[1]).join('\n') +
+    (t.postHint ? '\n\n' + t.postHint : '') +
+    '\n\n' + t.outro + '\n\nFreundliche Grüsse\nDein BlueFix-Team';
+}
+// Gleiches HTML-Design wie die Bestätigungs-Mail der KI
+function orderConfirmHtml(o){
+  const t = orderConfirmParts(o);
+  return '<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.5;color:#1a1a1a;max-width:560px">' +
+    '<p>' + esc(t.intro) + '</p><p>' + esc(t.mid) + '</p>' +
+    '<table style="border-collapse:collapse;width:100%;margin:16px 0">' +
+    t.rows.map(r =>
+      '<tr><td style="padding:6px 10px;background:#f2f6fb;border-bottom:1px solid #e0e6ee;width:140px"><b>' + esc(r[0]) + '</b></td>' +
+      '<td style="padding:6px 10px;border-bottom:1px solid #e0e6ee">' + esc(r[1]) + '</td></tr>'
+    ).join('') +
+    '</table>' +
+    (t.postHint ? '<p><b>' + esc(t.postHint) + '</b></p>' : '') +
+    '<p>' + esc(t.outro) + '</p><p>Freundliche Grüsse<br>Dein BlueFix-Team</p></div>';
 }
 function openOrderConfirmModal(id){
   const o = ensureStatus(id);
@@ -5197,7 +5220,8 @@ function openOrderConfirmModal(id){
       <button class="btn btn-primary" type="button" id="ocWa">WhatsApp</button>
       <button class="btn btn-ghost" type="button" id="ocSms">SMS</button>
       <button class="btn btn-ghost" type="button" id="ocMailBtn">E-Mail</button>
-    </div>`;
+    </div>
+    <div class="card-sub" style="margin-top:10px;">E-Mail: Das Design der Mail (Tabelle wie bei der KI) wird kopiert und Gmail öffnet sich. Dort ins Textfeld tippen und «Einfügen» wählen. Änderungen am Text oben gelten nur für WhatsApp und SMS.</div>`;
   document.getElementById('ocWa').addEventListener('click', () => sendOrderConfirm('wa'));
   document.getElementById('ocSms').addEventListener('click', () => sendOrderConfirm('sms'));
   document.getElementById('ocMailBtn').addEventListener('click', () => sendOrderConfirm('mail'));
@@ -5225,7 +5249,17 @@ function sendOrderConfirm(kind){
   if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
   else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
   else {
-    openGmailCompose(mailRaw, 'Deine Auftragsbestätigung bei BlueFix', msg);
+    const html = orderConfirmHtml(o), plain = orderConfirmMessage(o);
+    const subj = 'Deine Auftragsbestätigung bei BlueFix';
+    let copying = null;
+    try {
+      copying = navigator.clipboard.write([new ClipboardItem({
+        'text/html': new Blob([html], { type: 'text/html' }),
+        'text/plain': new Blob([plain], { type: 'text/plain' })
+      })]);
+    } catch (e) { copying = null; }
+    if (copying) copying.then(() => openGmailCompose(mailRaw, subj, ''), () => openGmailCompose(mailRaw, subj, msg));
+    else openGmailCompose(mailRaw, subj, msg);
   }
 }
 document.getElementById('statusClose').addEventListener('click', () => {
