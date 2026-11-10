@@ -710,6 +710,16 @@ input,select,textarea{font-family:var(--sans);}
 .upload-progress-text{font-size:11px;color:var(--muted);margin-top:5px;text-align:center;}
 .order-pdf-bottom{margin-top:14px;border-top:1px solid rgba(255,255,255,.06);padding-top:12px;}
 .order-pdf-bottom .btn{width:100%;}
+/* Auftragskarte: kompakte, einheitliche Buttons im 2er-Raster */
+.rep-actions, .order-main-actions{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px;}
+.rep-actions .btn, .order-main-actions .btn, .order-pdf-bottom .btn{
+  flex:none; min-width:0; width:100%; min-height:40px; padding:8px 10px; font-size:12.5px; line-height:1.25;
+  border-radius:11px; display:flex; align-items:center; justify-content:center; text-align:center; white-space:normal;
+}
+.rep-actions .btn:last-child:nth-child(odd), .order-main-actions .btn:last-child:nth-child(odd){grid-column:1/-1;}
+.rep-actions{margin-top:2px;}
+.rep-steps{gap:6px;}
+.rep-step{padding:8px 4px; font-size:12px; border-radius:10px;}
 
 
 .modern-modal{background:linear-gradient(180deg,rgba(28,44,74,0.5) 0%,rgba(9,17,30,0.55) 100%);box-shadow:var(--glass-rim), 0 25px 80px rgba(0,0,0,.45), 0 0 40px -10px rgba(30,111,239,0.25);}
@@ -3780,7 +3790,7 @@ function renderOrders(){
         ${signedFile?`<div class="order-file-row"><div class="order-file-name">✓ ${esc(signedFile.name)}</div><button class="btn btn-ghost btn-sm" data-open-file="${esc(o.id)}">📄 Datei öffnen ↗</button></div><div class="order-file-meta">${formatFileSize(signedFile.size)} · gespeichert ${fmtTime(signedFile.uploadedAt)}${signedFile.localId?' · auf diesem Gerät':''}</div>`:`<div class="order-file-meta">Noch keine unterschriebene Datei hochgeladen.</div>`}
         <div class="order-main-actions">
           <button class="btn btn-edit-order" type="button" data-edit-customer="${esc(o.id)}">✏️ Auftrag bearbeiten</button>
-          <button class="btn btn-primary" type="button" data-upload-file="${esc(o.id)}">${signedFile?'📎 Unterschriebene Datei ersetzen':'📎 Unterschriebene Datei hochladen'}</button>
+          <button class="btn btn-primary" type="button" data-upload-file="${esc(o.id)}">${signedFile?'📎 Datei ersetzen':'📎 Datei hochladen'}</button>
         </div>
         <div class="order-edit-actions order-pdf-bottom">
           <button class="btn btn-ghost btn-sm" type="button" data-pdf="${esc(o.id)}">📄 Garantie-PDF</button>
@@ -4787,10 +4797,10 @@ function repBoxHtml(o){
     ${info}
     ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
-      <button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Auftragsbestätigung senden</button>
-      <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link / QR</button>
+      <button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Bestätigung senden</button>
+      <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link</button>
       <button class="btn btn-ghost btn-sm" type="button" data-parts="${esc(o.id)}">🔩 Ersatzteil bestellt</button>
-      ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Kundenauswahl zurücksetzen</button>` : ''}
+      ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Auswahl zurücksetzen</button>` : ''}
       <button class="btn btn-primary btn-sm" type="button" data-device-done="${esc(o.id)}">${rs === 'fertig' ? '📲 Kunde benachrichtigen' : '✅ Gerät ist fertig'}</button>
       ${rs === 'fertig' ? `<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(o.id)}">📦 Versand / Sendungsnr.</button>` : ''}
       ${rs === 'fertig' && o.sendungsnr && !o.zugestellt ? `<button class="btn btn-primary btn-sm" type="button" data-delivered="${esc(o.id)}">📬 Paket ist angekommen</button>` : ''}
@@ -5118,34 +5128,71 @@ function sendStatus(kind){
   }
 }
 /* ---- Auftragsbestätigung an den Kunden (WhatsApp / SMS / E-Mail) ---- */
-function orderConfirmMessage(o, url, sie){
-  const name = o.vorname ? o.vorname : '';
-  const preis = 'CHF ' + Number(o.preis || 0).toFixed(2);
-  const rabatt = o.kombiRabatt ? ' (inkl. ' + o.kombiRabatt + '% Kombi-Rabatt)' : (o.rabattCode ? ' (inkl. ' + (o.rabattProzent || 10) + '% Rabatt)' : '');
-  const lines = [
-    sie ? 'Vielen Dank für Ihren Auftrag bei BlueFix. Wir bestätigen Ihnen hiermit Ihre Reparatur:'
-        : 'vielen Dank für deinen Auftrag bei BlueFix. Wir bestätigen dir hiermit deine Reparatur:',
-    '',
-    '📱 Gerät: ' + (o.modell || '—'),
-    o.imei ? '🔢 IMEI: ' + o.imei : '',
-    '🔧 Reparatur: ' + (o.auftrag || '—'),
-    '💰 Preis: ' + preis + rabatt,
-    '',
-    (sie ? 'Den aktuellen Stand Ihrer Reparatur sehen Sie jederzeit hier: ' : 'Den aktuellen Stand deiner Reparatur siehst du jederzeit hier: ') + url
-  ].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0));
-  return (sie ? '' : 'Hallo' + (name ? ' ' + name : '') + ', ') + lines.join('\n');
+function orderConfirmMessage(o){
+  // Gleicher Text und Aufbau wie die Bestätigungs-Mail der KI (chat-ai.js, orderMail)
+  const fmt = n => Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2);
+  const chf = n => Number.isInteger(Number(n)) ? Number(n) + '.–' : Number(n).toFixed(2);
+  const POST_ADDR = 'BlueFix Handy Reparatur, Jerome Ramspacher, Weierbuckstrasse 1, 8213 Neunkirch';
+  // Einzelne Reparaturen: aus den KI-Positionen, sonst aus dem Auftragstext + Preisliste
+  let items = [];
+  if (Array.isArray(o.positionen) && o.positionen.length > 1) {
+    items = o.positionen.map(p => ({ label: p.label || p.auftrag, preis: p.preis }));
+  } else {
+    const names = String(o.auftrag || '').split(' + ').map(x => x.trim()).filter(Boolean);
+    if (names.length > 1) {
+      const m = custPriceFind(o.modell);
+      items = names.map(n => {
+        const i = PRICE_KEYS.indexOf(n);
+        const v = (m && i >= 0) ? PRICE_LIST[m][i] : null;
+        return { label: n, preis: v };
+      });
+    }
+  }
+  const multi = items.length > 1;
+  let preis = '';
+  if (o.preis !== null && o.preis !== undefined && o.preis !== '' && !isNaN(Number(o.preis))) {
+    if (o.kombiRabatt && o.preisOriginal != null)
+      preis = 'CHF ' + fmt(o.preis) + ' statt CHF ' + fmt(o.preisOriginal) + ' (' + o.kombiRabatt + '% Kombi-Rabatt, inkl. Ersatzteil und Einbau)';
+    else if (o.rabattCode && o.preisOriginal != null)
+      preis = 'CHF ' + fmt(o.preis) + ' statt CHF ' + fmt(o.preisOriginal) + ' (' + (o.rabattProzent || 10) + '% Rabatt mit Code ' + o.rabattCode + ', inkl. Ersatzteil und Einbau)';
+    else
+      preis = 'CHF ' + chf(o.preis) + ' (inkl. Ersatzteil und Einbau)';
+  }
+  const art = o.abgabe || (o.wunsch && o.wunsch.art === 'post' ? 'Per Post' : o.wunsch && o.wunsch.art === 'abholen' ? 'Vorbeibringen' : '');
+  const post = art === 'Per Post';
+  const zahlung = ({ twint: 'Twint', bank: 'Banküberweisung', bar: 'Bar' })[o.zahlungsart] || o.zahlungsart || '';
+  const rows = [
+    ['Auftrags-Nr.', o.nr || ''],
+    ['Gerät', o.modell],
+    ...(multi
+      ? items.map((it, i) => ['Reparatur ' + (i + 1), it.label + ' – ' + (it.preis != null ? 'CHF ' + chf(it.preis) : 'Preis folgt vom Team')])
+      : [['Reparatur', o.auftrag]]),
+    [multi ? 'Gesamtpreis' : 'Preis', preis],
+    ['Zahlung', zahlung],
+    ['Garantie', o.garantie || '6 Monate'],
+    ['Abgabe', post ? 'Per Post' : art === 'Vorbeibringen' ? 'Du bringst das Gerät vorbei' : ''],
+    ['Telefon', o.telefon],
+    ['IMEI', o.imei]
+  ].filter(r => r[1]);
+  const postHint = post
+    ? 'Bitte schick das Paket noch nicht los. Wir melden uns bei dir und sagen dir, wann du es senden kannst. Unsere Adresse für später: ' + POST_ADDR + '.'
+    : '';
+  return 'Hallo ' + (o.vorname || '') + ',\n\n' +
+    'vielen Dank für deinen Auftrag bei BlueFix Handy Reparatur. Er ist bei uns eingegangen. Unser Team meldet sich innerhalb von 24 Stunden bei dir.\n\n' +
+    rows.map(r => r[0] + ': ' + r[1]).join('\n') +
+    (postHint ? '\n\n' + postHint : '') +
+    '\n\nBei Fragen oder wenn es dringend ist, ruf uns an unter 076 229 91 82 oder antworte einfach auf diese E-Mail.\n\nFreundliche Grüsse\nDein BlueFix-Team';
 }
 function openOrderConfirmModal(id){
   const o = ensureStatus(id);
   if (!o) return;
   statusModalOrderId = id;
-  const url = statusUrl(o.statusToken);
   document.getElementById('statusModalTitle').textContent = '✉️ Auftragsbestätigung';
   document.getElementById('statusModalBody').innerHTML = `
     <p class="card-sub">${esc(o.vorname)} ${esc(o.nachname)} · ${esc(o.modell)}</p>
     <div class="field" style="margin-top:14px;"><label>Handynummer Kunde</label><input type="tel" id="ocPhone" inputmode="tel" value="${esc(o.telefon || '')}" placeholder="z.B. 079 123 45 67"></div>
     <div class="field"><label>E-Mail Kunde</label><input type="email" id="ocMail" inputmode="email" autocapitalize="off" value="${esc(o.email || '')}" placeholder="z.B. max@muster.ch"></div>
-    <div class="field"><label>Nachricht</label><textarea id="ocMsg" rows="9">${esc(orderConfirmMessage(o, url, false))}</textarea></div>
+    <div class="field"><label>Nachricht</label><textarea id="ocMsg" rows="14">${esc(orderConfirmMessage(o))}</textarea></div>
     <div class="status-send">
       <button class="btn btn-primary" type="button" id="ocWa">WhatsApp</button>
       <button class="btn btn-ghost" type="button" id="ocSms">SMS</button>
@@ -5178,8 +5225,7 @@ function sendOrderConfirm(kind){
   if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
   else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
   else {
-    const body = orderConfirmMessage(o, statusUrl(o.statusToken), true);
-    openGmailCompose(mailRaw, 'BlueFix - Auftragsbestätigung', buildMailBody(o, body));
+    openGmailCompose(mailRaw, 'Deine Auftragsbestätigung bei BlueFix', msg);
   }
 }
 document.getElementById('statusClose').addEventListener('click', () => {
