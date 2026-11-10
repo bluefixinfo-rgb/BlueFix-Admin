@@ -4787,6 +4787,7 @@ function repBoxHtml(o){
     ${info}
     ${o.statusToken ? `<div class="rep-info" data-view-badge="${esc(o.statusToken)}">${viewBadgeInner(o.statusToken)}</div>` : ''}
     <div class="rep-actions">
+      <button class="btn btn-primary btn-sm" type="button" data-order-confirm="${esc(o.id)}">✉️ Auftragsbestätigung senden</button>
       <button class="btn btn-ghost btn-sm" type="button" data-status-link="${esc(o.id)}">🔗 Status-Link / QR</button>
       <button class="btn btn-ghost btn-sm" type="button" data-parts="${esc(o.id)}">🔩 Ersatzteil bestellt</button>
       ${w ? `<button class="btn btn-ghost btn-sm" type="button" data-wish-reset="${esc(o.id)}">↩️ Kundenauswahl zurücksetzen</button>` : ''}
@@ -5116,12 +5117,79 @@ function sendStatus(kind){
     openGmailCompose(mailRaw, mailSubject(o), buildMailBody(o, anliegen));
   }
 }
+/* ---- Auftragsbestätigung an den Kunden (WhatsApp / SMS / E-Mail) ---- */
+function orderConfirmMessage(o, url, sie){
+  const name = o.vorname ? o.vorname : '';
+  const preis = 'CHF ' + Number(o.preis || 0).toFixed(2);
+  const rabatt = o.kombiRabatt ? ' (inkl. ' + o.kombiRabatt + '% Kombi-Rabatt)' : (o.rabattCode ? ' (inkl. ' + (o.rabattProzent || 10) + '% Rabatt)' : '');
+  const lines = [
+    sie ? 'Vielen Dank für Ihren Auftrag bei BlueFix. Wir bestätigen Ihnen hiermit Ihre Reparatur:'
+        : 'vielen Dank für deinen Auftrag bei BlueFix. Wir bestätigen dir hiermit deine Reparatur:',
+    '',
+    '📱 Gerät: ' + (o.modell || '—'),
+    o.imei ? '🔢 IMEI: ' + o.imei : '',
+    '🔧 Reparatur: ' + (o.auftrag || '—'),
+    '💰 Preis: ' + preis + rabatt,
+    '',
+    (sie ? 'Den aktuellen Stand Ihrer Reparatur sehen Sie jederzeit hier: ' : 'Den aktuellen Stand deiner Reparatur siehst du jederzeit hier: ') + url
+  ].filter((l, i, a) => l !== '' || (a[i - 1] !== '' && i > 0));
+  return (sie ? '' : 'Hallo' + (name ? ' ' + name : '') + ', ') + lines.join('\n');
+}
+function openOrderConfirmModal(id){
+  const o = ensureStatus(id);
+  if (!o) return;
+  statusModalOrderId = id;
+  const url = statusUrl(o.statusToken);
+  document.getElementById('statusModalTitle').textContent = '✉️ Auftragsbestätigung';
+  document.getElementById('statusModalBody').innerHTML = `
+    <p class="card-sub">${esc(o.vorname)} ${esc(o.nachname)} · ${esc(o.modell)}</p>
+    <div class="field" style="margin-top:14px;"><label>Handynummer Kunde</label><input type="tel" id="ocPhone" inputmode="tel" value="${esc(o.telefon || '')}" placeholder="z.B. 079 123 45 67"></div>
+    <div class="field"><label>E-Mail Kunde</label><input type="email" id="ocMail" inputmode="email" autocapitalize="off" value="${esc(o.email || '')}" placeholder="z.B. max@muster.ch"></div>
+    <div class="field"><label>Nachricht</label><textarea id="ocMsg" rows="9">${esc(orderConfirmMessage(o, url, false))}</textarea></div>
+    <div class="status-send">
+      <button class="btn btn-primary" type="button" id="ocWa">WhatsApp</button>
+      <button class="btn btn-ghost" type="button" id="ocSms">SMS</button>
+      <button class="btn btn-ghost" type="button" id="ocMailBtn">E-Mail</button>
+    </div>`;
+  document.getElementById('ocWa').addEventListener('click', () => sendOrderConfirm('wa'));
+  document.getElementById('ocSms').addEventListener('click', () => sendOrderConfirm('sms'));
+  document.getElementById('ocMailBtn').addEventListener('click', () => sendOrderConfirm('mail'));
+  document.getElementById('statusModal').classList.add('show');
+}
+function sendOrderConfirm(kind){
+  const arr = load(ORDERS_KEY, []);
+  const o = arr.find(x => x.id === statusModalOrderId);
+  if (!o) return;
+  const phoneRaw = document.getElementById('ocPhone').value.trim();
+  const mailRaw = document.getElementById('ocMail').value.trim();
+  const num = normPhone(phoneRaw);
+  if ((kind === 'wa' || kind === 'sms') && !num) { alert('Bitte eine gültige Handynummer eingeben, z.B. 079 123 45 67.'); return; }
+  if (kind === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mailRaw)) { alert('Bitte eine gültige E-Mail-Adresse eingeben.'); return; }
+  let dirty = false;
+  if (phoneRaw !== (o.telefon || '')) { o.telefon = phoneRaw; dirty = true; }
+  if (mailRaw !== (o.email || '')) { o.email = mailRaw; dirty = true; }
+  o.bestaetigtGesendet = { at: Date.now(), kanal: kind, von: currentUser() };
+  o.updatedBy = currentUser(); o.updatedAt = Date.now();
+  save(ORDERS_KEY, arr);
+  if (dirty) publishStatus(o);
+  try { logActivity('✉️', 'die Auftragsbestätigung an ' + o.vorname + ' ' + o.nachname + ' geschickt (' + ({ wa: 'WhatsApp', sms: 'SMS', mail: 'E-Mail' }[kind]) + ')'); } catch (e) {}
+  renderOrders();
+  const msg = document.getElementById('ocMsg').value;
+  if (kind === 'wa') window.open('https://wa.me/' + num + '?text=' + encodeURIComponent(msg), '_blank');
+  else if (kind === 'sms') window.location.href = 'sms:+' + num + '?&body=' + encodeURIComponent(msg);
+  else {
+    const body = orderConfirmMessage(o, statusUrl(o.statusToken), true);
+    openGmailCompose(mailRaw, 'BlueFix - Auftragsbestätigung', buildMailBody(o, body));
+  }
+}
 document.getElementById('statusClose').addEventListener('click', () => {
   document.getElementById('statusModal').classList.remove('show');
   if (statusViewsUnsub) { statusViewsUnsub(); statusViewsUnsub = null; }
 });
 
 document.getElementById('ordersList').addEventListener('click', e => {
+  const ocb = e.target.closest('[data-order-confirm]');
+  if (ocb) { openOrderConfirmModal(ocb.dataset.orderConfirm); return; }
   const prt = e.target.closest('[data-parts]');
   if (prt) { openPartsModal(prt.dataset.parts); return; }
   const dlv = e.target.closest('[data-delivered]');
