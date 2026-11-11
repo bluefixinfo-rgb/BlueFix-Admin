@@ -932,16 +932,17 @@ input,select,textarea{font-family:var(--sans);}
 </style>
 </head>
 <body>
-
 <!-- ==================== IP-SPERRE (ganze Webseite) ==================== -->
 <div id="ipBlock" style="position:fixed;inset:0;z-index:2147483000;background:#0a1020;color:#e8eefc;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:Inter,system-ui,sans-serif;">
   <div style="max-width:340px;">
     <div style="font-size:42px;margin-bottom:10px;" id="ipBlockIcon">🔒</div>
-    <div style="font-size:18px;font-weight:700;margin-bottom:8px;" id="ipBlockTitle">Netzwerk wird geprüft…</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;" id="ipBlockTitle"></div>
     <div style="font-size:14px;opacity:.75;line-height:1.5;" id="ipBlockMsg"></div>
     <button id="ipBlockRetry" style="display:none;margin-top:16px;padding:10px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:transparent;color:#7db3ff;font:600 14px inherit;cursor:pointer;">Erneut prüfen</button>
   </div>
 </div>
+
+
 
 <!-- ==================== GATE (Wohin möchtest du?) ==================== -->
 <div id="gateScreen">
@@ -2447,7 +2448,7 @@ document.getElementById('homepageBack').addEventListener('click', showGate);
    Echter Schutz geht nur serverseitig (Cloudflare Access/WAF, Webserver-Regel).
    Bei nicht prüfbarer IP wird gesperrt. Wechselt eine IP, hier ändern. */
 const IP_USERS = {
-  // TEST (vorübergehend deaktiviert): '194.230.161.133': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
+  // TEST: 194.230.161.133 ist hier absichtlich NICHT freigegeben
   '88.213.140.204':  ['thierry']              // Thierry: nur als Thierry
 };
 const IP_CHECK_URLS = [
@@ -2479,12 +2480,14 @@ async function checkSiteAccess(){
   const box = document.getElementById('ipBlock');
   const icon = document.getElementById('ipBlockIcon'), title = document.getElementById('ipBlockTitle'), msg = document.getElementById('ipBlockMsg'), retry = document.getElementById('ipBlockRetry');
   box.style.display = 'flex';
-  icon.textContent = '🔒'; title.textContent = 'Netzwerk wird geprüft…'; msg.textContent = ''; retry.style.display = 'none';
+  icon.textContent = '🔒'; title.textContent = ''; msg.textContent = ''; retry.style.display = 'none';
   __ipUsers = [];
   const ip = await getPublicIp();
   if (ip && IP_USERS[ip]) {
     __ipUsers = IP_USERS[ip];
+    window.__siteAllowed = true;
     box.style.display = 'none';
+    if (window.__initApp) window.__initApp();
     return;
   }
   icon.textContent = '⛔';
@@ -7053,12 +7056,19 @@ document.getElementById('lohnChatBtn').addEventListener('click', function(){
 /* ===================== INIT ===================== */
 // Beim (Wieder-)Start der App immer ausgeloggt starten: es muss jedes Mal
 // neu eingeloggt werden, es gibt keine dauerhaft gemerkte Sitzung mehr.
-localStorage.removeItem(SESSION_KEY);
-showGate();
-flushLoginOutbox(); // noch nicht bestätigte Logins der Login-Statistik nachliefern
-// Benachrichtigungs-Berechtigung schon jetzt anfragen (beim Öffnen der App),
-// nicht erst wenn man ins Team-Panel/Admin-Bereich eingeloggt ist.
-requestNotifyPermission();
+// Die App startet erst, wenn die IP freigegeben ist (bis dahin ist alles gesperrt).
+let __appStarted = false;
+window.__initApp = function(){
+  if (__appStarted) return;
+  __appStarted = true;
+  localStorage.removeItem(SESSION_KEY);
+  showGate();
+  flushLoginOutbox(); // noch nicht bestätigte Logins der Login-Statistik nachliefern
+  // Benachrichtigungs-Berechtigung schon jetzt anfragen (beim Öffnen der App),
+  // nicht erst wenn man ins Team-Panel/Admin-Bereich eingeloggt ist.
+  requestNotifyPermission();
+};
+if (window.__siteAllowed) window.__initApp();
 </script>
 
 </div>
