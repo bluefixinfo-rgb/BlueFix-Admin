@@ -22,7 +22,7 @@
 <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- ZXing (für IMEI-Barcode-Scan über die Kamera) -->
-<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js" onerror="var f=document.createElement('script');f.src='https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js';document.head.appendChild(f);"></script>
 <style>
 :root{
   --bg: #04070d;
@@ -487,11 +487,12 @@ input,select,textarea{font-family:var(--sans);}
 .scanner-body{position:relative; background:#000; aspect-ratio:4/3; overflow:hidden;}
 .scanner-body video{width:100%; height:100%; object-fit:cover; display:block;}
 .scanner-frame{
-  position:absolute; left:10%; right:10%; top:38%; bottom:38%;
+  position:absolute; left:6%; right:6%; top:30%; bottom:30%;
   border:2px solid var(--blue-light); border-radius:10px; box-shadow:0 0 0 2000px rgba(0,0,0,0.45); pointer-events:none;
 }
 .scanner-status{padding:14px 18px; color:var(--muted); font-size:13px; text-align:center;}
 .scanner-status.err{color:#ff9a9a;}
+.scanner-photo{display:block; width:calc(100% - 36px); margin:0 18px 16px; padding:12px; border-radius:12px; border:1px solid var(--line); background:var(--bg-panel-2); color:var(--blue-light); font:600 14px inherit; text-align:center; cursor:pointer;}
 
 .badge{display:inline-flex; align-items:center; gap:7px; padding:5px 12px; border-radius:999px; font-size:12px; font-weight:600;}
 .badge .glow-dot{width:8px; height:8px; border-radius:50%; flex-shrink:0; box-shadow:0 0 0 0 currentColor; animation:glowPulse 1.8s ease-in-out infinite;}
@@ -1683,6 +1684,8 @@ input,select,textarea{font-family:var(--sans);}
       <div class="scanner-frame"></div>
     </div>
     <div class="scanner-status" id="scannerStatus">Kamera wird gestartet…</div>
+    <button type="button" class="scanner-photo" id="scannerPhotoBtn">📷 Stattdessen Foto aufnehmen</button>
+    <input type="file" id="scannerPhotoInput" accept="image/*" capture="environment" hidden>
   </div>
 </div>
 
@@ -1690,6 +1693,37 @@ input,select,textarea{font-family:var(--sans);}
 /* ===================== IMEI-BARCODE-SCANNER ===================== */
 let __imeiZxingReader = null;
 let __imeiScanTargetId = null;
+
+/* Luhn-Prüfsumme: jede echte IMEI besteht sie (EID und andere Codes nicht) */
+function __imeiLuhn(s){
+  let sum = 0;
+  for (let i = 0; i < s.length; i++) {
+    let d = +s[s.length - 1 - i];
+    if (i % 2 === 1) { d *= 2; if (d > 9) d -= 9; }
+    sum += d;
+  }
+  return sum % 10 === 0;
+}
+/* Liefert eine gültige IMEI (15 Ziffern) oder null. EID (32 Ziffern, beginnt mit 89) wird abgelehnt. */
+function __extractImei(raw){
+  const t = String(raw || '').replace(/\D/g, '');
+  if (t.length === 15 && __imeiLuhn(t)) return t;
+  if (t.length === 16 && __imeiLuhn(t.slice(0, 15))) return t.slice(0, 15);   // IMEI/SV
+  return null;
+}
+function __zxNs(){ return (typeof ZXing !== 'undefined') ? ZXing : (typeof ZXingBrowser !== 'undefined' ? ZXingBrowser : null); }
+function __makeReader(){
+  const Z = __zxNs();
+  const hints = new Map();
+  hints.set(Z.DecodeHintType.POSSIBLE_FORMATS, [Z.BarcodeFormat.CODE_128, Z.BarcodeFormat.CODE_39, Z.BarcodeFormat.CODE_93, Z.BarcodeFormat.ITF, Z.BarcodeFormat.EAN_13]);
+  hints.set(Z.DecodeHintType.TRY_HARDER, true);
+  return new Z.BrowserMultiFormatReader(hints, 60);
+}
+function __imeiAccept(imei){
+  const input = document.getElementById(__imeiScanTargetId);
+  if (input) { input.value = imei; input.dispatchEvent(new Event('input', { bubbles: true })); }
+  closeImeiScanner();
+}
 
 function openImeiScanner(targetInputId){
   __imeiScanTargetId = targetInputId;
@@ -1699,32 +1733,41 @@ function openImeiScanner(targetInputId){
   statusEl.textContent = 'Kamera wird gestartet…';
   modal.classList.add('show');
 
-  if (typeof ZXingBrowser === 'undefined' && typeof ZXing === 'undefined') {
+  if (!__zxNs()) {
     statusEl.classList.add('err');
-    statusEl.textContent = 'Scanner konnte nicht geladen werden. Bitte IMEI manuell eingeben.';
+    statusEl.textContent = 'Scanner konnte nicht geladen werden. Bitte Foto aufnehmen oder IMEI manuell eingeben.';
     return;
   }
 
-  const ReaderClass = (typeof ZXingBrowser !== 'undefined') ? ZXingBrowser.BrowserMultiFormatReader : ZXing.BrowserMultiFormatReader;
-  __imeiZxingReader = new ReaderClass();
+  __imeiZxingReader = __makeReader();
   const videoEl = document.getElementById('scannerVideo');
+  let seenOther = false;
 
   __imeiZxingReader.decodeFromConstraints(
-    { video: { facingMode: { ideal: 'environment' } } },
+    { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
     videoEl,
     (result, err) => {
-      if (result) {
-        const text = (result.getText ? result.getText() : result.text || '').replace(/\D/g, '');
-        if (text.length >= 14) {
-          const input = document.getElementById(__imeiScanTargetId);
-          if (input) input.value = text.slice(0, 16);
-          closeImeiScanner();
-        }
+      if (!result) return;
+      const raw = result.getText ? result.getText() : (result.text || '');
+      const imei = __extractImei(raw);
+      if (imei) { __imeiAccept(imei); return; }
+      if (!seenOther) {
+        seenOther = true;
+        statusEl.classList.remove('err');
+        statusEl.textContent = 'Anderer Code erkannt (z.B. EID) – bitte den IMEI-Strichcode scannen.';
       }
     }
-  ).catch(err => {
+  ).then(() => {
+    statusEl.textContent = 'Halte die Kamera ruhig auf den IMEI-Strichcode (ca. 15–25 cm Abstand).';
+    // Dauer-Autofokus, falls vom Gerät unterstützt
+    try {
+      const track = videoEl.srcObject && videoEl.srcObject.getVideoTracks()[0];
+      const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+      if (caps && caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+    } catch (e) {}
+  }).catch(err => {
     statusEl.classList.add('err');
-    statusEl.textContent = 'Kein Kamerazugriff möglich. Bitte Berechtigung erlauben oder IMEI manuell eingeben.';
+    statusEl.textContent = 'Kein Kamerazugriff möglich. Bitte Berechtigung erlauben, Foto aufnehmen oder IMEI manuell eingeben.';
   });
 }
 
@@ -1735,6 +1778,41 @@ function closeImeiScanner(){
     __imeiZxingReader = null;
   }
 }
+
+/* Foto-Fallback: Standbild in voller Kameraauflösung lesen */
+document.getElementById('scannerPhotoBtn').addEventListener('click', () => document.getElementById('scannerPhotoInput').click());
+document.getElementById('scannerPhotoInput').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = '';
+  if (!file) return;
+  const statusEl = document.getElementById('scannerStatus');
+  statusEl.classList.remove('err');
+  statusEl.textContent = 'Foto wird gelesen…';
+  if (!__zxNs()) { statusEl.classList.add('err'); statusEl.textContent = 'Scanner konnte nicht geladen werden.'; return; }
+  const url = URL.createObjectURL(file);
+  try {
+    const reader = __makeReader();
+    const img = new Image();
+    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    // Mehrere Skalierungen probieren (sehr grosse Fotos lesen sich oft besser verkleinert)
+    const scales = [1, 0.6, 0.35];
+    for (const sc of scales) {
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.naturalWidth * sc); c.height = Math.round(img.naturalHeight * sc);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      try {
+        const r = await reader.decodeFromImageUrl(c.toDataURL('image/png'));
+        const imei = __extractImei(r.getText ? r.getText() : r.text);
+        if (imei) { __imeiAccept(imei); return; }
+      } catch (err) { /* nächste Skalierung */ }
+    }
+    statusEl.classList.add('err');
+    statusEl.textContent = 'Keine IMEI im Foto gefunden. Bitte näher ran, scharf und ohne Spiegelung fotografieren.';
+  } catch (err) {
+    statusEl.classList.add('err');
+    statusEl.textContent = 'Foto konnte nicht gelesen werden.';
+  } finally { URL.revokeObjectURL(url); }
+});
 
 document.getElementById('imeiScanBtn').addEventListener('click', () => openImeiScanner('custImei'));
 document.getElementById('scannerCloseBtn').addEventListener('click', closeImeiScanner);
