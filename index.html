@@ -1725,7 +1725,7 @@ function __imeiAccept(imei){
   closeImeiScanner();
 }
 
-function openImeiScanner(targetInputId){
+function __openImeiZxing(targetInputId){
   __imeiScanTargetId = targetInputId;
   const modal = document.getElementById('scannerModal');
   const statusEl = document.getElementById('scannerStatus');
@@ -1758,7 +1758,7 @@ function openImeiScanner(targetInputId){
       }
     }
   ).then(() => {
-    statusEl.textContent = 'Halte die Kamera ruhig auf den IMEI-Strichcode (ca. 15–25 cm Abstand).';
+    statusEl.textContent = '';
     // Dauer-Autofokus, falls vom Gerät unterstützt
     try {
       const track = videoEl.srcObject && videoEl.srcObject.getVideoTracks()[0];
@@ -1771,7 +1771,98 @@ function openImeiScanner(targetInputId){
   });
 }
 
+/* ---- Haupt-Scanner: BarcodeDetector (nativ oder zxing-wasm), eigener Frame-Loop ---- */
+let __scanStream = null, __scanTimer = null, __scanBusy = false, __detector = null, __scanSeq = 0;
+
+async function __getDetector(){
+  if (__detector) return __detector;
+  const want = ['code_128', 'code_39', 'code_93', 'itf', 'ean_13'];
+  if ('BarcodeDetector' in window) {
+    try {
+      const sup = await BarcodeDetector.getSupportedFormats();
+      const fm = want.filter(f => sup.includes(f));
+      if (fm.includes('code_128')) { __detector = new BarcodeDetector({ formats: fm }); return __detector; }
+    } catch (e) {}
+  }
+  try {
+    const m = await import('https://cdn.jsdelivr.net/npm/barcode-detector@2/+esm');
+    __detector = new m.BarcodeDetector({ formats: want });
+    return __detector;
+  } catch (e) { console.warn('BarcodeDetector-Polyfill nicht ladbar', e); }
+  return null;
+}
+
+async function __detectImeiIn(source){
+  const det = await __getDetector();
+  if (!det) return null;
+  const res = await det.detect(source);
+  for (const r of res) { const im = __extractImei(r.rawValue); if (im) return im; }
+  return res.length ? 'OTHER' : null;
+}
+
+async function openImeiScanner(targetInputId){
+  const seq = ++__scanSeq;
+  __imeiScanTargetId = targetInputId;
+  const modal = document.getElementById('scannerModal');
+  const statusEl = document.getElementById('scannerStatus');
+  const videoEl = document.getElementById('scannerVideo');
+  statusEl.classList.remove('err');
+  statusEl.textContent = 'Kamera wird gestartet…';
+  modal.classList.add('show');
+
+  const det = await __getDetector();
+  if (seq !== __scanSeq) return;
+  if (!det) { __openImeiZxing(targetInputId); return; }          // Rückfall: alter ZXing-Scanner
+
+  try {
+    __scanStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+  } catch (e) {
+    statusEl.classList.add('err');
+    statusEl.textContent = 'Kein Kamerazugriff möglich. Bitte Berechtigung erlauben, Foto aufnehmen oder IMEI manuell eingeben.';
+    return;
+  }
+  if (seq !== __scanSeq) { __scanStream.getTracks().forEach(t => t.stop()); __scanStream = null; return; }
+  videoEl.srcObject = __scanStream;
+  try { await videoEl.play(); } catch (e) {}
+  try {
+    const track = __scanStream.getVideoTracks()[0];
+    const caps = track.getCapabilities ? track.getCapabilities() : null;
+    if (caps && caps.focusMode && caps.focusMode.includes('continuous')) track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] });
+  } catch (e) {}
+  statusEl.textContent = '';
+
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  let tick = 0, shownOther = false;
+  __scanTimer = setInterval(async () => {
+    if (__scanBusy || !videoEl.videoWidth) return;
+    __scanBusy = true;
+    try {
+      const vw = videoEl.videoWidth, vh = videoEl.videoHeight;
+      // abwechselnd: ganzes Bild / mittlerer Streifen (grösser skaliert)
+      let sx = 0, sy = 0, sw = vw, sh = vh;
+      if (tick++ % 2 === 1) { sx = vw * 0.04; sw = vw * 0.92; sy = vh * 0.25; sh = vh * 0.5; }
+      const scale = Math.min(1, 1600 / sw);
+      canvas.width = Math.round(sw * scale); canvas.height = Math.round(sh * scale);
+      ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      const found = await __detectImeiIn(canvas);
+      if (seq !== __scanSeq) return;
+      if (found && found !== 'OTHER') { __imeiAccept(found); }
+      else if (found === 'OTHER' && !shownOther) {
+        shownOther = true;
+        statusEl.textContent = 'Anderer Code erkannt (z.B. EID) – bitte den IMEI-Strichcode scannen.';
+      }
+    } catch (e) { /* Frame überspringen */ }
+    finally { __scanBusy = false; }
+  }, 150);
+}
+
 function closeImeiScanner(){
+  __scanSeq++;
+  if (__scanTimer) { clearInterval(__scanTimer); __scanTimer = null; }
+  if (__scanStream) { __scanStream.getTracks().forEach(t => t.stop()); __scanStream = null; }
+  try { const v = document.getElementById('scannerVideo'); v.srcObject = null; } catch (e) {}
   document.getElementById('scannerModal').classList.remove('show');
   if (__imeiZxingReader) {
     try { __imeiZxingReader.reset(); } catch(e){}
@@ -1788,12 +1879,21 @@ document.getElementById('scannerPhotoInput').addEventListener('change', async (e
   const statusEl = document.getElementById('scannerStatus');
   statusEl.classList.remove('err');
   statusEl.textContent = 'Foto wird gelesen…';
-  if (!__zxNs()) { statusEl.classList.add('err'); statusEl.textContent = 'Scanner konnte nicht geladen werden.'; return; }
   const url = URL.createObjectURL(file);
   try {
-    const reader = __makeReader();
     const img = new Image();
     await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+    try {
+      for (const sc of [1, 0.6, 0.35]) {
+        const c0 = document.createElement('canvas');
+        c0.width = Math.round(img.naturalWidth * sc); c0.height = Math.round(img.naturalHeight * sc);
+        c0.getContext('2d').drawImage(img, 0, 0, c0.width, c0.height);
+        const f = await __detectImeiIn(c0);
+        if (f && f !== 'OTHER') { __imeiAccept(f); return; }
+      }
+    } catch (e) { /* weiter mit ZXing */ }
+    if (!__zxNs()) { statusEl.classList.add('err'); statusEl.textContent = 'Keine IMEI im Foto gefunden.'; return; }
+    const reader = __makeReader();
     // Mehrere Skalierungen probieren (sehr grosse Fotos lesen sich oft besser verkleinert)
     const scales = [1, 0.6, 0.35];
     for (const sc of scales) {
