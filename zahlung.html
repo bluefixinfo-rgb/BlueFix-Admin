@@ -152,7 +152,7 @@ body{margin:0;min-height:100vh;color:var(--white);font-family:'Outfit',-apple-sy
       <ol class="steps" id="steps"></ol>
     </div>
 
-    <p class="foot">BlueFix · Brunnenhofstrasse 33 · 8252 Schlatt TG</p>
+    <p class="foot">BlueFix · Weierbuckstrasse 1 · 8213 Neunkirch</p>
   </div>
 
   <div class="card ok hide" id="done">
@@ -221,13 +221,14 @@ function addRow(label, value, opts){
 function addStep(text){ const li = document.createElement('li'); li.innerHTML = '<span class="n"></span><p></p>'; li.querySelector('p').textContent = text; $('steps').append(li); }
 
 /* ---------- Schweizer QR-Rechnung (Swiss QR Code, SPC 0200) ---------- */
+const ADRESSE = 'Weierbuckstrasse 1, 8213 Neunkirch';   // Adresse von BlueFix (Empfänger)
 function parseAdresse(a){
   const m = /^(.*?)\s+(\d+[a-zA-Z]?)\s*,\s*(\d{4})\s+(.+)$/.exec(String(a || '').trim());
   return m ? { str: m[1], nr: m[2], plz: m[3], ort: m[4] } : null;
 }
 function qrPayload(d){
   const iban = String(d.iban || '').replace(/\s/g, '').toUpperCase();
-  const ad = parseAdresse(d.adresse);
+  const ad = parseAdresse(ADRESSE);
   if (!/^(CH|LI)\d{19}$/.test(iban) || !ad || !d.empfaenger) return null;
   const amt = Number(d.betrag) > 0 ? Number(d.betrag).toFixed(2) : '';
   const L = [
@@ -309,7 +310,7 @@ function render(d){
     $('mIco').innerHTML = SVG.bank; $('mTitle').textContent = 'Banküberweisung';
     $('mLead').textContent = 'Überweise den Betrag mit diesen Angaben in deinem E-Banking.';
     addRow('Empfänger', d.empfaenger || '', { copy: d.empfaenger || '' });
-    addRow('Adresse', d.adresse || '');
+    addRow('Adresse', ADRESSE);
     addRow('IBAN', d.iban || '', { mono: true, copy: String(d.iban || '').replace(/\s/g, '') });
     addRow('Bank', d.bank || '');
     addRow('BIC', d.bic || '', { mono: true, copy: d.bic || '' });
