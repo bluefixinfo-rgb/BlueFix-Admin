@@ -485,7 +485,8 @@ input,select,textarea{font-family:var(--sans);}
 .scanner-head h3{margin:0;}
 .scanner-close{background:transparent; border:none; color:var(--muted); font-size:22px; line-height:1; cursor:pointer; padding:4px;}
 .scanner-body{position:relative; background:#000; aspect-ratio:4/3; overflow:hidden;}
-.scanner-body video{width:100%; height:100%; object-fit:cover; display:block;}
+.scanner-body video{position:absolute; inset:0; width:100%; height:100%; min-width:100%; min-height:100%; object-fit:cover; display:block; background:#000; opacity:0; transition:opacity .15s;}
+.scanner-body video.ready{opacity:1;}
 .scanner-frame{
   position:absolute; left:6%; right:6%; top:30%; bottom:30%;
   border:2px solid var(--blue-light); border-radius:10px; box-shadow:0 0 0 2000px rgba(0,0,0,0.45); pointer-events:none;
@@ -1740,6 +1741,7 @@ function __imeiAccept(imei){
 
 function __openImeiZxing(targetInputId){
   __resetConfirm();
+  document.getElementById('scannerVideo').classList.remove('ready');
   __imeiScanTargetId = targetInputId;
   const modal = document.getElementById('scannerModal');
   const statusEl = document.getElementById('scannerStatus');
@@ -1785,6 +1787,13 @@ function __openImeiZxing(targetInputId){
   });
 }
 
+(function(){
+  const v = document.getElementById('scannerVideo');
+  const show = () => { if (v.videoWidth > 0) requestAnimationFrame(() => v.classList.add('ready')); };
+  v.addEventListener('playing', show);
+  v.addEventListener('loadeddata', show);
+})();
+
 /* ---- Haupt-Scanner: BarcodeDetector (nativ oder zxing-wasm), eigener Frame-Loop ---- */
 let __scanStream = null, __scanTimer = null, __scanBusy = false, __detector = null, __scanSeq = 0;
 
@@ -1823,6 +1832,7 @@ async function openImeiScanner(targetInputId){
   const videoEl = document.getElementById('scannerVideo');
   statusEl.classList.remove('err');
   statusEl.textContent = 'Kamera wird gestartet…';
+  videoEl.classList.remove('ready');
   modal.classList.add('show');
 
   const det = await __getDetector();
@@ -1878,7 +1888,7 @@ function closeImeiScanner(){
   __scanSeq++;
   if (__scanTimer) { clearInterval(__scanTimer); __scanTimer = null; }
   if (__scanStream) { __scanStream.getTracks().forEach(t => t.stop()); __scanStream = null; }
-  try { const v = document.getElementById('scannerVideo'); v.srcObject = null; } catch (e) {}
+  try { const v = document.getElementById('scannerVideo'); v.srcObject = null; v.classList.remove('ready'); } catch (e) {}
   document.getElementById('scannerModal').classList.remove('show');
   if (__imeiZxingReader) {
     try { __imeiZxingReader.reset(); } catch(e){}
