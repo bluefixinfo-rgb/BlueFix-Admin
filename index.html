@@ -485,7 +485,7 @@ input,select,textarea{font-family:var(--sans);}
 .scanner-head h3{margin:0;}
 .scanner-close{background:transparent; border:none; color:var(--muted); font-size:22px; line-height:1; cursor:pointer; padding:4px;}
 .scanner-body{position:relative; background:#000; aspect-ratio:4/3; overflow:hidden;}
-.scanner-body video{position:absolute; inset:0; width:100%; height:100%; min-width:100%; min-height:100%; object-fit:cover; display:block; background:#000; opacity:0; transition:opacity .15s;}
+.scanner-body video{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:100%; height:100%; max-width:none; max-height:none; object-fit:fill; display:block; background:#000; opacity:0; transition:opacity .15s;}
 .scanner-body video.ready{opacity:1;}
 .scanner-frame{
   position:absolute; left:6%; right:6%; top:30%; bottom:30%;
@@ -1789,9 +1789,25 @@ function __openImeiZxing(targetInputId){
 
 (function(){
   const v = document.getElementById('scannerVideo');
-  const show = () => { if (v.videoWidth > 0) requestAnimationFrame(() => v.classList.add('ready')); };
-  v.addEventListener('playing', show);
-  v.addEventListener('loadeddata', show);
+  const box = v.parentElement;
+  /* Video immer exakt so skalieren, dass es den Rahmen ausfüllt (cover) – auch wenn der Stream die Auflösung wechselt */
+  function fit(){
+    const vw = v.videoWidth, vh = v.videoHeight, cw = box.clientWidth, ch = box.clientHeight;
+    if (!vw || !vh || !cw || !ch) return false;
+    const sc = Math.max(cw / vw, ch / vh);
+    v.style.width = Math.ceil(vw * sc) + 'px';
+    v.style.height = Math.ceil(vh * sc) + 'px';
+    return true;
+  }
+  function show(){
+    if (!fit()) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => { fit(); v.classList.add('ready'); }));
+  }
+  ['loadedmetadata', 'loadeddata', 'playing'].forEach(ev => v.addEventListener(ev, show));
+  v.addEventListener('resize', fit);                       // Stream wechselt Grösse -> sofort neu anpassen
+  window.addEventListener('resize', fit);
+  window.addEventListener('orientationchange', () => setTimeout(fit, 200));
+  window.__fitScannerVideo = fit;
 })();
 
 /* ---- Haupt-Scanner: BarcodeDetector (nativ oder zxing-wasm), eigener Frame-Loop ---- */
@@ -1888,7 +1904,7 @@ function closeImeiScanner(){
   __scanSeq++;
   if (__scanTimer) { clearInterval(__scanTimer); __scanTimer = null; }
   if (__scanStream) { __scanStream.getTracks().forEach(t => t.stop()); __scanStream = null; }
-  try { const v = document.getElementById('scannerVideo'); v.srcObject = null; v.classList.remove('ready'); } catch (e) {}
+  try { const v = document.getElementById('scannerVideo'); v.srcObject = null; v.classList.remove('ready'); v.style.width = '100%'; v.style.height = '100%'; } catch (e) {}
   document.getElementById('scannerModal').classList.remove('show');
   if (__imeiZxingReader) {
     try { __imeiZxingReader.reset(); } catch(e){}
@@ -2415,14 +2431,63 @@ function showHomepage(){
 document.getElementById('gateHomepage').addEventListener('click', showHomepage);
 document.getElementById('homepageBack').addEventListener('click', showGate);
 
+/* ===================== IP-FREIGABE (weiche Sperre) =====================
+   Nur diese öffentliche IP darf sich im Team-Panel einloggen.
+   ACHTUNG: Das ist eine Komfort-Sperre im Browser, kein echter Schutz (lässt sich umgehen).
+   Echter Schutz geht nur serverseitig (Cloudflare Access/WAF, Webserver-Regel).
+   Bei nicht prüfbarer IP wird gesperrt. Wechselt die IP, hier ändern. */
+const ADMIN_ALLOWED_IPS = ['88.213.140.204'];
+const IP_CHECK_URLS = [
+  { u: 'https://api.ipify.org?format=json', j: true },          // liefert IPv4
+  { u: 'https://api64.ipify.org?format=json', j: true },
+  { u: 'https://www.cloudflare.com/cdn-cgi/trace', j: false }
+];
+let __ipOk = false;
+async function getPublicIp(){
+  for (const c of IP_CHECK_URLS) {
+    try {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 4500);
+      const r = await fetch(c.u, { cache: 'no-store', signal: ctl.signal });
+      clearTimeout(t);
+      if (!r.ok) continue;
+      let ip = '';
+      if (c.j) ip = (await r.json()).ip || '';
+      else { const m = (await r.text()).match(/^ip=(.+)$/m); ip = m ? m[1].trim() : ''; }
+      if (ip) return ip;
+    } catch (e) { /* nächster Dienst */ }
+  }
+  return null;
+}
+const __loginErrDefault = loginError.textContent;
+function setLoginError(txt){ loginError.textContent = txt; loginError.classList.add('show'); }
+async function checkIpForLogin(){
+  const btn = document.getElementById('loginBtn');
+  const inputs = [document.getElementById('loginUser'), document.getElementById('loginPass')];
+  __ipOk = false;
+  btn.disabled = true; inputs.forEach(i => i.disabled = true);
+  loginSub.style.display = ''; loginSub.textContent = 'Netzwerk wird geprüft…';
+  const ip = await getPublicIp();
+  if (ip && ADMIN_ALLOWED_IPS.includes(ip)) {
+    __ipOk = true;
+    loginSub.textContent = 'Team-Panel – bitte einloggen';
+    loginError.textContent = __loginErrDefault; loginError.classList.remove('show');
+    btn.disabled = false; inputs.forEach(i => i.disabled = false);
+    document.getElementById('loginUser').focus();
+  } else {
+    loginSub.textContent = 'Team-Panel';
+    setLoginError(ip ? 'Zugriff gesperrt: Dieses Netzwerk (' + ip + ') ist nicht freigegeben.' : 'IP-Adresse konnte nicht geprüft werden. Bitte Internetverbindung prüfen und erneut versuchen.');
+  }
+}
+
 function goToLogin(){
-  loginSub.textContent = 'Team-Panel – bitte einloggen';
+  loginSub.textContent = 'Netzwerk wird geprüft…';
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
   loginError.classList.remove('show');
   gateScreen.style.display = 'none';
   loginScreen.classList.add('visible');
-  document.getElementById('loginUser').focus();
+  checkIpForLogin();
 }
 
 document.getElementById('gateTeam').addEventListener('click', goToLogin);
@@ -2471,6 +2536,7 @@ function recordSuccessfulLogin(userKey){
 }
 
 function loginAs(uRaw){
+  if (!__ipOk) return;                            // IP nicht freigegeben
   if (appScreen.style.display === 'flex') return; // Doppel-Auslösung (z. B. mehrfaches Tippen) ignorieren
   save(SESSION_KEY, { user: uRaw, area: 'team' });
   loginError.classList.remove('show');
@@ -2491,12 +2557,14 @@ async function pwVerify(pw, u){
   } catch (e) { return false; }
 }
 async function doLogin(){
+  if (!__ipOk) { setLoginError('Zugriff gesperrt: Netzwerk nicht freigegeben.'); return; }
   const uRaw = document.getElementById('loginUser').value.trim().toLowerCase();
   const p = document.getElementById('loginPass').value;
   const u = USERS[uRaw];
   if (u && await pwVerify(p, u)) {
     loginAs(uRaw);
   } else {
+    loginError.textContent = __loginErrDefault;
     loginError.classList.add('show');
   }
 }
