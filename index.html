@@ -1719,6 +1719,19 @@ function __makeReader(){
   hints.set(Z.DecodeHintType.TRY_HARDER, true);
   return new Z.BrowserMultiFormatReader(hints, 60);
 }
+/* Bestätigung: dieselbe IMEI muss in mehreren Bildern hintereinander gelesen werden */
+const __CONFIRM_HITS = 3;
+let __cand = null, __candHits = 0, __candMiss = 0;
+function __resetConfirm(){ __cand = null; __candHits = 0; __candMiss = 0; }
+/* gibt die IMEI erst zurück, wenn sie __CONFIRM_HITS Mal identisch gelesen wurde */
+function __confirmImei(imei, statusEl){
+  if (!imei) { if (++__candMiss > 8) __resetConfirm(); return null; }
+  __candMiss = 0;
+  if (imei === __cand) __candHits++; else { __cand = imei; __candHits = 1; }
+  if (__candHits >= __CONFIRM_HITS) { const ok = __cand; __resetConfirm(); return ok; }
+  if (statusEl) { statusEl.classList.remove('err'); statusEl.textContent = 'IMEI wird überprüft … ' + __candHits + '/' + __CONFIRM_HITS; }
+  return null;
+}
 function __imeiAccept(imei){
   const input = document.getElementById(__imeiScanTargetId);
   if (input) { input.value = imei; input.dispatchEvent(new Event('input', { bubbles: true })); }
@@ -1726,6 +1739,7 @@ function __imeiAccept(imei){
 }
 
 function __openImeiZxing(targetInputId){
+  __resetConfirm();
   __imeiScanTargetId = targetInputId;
   const modal = document.getElementById('scannerModal');
   const statusEl = document.getElementById('scannerStatus');
@@ -1750,8 +1764,8 @@ function __openImeiZxing(targetInputId){
       if (!result) return;
       const raw = result.getText ? result.getText() : (result.text || '');
       const imei = __extractImei(raw);
-      if (imei) { __imeiAccept(imei); return; }
-      if (!seenOther) {
+      if (imei) { const okI = __confirmImei(imei, statusEl); if (okI) __imeiAccept(okI); return; }
+      if (!seenOther && !__cand) {
         seenOther = true;
         statusEl.classList.remove('err');
         statusEl.textContent = 'Anderer Code erkannt (z.B. EID) – bitte den IMEI-Strichcode scannen.';
@@ -1802,6 +1816,7 @@ async function __detectImeiIn(source){
 
 async function openImeiScanner(targetInputId){
   const seq = ++__scanSeq;
+  __resetConfirm();
   __imeiScanTargetId = targetInputId;
   const modal = document.getElementById('scannerModal');
   const statusEl = document.getElementById('scannerStatus');
@@ -1848,8 +1863,9 @@ async function openImeiScanner(targetInputId){
       ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
       const found = await __detectImeiIn(canvas);
       if (seq !== __scanSeq) return;
-      if (found && found !== 'OTHER') { __imeiAccept(found); }
-      else if (found === 'OTHER' && !shownOther) {
+      const okImei = __confirmImei(found && found !== 'OTHER' ? found : null, statusEl);
+      if (okImei) { __imeiAccept(okImei); }
+      else if (found === 'OTHER' && !shownOther && !__cand) {
         shownOther = true;
         statusEl.textContent = 'Anderer Code erkannt (z.B. EID) – bitte den IMEI-Strichcode scannen.';
       }
