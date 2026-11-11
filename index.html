@@ -2499,10 +2499,15 @@ async function checkSiteAccess(){
   }
   icon.textContent = '⛔';
   title.textContent = 'Zugriff gesperrt';
+  window.__detectedIp = ip || 'nicht ermittelbar';
   msg.textContent = (location.hash === '#ip') ? ('Erkannte IP: ' + (ip || 'nicht ermittelbar')) : '';   // Diagnose: Seite mit #ip am Ende der Adresse öffnen
   retry.style.display = 'none';
 }
 document.getElementById('ipBlockRetry').addEventListener('click', checkSiteAccess);
+// Diagnose: aufs ⛔-Symbol tippen zeigt die erkannte IP (auch in der Home-Bildschirm-App ohne #ip)
+document.getElementById('ipBlockIcon').addEventListener('click', () => {
+  if (window.__detectedIp) document.getElementById('ipBlockMsg').textContent = 'Erkannte IP: ' + window.__detectedIp;
+});
 checkSiteAccess();
 
 function goToLogin(){
