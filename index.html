@@ -2451,6 +2451,7 @@ const IP_USERS = {
   '194.230.161.133': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
   '88.213.140.204':  ['thierry'],             // Thierry: nur als Thierry
   '51.154.254.61':   ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
+  '2a04:ee41:188:fb03:*': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen (IPv6, Präfix)
   '2a00:d80:2201:1f00:*': ['thierry']         // Thierry (IPv6 derselbe Anschluss wie 88.213.140.204; Präfix, da sich das Ende oft ändert)
 };
 function ipUsersFor(ip){
