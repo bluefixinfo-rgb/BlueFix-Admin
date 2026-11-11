@@ -2499,7 +2499,7 @@ async function checkSiteAccess(){
   }
   icon.textContent = '⛔';
   title.textContent = 'Zugriff gesperrt';
-  msg.textContent = '';
+  msg.textContent = (location.hash === '#ip') ? ('Erkannte IP: ' + (ip || 'nicht ermittelbar')) : '';   // Diagnose: Seite mit #ip am Ende der Adresse öffnen
   retry.style.display = 'none';
 }
 document.getElementById('ipBlockRetry').addEventListener('click', checkSiteAccess);
