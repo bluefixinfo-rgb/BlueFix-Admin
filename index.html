@@ -933,6 +933,16 @@ input,select,textarea{font-family:var(--sans);}
 </head>
 <body>
 
+<!-- ==================== IP-SPERRE (ganze Webseite) ==================== -->
+<div id="ipBlock" style="position:fixed;inset:0;z-index:2147483000;background:#0a1020;color:#e8eefc;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;font-family:Inter,system-ui,sans-serif;">
+  <div style="max-width:340px;">
+    <div style="font-size:42px;margin-bottom:10px;" id="ipBlockIcon">🔒</div>
+    <div style="font-size:18px;font-weight:700;margin-bottom:8px;" id="ipBlockTitle">Netzwerk wird geprüft…</div>
+    <div style="font-size:14px;opacity:.75;line-height:1.5;" id="ipBlockMsg"></div>
+    <button id="ipBlockRetry" style="display:none;margin-top:16px;padding:10px 18px;border-radius:12px;border:1px solid rgba(255,255,255,.2);background:transparent;color:#7db3ff;font:600 14px inherit;cursor:pointer;">Erneut prüfen</button>
+  </div>
+</div>
+
 <!-- ==================== GATE (Wohin möchtest du?) ==================== -->
 <div id="gateScreen">
   <div class="gate-card">
@@ -2432,17 +2442,20 @@ document.getElementById('gateHomepage').addEventListener('click', showHomepage);
 document.getElementById('homepageBack').addEventListener('click', showGate);
 
 /* ===================== IP-FREIGABE (weiche Sperre) =====================
-   Nur diese öffentliche IP darf sich im Team-Panel einloggen.
+   Die ganze Seite ist nur von diesen IPs aus nutzbar. Pro IP steht, welche Benutzer sich einloggen dürfen.
    ACHTUNG: Das ist eine Komfort-Sperre im Browser, kein echter Schutz (lässt sich umgehen).
    Echter Schutz geht nur serverseitig (Cloudflare Access/WAF, Webserver-Regel).
-   Bei nicht prüfbarer IP wird gesperrt. Wechselt die IP, hier ändern. */
-const ADMIN_ALLOWED_IPS = ['88.213.140.204'];
+   Bei nicht prüfbarer IP wird gesperrt. Wechselt eine IP, hier ändern. */
+const IP_USERS = {
+  '194.230.161.133': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
+  '88.213.140.204':  ['thierry']              // Thierry: nur als Thierry
+};
 const IP_CHECK_URLS = [
   { u: 'https://api.ipify.org?format=json', j: true },          // liefert IPv4
   { u: 'https://api64.ipify.org?format=json', j: true },
   { u: 'https://www.cloudflare.com/cdn-cgi/trace', j: false }
 ];
-let __ipOk = false;
+let __ipUsers = [];          // Benutzer, die von der aktuellen IP aus einloggen dürfen
 async function getPublicIp(){
   for (const c of IP_CHECK_URLS) {
     try {
@@ -2461,33 +2474,36 @@ async function getPublicIp(){
 }
 const __loginErrDefault = loginError.textContent;
 function setLoginError(txt){ loginError.textContent = txt; loginError.classList.add('show'); }
-async function checkIpForLogin(){
-  const btn = document.getElementById('loginBtn');
-  const inputs = [document.getElementById('loginUser'), document.getElementById('loginPass')];
-  __ipOk = false;
-  btn.disabled = true; inputs.forEach(i => i.disabled = true);
-  loginSub.style.display = ''; loginSub.textContent = 'Netzwerk wird geprüft…';
+
+async function checkSiteAccess(){
+  const box = document.getElementById('ipBlock');
+  const icon = document.getElementById('ipBlockIcon'), title = document.getElementById('ipBlockTitle'), msg = document.getElementById('ipBlockMsg'), retry = document.getElementById('ipBlockRetry');
+  box.style.display = 'flex';
+  icon.textContent = '🔒'; title.textContent = 'Netzwerk wird geprüft…'; msg.textContent = ''; retry.style.display = 'none';
+  __ipUsers = [];
   const ip = await getPublicIp();
-  if (ip && ADMIN_ALLOWED_IPS.includes(ip)) {
-    __ipOk = true;
-    loginSub.textContent = 'Team-Panel – bitte einloggen';
-    loginError.textContent = __loginErrDefault; loginError.classList.remove('show');
-    btn.disabled = false; inputs.forEach(i => i.disabled = false);
-    document.getElementById('loginUser').focus();
-  } else {
-    loginSub.textContent = 'Team-Panel';
-    setLoginError(ip ? 'Zugriff gesperrt: Dieses Netzwerk (' + ip + ') ist nicht freigegeben.' : 'IP-Adresse konnte nicht geprüft werden. Bitte Internetverbindung prüfen und erneut versuchen.');
+  if (ip && IP_USERS[ip]) {
+    __ipUsers = IP_USERS[ip];
+    box.style.display = 'none';
+    return;
   }
+  icon.textContent = '⛔';
+  title.textContent = 'Zugriff gesperrt';
+  msg.textContent = ip ? 'Dieses Netzwerk (' + ip + ') ist nicht freigegeben.' : 'Die IP-Adresse konnte nicht geprüft werden. Bitte Internetverbindung prüfen.';
+  retry.style.display = '';
 }
+document.getElementById('ipBlockRetry').addEventListener('click', checkSiteAccess);
+checkSiteAccess();
 
 function goToLogin(){
-  loginSub.textContent = 'Netzwerk wird geprüft…';
+  loginSub.textContent = 'Team-Panel – bitte einloggen';
   document.getElementById('loginUser').value = '';
   document.getElementById('loginPass').value = '';
+  loginError.textContent = __loginErrDefault;
   loginError.classList.remove('show');
   gateScreen.style.display = 'none';
   loginScreen.classList.add('visible');
-  checkIpForLogin();
+  document.getElementById('loginUser').focus();
 }
 
 document.getElementById('gateTeam').addEventListener('click', goToLogin);
@@ -2536,7 +2552,7 @@ function recordSuccessfulLogin(userKey){
 }
 
 function loginAs(uRaw){
-  if (!__ipOk) return;                            // IP nicht freigegeben
+  if (!__ipUsers.includes(String(uRaw).toLowerCase())) return;   // Benutzer von dieser IP nicht erlaubt
   if (appScreen.style.display === 'flex') return; // Doppel-Auslösung (z. B. mehrfaches Tippen) ignorieren
   save(SESSION_KEY, { user: uRaw, area: 'team' });
   loginError.classList.remove('show');
@@ -2557,9 +2573,10 @@ async function pwVerify(pw, u){
   } catch (e) { return false; }
 }
 async function doLogin(){
-  if (!__ipOk) { setLoginError('Zugriff gesperrt: Netzwerk nicht freigegeben.'); return; }
   const uRaw = document.getElementById('loginUser').value.trim().toLowerCase();
   const p = document.getElementById('loginPass').value;
+  if (!__ipUsers.length) { setLoginError('Zugriff gesperrt: Netzwerk nicht freigegeben.'); return; }
+  if (USERS[uRaw] && !__ipUsers.includes(uRaw)) { setLoginError('Dieser Benutzer darf sich von diesem Netzwerk aus nicht einloggen.'); return; }
   const u = USERS[uRaw];
   if (u && await pwVerify(p, u)) {
     loginAs(uRaw);
