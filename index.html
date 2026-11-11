@@ -2449,8 +2449,15 @@ document.getElementById('homepageBack').addEventListener('click', showGate);
    Bei nicht prüfbarer IP wird gesperrt. Wechselt eine IP, hier ändern. */
 const IP_USERS = {
   '194.230.161.133': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
-  '88.213.140.204':  ['thierry']              // Thierry: nur als Thierry
+  '88.213.140.204':  ['thierry'],             // Thierry: nur als Thierry
+  '51.154.254.61':   ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
+  '2a00:d80:2201:1f00:*': ['thierry']         // Thierry (IPv6 derselbe Anschluss wie 88.213.140.204; Präfix, da sich das Ende oft ändert)
 };
+function ipUsersFor(ip){
+  if (IP_USERS[ip]) return IP_USERS[ip];
+  for (const k of Object.keys(IP_USERS)) if (k.endsWith('*') && ip.toLowerCase().startsWith(k.slice(0, -1))) return IP_USERS[k];
+  return null;
+}
 const IP_CHECK_URLS = [
   { u: 'https://api.ipify.org?format=json', j: true },          // liefert IPv4
   { u: 'https://api64.ipify.org?format=json', j: true },
@@ -2483,8 +2490,8 @@ async function checkSiteAccess(){
   icon.textContent = '🔒'; title.textContent = ''; msg.textContent = ''; retry.style.display = 'none';
   __ipUsers = [];
   const ip = await getPublicIp();
-  if (ip && IP_USERS[ip]) {
-    __ipUsers = IP_USERS[ip];
+  if (ip && ipUsersFor(ip)) {
+    __ipUsers = ipUsersFor(ip);
     window.__siteAllowed = true;
     box.style.display = 'none';
     if (window.__initApp) window.__initApp();
