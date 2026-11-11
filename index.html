@@ -2447,7 +2447,7 @@ document.getElementById('homepageBack').addEventListener('click', showGate);
    Echter Schutz geht nur serverseitig (Cloudflare Access/WAF, Webserver-Regel).
    Bei nicht prüfbarer IP wird gesperrt. Wechselt eine IP, hier ändern. */
 const IP_USERS = {
-  '194.230.161.133': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
+  // TEST (vorübergehend deaktiviert): '194.230.161.133': ['jerome', 'thierry'],   // Jerome: darf sich überall einloggen
   '88.213.140.204':  ['thierry']              // Thierry: nur als Thierry
 };
 const IP_CHECK_URLS = [
@@ -2489,8 +2489,8 @@ async function checkSiteAccess(){
   }
   icon.textContent = '⛔';
   title.textContent = 'Zugriff gesperrt';
-  msg.textContent = ip ? 'Dieses Netzwerk (' + ip + ') ist nicht freigegeben.' : 'Die IP-Adresse konnte nicht geprüft werden. Bitte Internetverbindung prüfen.';
-  retry.style.display = '';
+  msg.textContent = '';
+  retry.style.display = 'none';
 }
 document.getElementById('ipBlockRetry').addEventListener('click', checkSiteAccess);
 checkSiteAccess();
