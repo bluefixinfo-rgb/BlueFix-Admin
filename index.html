@@ -682,6 +682,12 @@ input,select,textarea{font-family:var(--sans);}
 .elia-stat .l{font-size:11.5px;color:var(--muted);margin-top:3px;}
 .ai-tag.elia-tag{background:rgba(245,166,35,.15);color:var(--warn);}
 .seg-badge[hidden]{display:none;}
+/* v4.0: Unter-Tabs sauber, nichts gequetscht */
+.orders-seg .seg-btn{white-space:nowrap;flex-direction:row;}
+@media(max-width:520px){
+  .orders-seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .orders-seg .seg-btn{padding:0 10px;min-height:44px;font-size:14px;gap:7px;}
+}
 .ai-intro{font-size:12.5px;color:var(--muted);line-height:1.45;margin-bottom:12px;}
 #aiFilterBtns .btn.active,#formFilterBtns .btn.active{background:rgba(30,111,239,.28);border-color:var(--blue-light);color:var(--white);}
 .ai-card .ai-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:rgba(74,156,255,.14);color:var(--blue-light);font-size:11.5px;font-weight:600;margin-right:6px;}
