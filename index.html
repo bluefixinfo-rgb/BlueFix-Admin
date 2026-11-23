@@ -892,12 +892,6 @@ input,select,textarea{font-family:var(--sans);}
 #terminModal input[type="time"].tm-empty::before{content:"--:--"; color:var(--muted); position:absolute; left:14px; top:50%; transform:translateY(-50%); pointer-events:none;}
 #terminModal .cal-time-row{gap:14px; margin-bottom:0;}
 @media (max-width:380px){#terminModal .field input,#terminModal .field select,#terminModal .field textarea{font-size:15px; padding:11px 12px;} #terminModal .cal-time-row{gap:10px;}}
-/* "Formular senden": LED-Blau-Effekt beim Drücken */
-#formLinkBtn{position:relative; overflow:hidden; transition:transform .12s ease, box-shadow .25s ease, background .25s ease, border-color .25s ease, color .25s ease;}
-#formLinkBtn::after{content:""; position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0; background:radial-gradient(circle at 50% 50%, rgba(74,156,255,.55), rgba(30,111,239,.0) 70%);}
-#formLinkBtn:active,#formLinkBtn.led-on{transform:scale(.97); color:#fff; border-color:#4a9cff; background:linear-gradient(180deg,rgba(74,156,255,.38),rgba(30,111,239,.28)); box-shadow:0 0 0 3px rgba(74,156,255,.22), 0 0 22px 2px rgba(74,156,255,.75), 0 0 46px 6px rgba(30,111,239,.45), inset 0 0 18px rgba(120,190,255,.35);}
-#formLinkBtn.led-on::after{animation:ledFlash .7s ease-out;}
-@keyframes ledFlash{0%{opacity:1; transform:scale(.4);}100%{opacity:0; transform:scale(1.6);}}
 
 .termin-card{border-left:3px solid var(--tc, var(--blue-light));}
 .termin-time{color:var(--tc, var(--blue-light)); font-variant-numeric:tabular-nums; margin-right:8px;}
@@ -2220,14 +2214,6 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
 </script>
 <script>
 (function(){
-  var b=document.getElementById("formLinkBtn");
-  if(b){
-    var t=null;
-    function on(){b.classList.add("led-on");clearTimeout(t);}
-    function off(){clearTimeout(t);t=setTimeout(function(){b.classList.remove("led-on")},450);}
-    b.addEventListener("pointerdown",on);
-    ["pointerup","pointercancel","pointerleave"].forEach(function(e){b.addEventListener(e,off)});
-  }
   function ph(){
     ["tmVon","tmBis"].forEach(function(id){
       var el=document.getElementById(id); if(el) el.classList.toggle("tm-empty",!el.value);
