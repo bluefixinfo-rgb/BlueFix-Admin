@@ -1444,7 +1444,7 @@ input,select,textarea{font-family:var(--sans);}
       <div class="field" id="custComboField" style="display:none;"><div class="combo-row"><button type="button" class="btn btn-ghost btn-sm" id="custComboBtn">20% Kombi-Rabatt anwenden</button></div><div id="custComboMsg" class="order-file-meta combo-note"></div></div>
       <div class="field"><label>Zahlungsart</label><div class="pay-options" id="custPayOptions" style="margin-bottom:0;"><div class="cpay-opt" data-cpay="twint">Twint</div><div class="cpay-opt" data-cpay="bank">Bank</div><div class="cpay-opt" data-cpay="bar">Bar</div></div><div class="cpay-hint" id="custPayHint">Beim Speichern wird die Rechnung automatisch erstellt.</div></div>
       <div class="field"><label>Rabattcode (optional, Newsletter-Code, nicht mit Kombi-Rabatt kombinierbar)</label><div style="display:flex; gap:8px;"><input type="text" id="custRabatt" placeholder="BL-XXXX" autocapitalize="characters" autocomplete="off" spellcheck="false" style="text-transform:uppercase; letter-spacing:.05em;"><button type="button" class="btn btn-ghost btn-sm" id="custRabattBtn">Einlösen</button></div><div id="custRabattMsg" class="order-file-meta" style="margin-top:6px;"></div></div>
-      <div class="field"><label>Abgabe des Geräts</label><select id="custAbgabe"><option value="">– bitte wählen –</option><option value="Per Post">Per Post schicken</option><option value="Vorbeibringen">Vorbeibringen</option></select><div style="display:flex;gap:8px;margin-top:8px;"><button type="button" class="btn btn-ghost btn-sm" id="custAskWa">Kunden fragen: WhatsApp</button><button type="button" class="btn btn-ghost btn-sm" id="custAskSms">Kunden fragen: SMS</button></div></div>
+      <div class="field"><label>Abgabe des Geräts</label><select id="custAbgabe"><option value="">– bitte wählen –</option><option value="Per Post">Per Post schicken</option><option value="Vorbeibringen">Vorbeibringen</option></select></div>
       <div class="field"><label>Garantie-Dauer</label><input type="text" id="custGarantie" placeholder="z.B. 12 Monate"></div>
 
     </div>
@@ -2233,7 +2233,6 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   ph();
 })();
 
-(function(){function ask(k){var ph=normPhone(document.getElementById("custTelefon").value.trim());if(!ph){alert("Bitte zuerst eine g\u00FCltige Handynummer eingeben, z.B. 079 123 45 67.");return}var v=document.getElementById("custVorname").value.trim(),m=document.getElementById("custModell").value.trim(),t="Hallo "+v+",\n\nm\u00F6chtest du "+(m?"dein "+m:"dein Ger\u00E4t")+" per Post an uns schicken oder bei uns vorbeibringen? Antworte einfach kurz auf diese Nachricht.\n\nFreundliche Gr\u00FCsse\nDein BlueFix-Team";if(k==="wa")window.open("https://wa.me/"+ph+"?text="+encodeURIComponent(t),"_blank");else window.location.href="sms:+"+ph+"?&body="+encodeURIComponent(t)}document.getElementById("custAskWa").addEventListener("click",function(){ask("wa")});document.getElementById("custAskSms").addEventListener("click",function(){ask("sms")})})();
 </script>
 </body>
 </html>
