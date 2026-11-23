@@ -683,7 +683,7 @@ input,select,textarea{font-family:var(--sans);}
 .ai-tag.elia-tag{background:rgba(245,166,35,.15);color:var(--warn);}
 .seg-badge[hidden]{display:none;}
 .ai-intro{font-size:12.5px;color:var(--muted);line-height:1.45;margin-bottom:12px;}
-#aiFilterBtns .btn.active{background:rgba(30,111,239,.28);border-color:var(--blue-light);color:var(--white);}
+#aiFilterBtns .btn.active,#formFilterBtns .btn.active{background:rgba(30,111,239,.28);border-color:var(--blue-light);color:var(--white);}
 .ai-card .ai-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;background:rgba(74,156,255,.14);color:var(--blue-light);font-size:11.5px;font-weight:600;margin-right:6px;}
 .badge-ai-neu{background:rgba(245,166,35,0.15);color:var(--warn);}
 .badge-ai-kontaktiert{background:rgba(74,156,255,0.15);color:var(--blue-light);}
@@ -974,7 +974,7 @@ input,select,textarea{font-family:var(--sans);}
         </div>
       </div>
     </div>
-    <p class="gate-version">Version 3.5</p>
+    <p class="gate-version">Version 4.0</p>
   </div>
 </div>
 
@@ -1161,8 +1161,8 @@ input,select,textarea{font-family:var(--sans);}
         <div class="order-type-buttons" id="formFilterBtns">
           <button type="button" class="btn btn-ghost active" data-formfilter="open">Offen</button>
           <button type="button" class="btn btn-ghost" data-formfilter="all">Alle</button>
-          <button type="button" class="btn btn-ghost" id="formLinkBtn">🔗 Formular senden</button>
         </div>
+        <button type="button" class="btn btn-ghost" id="formLinkBtn" style="width:100%!important;flex-basis:100%;min-height:44px">🔗 Formular senden</button>
         <div class="order-search"><span class="search-icon">⌕</span><input id="formOrderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
       </div>
       <div id="formOrdersList"></div>
@@ -2156,7 +2156,7 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     });
   });
   $("formLinkBtn").addEventListener("click",async function(){
-    var text="Hallo, bitte füll kurz dieses Formular für deinen Reparaturauftrag aus:\n"+FORM_URL+"\n\nDein BlueFix Team";
+    var text="Guten Tag\n\nVielen Dank für dein Vertrauen in BlueFix. Damit wir deinen Reparaturauftrag schnell und korrekt aufnehmen können, bitten wir dich, kurz das folgende Formular auszufüllen:\n\n"+FORM_URL+"\n\nFreundliche Grüsse\nDein BlueFix Team\nHandy Reparatur";
     try{ if(navigator.share){await navigator.share({text:text});return} }catch(e){ if(e&&e.name==="AbortError") return }
     try{ await navigator.clipboard.writeText(text); alert("Nachricht mit Formular-Link wurde kopiert. Jetzt beim Kunden einfügen und senden.") }
     catch(e){ prompt("Diese Nachricht dem Kunden senden:",text) }
@@ -2171,6 +2171,20 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   var baseSync=startFirebaseSync;
   startFirebaseSync=function(){ var r=baseSync.apply(this,arguments); try{watch()}catch(e){} return r };
   watch();
+})();
+</script>
+<script>
+/* v4.0: Plus-Kugel nur bei "Eigene Aufträge" */
+(function(){
+  function fabSync(){
+    var t=document.querySelector(".tab-btn.active"),f=document.getElementById("fabBtn");
+    if(!t||!f||t.dataset.tab!=="orders") return;
+    f.style.display=(aiOrdersSeg==="own")?"flex":"none";
+  }
+  var _tab=switchToTab;
+  switchToTab=function(){var r=_tab.apply(this,arguments);fabSync();return r};
+  var _seg=setAiSeg;
+  setAiSeg=function(){var r=_seg.apply(this,arguments);fabSync();return r};
 })();
 </script>
 </body>
