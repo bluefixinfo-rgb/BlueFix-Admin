@@ -705,6 +705,8 @@ input,select,textarea{font-family:var(--sans);}
 .orders-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px;}
 .order-type-buttons{display:flex;gap:10px;flex:1;min-width:260px;}
 .order-type-buttons .btn{width:auto!important;flex:1;min-height:44px;}
+#customerOrderBtn,#teamOrderBtn{flex:1 1 0; min-width:0; white-space:nowrap; justify-content:center; text-align:center; padding-left:8px; padding-right:8px; font-size:14.5px;}
+@media (max-width:380px){#customerOrderBtn,#teamOrderBtn{font-size:13.5px; gap:5px;}}
 .order-search{position:relative;flex:1;min-width:220px;}
 .order-search input{width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--white);backdrop-filter:var(--glass-blur-sm);-webkit-backdrop-filter:var(--glass-blur-sm);box-shadow:inset 0 1px 0 rgba(255,255,255,0.16);padding:12px 14px 12px 42px;border-radius:14px;font-size:14px;transition:.18s;}
 .order-search input:focus{outline:none;border-color:var(--blue-light);box-shadow:0 0 0 3px rgba(74,156,255,.12);}
