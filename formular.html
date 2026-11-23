@@ -39,6 +39,12 @@ input[type=text],input[type=tel],input[type=email]{
 input::placeholder{color:rgba(190,205,240,.45)}
 input:focus{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(59,130,246,.22)}
 input.bad{border-color:var(--err)}
+input:-webkit-autofill,input:-webkit-autofill:hover,input:-webkit-autofill:focus,input:-webkit-autofill:active{
+  -webkit-text-fill-color:var(--text);caret-color:var(--text);
+  -webkit-box-shadow:0 0 0 1000px #172a5c inset;box-shadow:0 0 0 1000px #172a5c inset;
+  transition:background-color 600000s 0s,color 600000s 0s;
+}
+input:-webkit-autofill:focus{-webkit-box-shadow:0 0 0 1000px #172a5c inset,0 0 0 4px rgba(59,130,246,.22);box-shadow:0 0 0 1000px #172a5c inset,0 0 0 4px rgba(59,130,246,.22)}
 .hint{font-size:12.5px;color:var(--muted);margin:7px 2px 0;opacity:.85}
 .pay{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .pay input{position:absolute;opacity:0;pointer-events:none}
@@ -46,6 +52,7 @@ input.bad{border-color:var(--err)}
 .pay label span{display:block;font-size:24px;margin-bottom:6px}
 .pay input:checked+label{border-color:var(--accent2);background:linear-gradient(160deg,rgba(59,130,246,.55),rgba(29,78,216,.45));box-shadow:0 6px 18px rgba(59,130,246,.3)}
 .pay input:focus-visible+label{box-shadow:0 0 0 4px rgba(59,130,246,.35)}
+.pay.two{grid-template-columns:repeat(2,1fr)}
 .paynote{display:none;margin-top:12px;padding:12px 14px;border-radius:14px;background:rgba(59,130,246,.14);border:1px solid rgba(110,150,255,.25);font-size:13.5px;color:#cfdcff;line-height:1.45}
 .err{color:var(--err);font-size:13px;margin:8px 2px 0;display:none}
 button.send{width:100%;padding:18px;border:0;border-radius:14px;font:700 17px 'Space Grotesk',sans-serif;color:#fff;background:linear-gradient(135deg,#3b82f6,#1d4ed8);box-shadow:0 8px 22px rgba(59,130,246,.35);cursor:pointer;transition:transform .12s,opacity .2s}
@@ -70,23 +77,33 @@ button.send:disabled{opacity:.6}
       <h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>Kundendaten &amp; Gerät</h2>
 
       <label for="vorname">Vorname</label>
-      <input id="vorname" type="text" placeholder="z.B. Max" autocomplete="given-name" required>
+      <input id="vorname" type="text" spellcheck="false" autocorrect="off" placeholder="z.B. Max" autocomplete="given-name" required>
 
       <label for="nachname">Nachname</label>
-      <input id="nachname" type="text" placeholder="z.B. Muster" autocomplete="family-name" required>
+      <input id="nachname" type="text" spellcheck="false" autocorrect="off" placeholder="z.B. Muster" autocomplete="family-name" required>
 
-      <label for="handy">Handynummer <i>(optional, für die Status-Nachricht)</i></label>
-      <input id="handy" type="tel" inputmode="tel" placeholder="z.B. 079 123 45 67" autocomplete="tel">
+      <label for="handy">Handynummer</label>
+      <input id="handy" type="tel" inputmode="tel" placeholder="z.B. 079 123 45 67" autocomplete="tel" required>
 
-      <label for="email">E-Mail <i>(optional)</i></label>
-      <input id="email" type="email" inputmode="email" placeholder="z.B. max@muster.ch" autocomplete="email">
+      <label for="email">E-Mail</label>
+      <input id="email" type="email" inputmode="email" placeholder="z.B. max@muster.ch" autocomplete="email" spellcheck="false" autocorrect="off" autocapitalize="none" required>
 
       <label for="modell">Modell</label>
-      <input id="modell" type="text" placeholder="z.B. iPhone 13 Pro" required>
+      <input id="modell" type="text" spellcheck="false" autocorrect="off" placeholder="z.B. iPhone 13 Pro" required>
 
       <label for="imei">IMEI-Nummer</label>
       <input id="imei" type="text" inputmode="numeric" maxlength="15" placeholder="z.B. 356789012345678" required>
       <p class="hint">Tipp: Auf dem Handy <b>*#06#</b> wählen, dann wird die IMEI angezeigt.</p>
+    </div>
+
+    <div class="card">
+      <h2 style="margin-bottom:14px">📦 Wie bekommen wir dein Gerät?</h2>
+      <div class="pay two">
+        <div><input type="radio" name="abgabe" id="a-post" value="Per Post"><label for="a-post"><span>📮</span>Per Post schicken</label></div>
+        <div><input type="radio" name="abgabe" id="a-hand" value="Vorbeibringen"><label for="a-hand"><span>🏠</span>Vorbeibringen</label></div>
+      </div>
+      <div class="paynote" id="abgnote"></div>
+      <div class="err" id="abgerr">Bitte wähle, wie wir dein Gerät bekommen.</div>
     </div>
 
     <div class="card">
@@ -109,6 +126,7 @@ button.send:disabled{opacity:.6}
     <div class="check">✓</div>
     <h1>Danke, <span id="dname"></span>!</h1>
     <p class="sub">Dein Auftrag ist bei uns angekommen. Wir melden uns, sobald es Neuigkeiten gibt.</p>
+    <p class="sub" id="doneAbg" style="display:none;margin-top:10px"></p>
   </div>
 </div>
 
@@ -140,8 +158,13 @@ const notes = {
 document.querySelectorAll('input[name=zahlung]').forEach(r => r.addEventListener('change', () => {
   $('paynote').textContent = notes[r.value]; $('paynote').style.display = 'block'; $('payerr').style.display = 'none';
 }));
+const abNotes = {
+  "Per Post": "Du bekommst von uns die Adresse, an die du dein Gerät schicken kannst. Wir melden uns dazu bei dir.",
+  "Vorbeibringen": "Wir melden uns bei dir, um einen Termin zum Vorbeibringen abzumachen."
+};
+document.querySelectorAll('input[name=abgabe]').forEach(r => r.addEventListener('change', () => { $('abgerr').style.display = 'none'; $('abgnote').textContent = abNotes[r.value]; $('abgnote').style.display = 'block'; }));
 $('imei').addEventListener('input', e => e.target.value = e.target.value.replace(/\D/g, ''));
-['vorname','nachname','modell','imei'].forEach(id => $(id).addEventListener('input', () => $(id).classList.remove('bad')));
+['vorname','nachname','handy','email','modell','imei'].forEach(id => $(id).addEventListener('input', () => $(id).classList.remove('bad')));
 
 $('form').addEventListener('submit', async e => {
   e.preventDefault();
@@ -149,23 +172,27 @@ $('form').addEventListener('submit', async e => {
   let ok = true;
   ['vorname','nachname','modell'].forEach(id => { if (!$(id).value.trim()) { $(id).classList.add('bad'); ok = false; } });
   if ($('imei').value.length < 14) { $('imei').classList.add('bad'); ok = false; }
+  if ($('handy').value.replace(/\D/g, '').length < 9) { $('handy').classList.add('bad'); ok = false; }
   const mail = $('email').value.trim();
-  if (mail && !/^\S+@\S+\.\S+$/.test(mail)) { $('email').classList.add('bad'); ok = false; }
+  if (!/^\S+@\S+\.\S+$/.test(mail)) { $('email').classList.add('bad'); ok = false; }
   const z = document.querySelector('input[name=zahlung]:checked');
+  const ab = document.querySelector('input[name=abgabe]:checked');
+  if (!ab) { $('abgerr').style.display = 'block'; ok = false; }
   if (!z) { $('payerr').style.display = 'block'; ok = false; }
-  if (!ok) { document.querySelector('.bad, #payerr[style*=block]')?.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  if (!ok) { $('generr').textContent = 'Bitte fülle alle Felder korrekt aus.'; $('generr').style.display = 'block'; document.querySelector('.bad, #abgerr[style*=block], #payerr[style*=block]')?.scrollIntoView({behavior:'smooth',block:'center'}); return; }
 
   const data = {
     vorname: $('vorname').value.trim(), nachname: $('nachname').value.trim(),
     handy: $('handy').value.trim(), email: mail,
     modell: $('modell').value.trim(), imei: $('imei').value.trim(),
-    zahlungsart: z.value, typ: "formular", status: "neu", at: Date.now()
+    abgabe: ab.value, zahlungsart: z.value, typ: "formular", status: "neu", at: Date.now()
   };
   const btn = $('sendBtn'); btn.disabled = true; btn.textContent = "Wird gesendet…";
   try {
     if (!db) throw new Error("not-configured");
     await db.collection(COLLECTION).add(data);
     $('dname').textContent = data.vorname;
+    if (ab.value === 'Per Post') { $('doneAbg').textContent = 'Du bekommst von uns die Adresse, an die du dein Gerät schicken kannst.'; $('doneAbg').style.display = 'block'; }
     $('form').style.display = 'none'; $('done').style.display = 'block'; window.scrollTo({top:0,behavior:'smooth'});
   } catch (err) {
     console.error(err);
