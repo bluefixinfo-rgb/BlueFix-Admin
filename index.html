@@ -1934,7 +1934,6 @@ function setRepStatus(e,n){const t=load(ORDERS_KEY,[]),i=t.find(l=>l.id===e);!i|
       ${n==="fertig"&&!e.zugestellt&&!(t&&t.art==="abholen"&&!e.sendungsnr)?`<button class="btn btn-ghost btn-sm" type="button" data-ship="${esc(e.id)}">\u{1F4E6} Versand / Sendungsnr.</button>`:""}
       ${n==="fertig"&&e.sendungsnr&&!e.zugestellt?`<button class="btn btn-primary btn-sm" type="button" data-delivered="${esc(e.id)}">\u{1F4EC} Paket ist angekommen</button>`:""}
       ${e.sendungsnr&&e.zugestellt?`<button class="btn btn-ghost btn-sm" type="button" data-undeliver="${esc(e.id)}">\u21A9\uFE0F Zustellung zur\xFCcknehmen</button>`:""}
-      ${bfSentList(e).length?`<button class="btn btn-ghost btn-sm" type="button" data-cust="${esc(e.vorname+" "+e.nachname)}" data-cust-phone="${esc(e.telefon||"")}">\u{1F4E8} Geschickt (${bfSentList(e).length})</button>`:""}
     </div>
   </div>`}function normPhone(e){let n=String(e||"").replace(/[^\d+]/g,"");return n.startsWith("+")?n=n.slice(1):n.startsWith("00")?n=n.slice(2):n.startsWith("0")?n="41"+n.slice(1):/^7[5-9]\d{7}$/.test(n)&&(n="41"+n),/^\d{9,15}$/.test(n)?n:null}function statusMessage(e,n){const t=e.vorname?"Hallo "+e.vorname+", ":"Hallo, ",i=e.modell?"dein "+e.modell:"dein Ger\xE4t",l=e.repStatus||"angenommen";if(e.sendungsnr&&e.zugestellt)return t+i+` ist bei dir angekommen \u{1F4E6}\u2705
 
