@@ -1885,7 +1885,7 @@ BlueFix`;logActivity("\u{1F517}","den "+(s?"\xDCberweisungs":"Twint-Zahlungs")+"
         <button class="btn btn-ghost btn-sm" data-pdf-inv="${a.id}" style="flex:1;">\u{1F4C4} Rechnung (PDF)</button>
         <button class="btn btn-primary btn-sm" data-send-inv="${a.id}" style="flex:1;">✉️ Per E-Mail senden</button>
       </div>
-      ${(a.zahlungsart==="twint"||a.zahlungsart==="bank")&&!a.bezahlt?`<button class="btn btn-ghost btn-sm" data-pay-link="${a.id}" style="width:100%;margin-top:8px;">\u{1F517} ${a.payToken?"Zahlungslink erneut senden":a.zahlungsart==="bank"?"\xDCberweisungslink an Kunden":"Twint-Zahlungslink an Kunden"}</button>`:""}
+      ${(a.zahlungsart==="twint"||a.zahlungsart==="bank")&&!a.bezahlt?`<button class="btn btn-ghost btn-sm" data-pay-link="${a.id}" style="width:100%;margin-top:8px;">\u{1F4F2} ${a.payToken?"Zahlungslink erneut per SMS senden":a.zahlungsart==="bank"?"\xDCberweisungslink per SMS senden":"Twint-Zahlungslink per SMS senden"}</button>`:""}
       ${isOverdue(a)?`<button class="btn btn-danger btn-sm" data-mahn-inv="${a.id}" style="width:100%;margin-top:8px;">\u{1F4E8} ${mahnCount(a)?"N\xE4chste Mahnung senden":"Zahlungserinnerung senden"}</button>`:""}
     `;{const d=c.querySelector(".card-top");if(d){const o=document.createElement("div");for(o.className="card-more";d.nextSibling;)o.appendChild(d.nextSibling);c.appendChild(o),d.dataset.toggle=a.id;const u=d.querySelector(".card-actions");if(u){const r=document.createElement("span");r.className="card-chev",r.textContent="\u25BE",u.prepend(r)}expandedInvoices.has(a.id)||c.classList.add("collapsed")}}n.appendChild(c)}),invUpdateToggleAll(l),n.querySelectorAll("[data-pay-link]").forEach(a=>a.addEventListener("click",()=>invSendPayLink(a.dataset.payLink)));try{syncPayWatchers()}catch{}n.querySelectorAll("[data-del-inv]").forEach(a=>a.addEventListener("click",()=>{showConfirm("Diese Rechnung wirklich l\xF6schen?",()=>{{const c=load(INVOICES_KEY,[]).find(d=>d.id===a.dataset.delInv);c&&logActivity("\u{1F5D1}\uFE0F","die Rechnung von "+c.kunde+" (CHF "+c.betrag.toFixed(2)+") gel\xF6scht")}save(INVOICES_KEY,load(INVOICES_KEY,[]).filter(c=>c.id!==a.dataset.delInv)),renderInvoices()})})),n.querySelectorAll("[data-paid-inv]").forEach(a=>a.addEventListener("click",()=>{const c=load(INVOICES_KEY,[]),d=c.find(o=>o.id===a.dataset.paidInv);d&&(d.bezahlt=!0,d.paidAt=Date.now(),delete d.autoBezahlt,save(INVOICES_KEY,c),logInvoiceState(d,!0),renderInvoices())})),n.querySelectorAll("[data-unpaid-inv]").forEach(a=>a.addEventListener("click",()=>{const c=load(INVOICES_KEY,[]),d=c.find(o=>o.id===a.dataset.unpaidInv);d&&(d.bezahlt=!1,delete d.paidAt,delete d.autoBezahlt,invResetPayConfirm(d),save(INVOICES_KEY,c),logInvoiceState(d,!1),renderInvoices())})),n.querySelectorAll("[data-view-inv]").forEach(a=>a.addEventListener("click",()=>{const c=load(INVOICES_KEY,[]).find(d=>d.id===a.dataset.viewInv);c&&showInvoiceDetail(c)})),n.querySelectorAll("[data-pdf-inv]").forEach(a=>a.addEventListener("click",()=>invoiceOpenPdf(a.dataset.pdfInv))),n.querySelectorAll("[data-send-inv]").forEach(a=>a.addEventListener("click",()=>invoiceSharePdf(a.dataset.sendInv))),n.querySelectorAll("[data-mahn-inv]").forEach(a=>a.addEventListener("click",()=>openMahnModal(a.dataset.mahnInv)))}function buildSwissQRPayload(e,n){return["SPC","0200","1",BANK_INFO.ibanRaw,"S",BANK_INFO.name,BANK_INFO.strasse,BANK_INFO.hausnr,BANK_INFO.plz,BANK_INFO.ort,"CH","","","","","","","",e.toFixed(2),"CHF","","","","","","","","NON","",(n||"").slice(0,140),"EPD"].join(`\r
 `)}function showInvoiceDetail(e){const n=document.getElementById("invoiceDetailContent");let t=`<div class="card-grid" style="margin-bottom:6px;">
@@ -2540,8 +2540,20 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   /* Rechnung: "Senden" öffnet den E-Mail-Dialog (statt Teilen-Menü mit allen Apps) */
   window.invoiceSharePdf = function(id){ openMail("inv", id); };
 
-  /* Kein SMS-Versand mehr: false = die App nutzt wieder das normale Teilen/Kopieren */
-  window.bfSmsDirect = function(){ return false; };
+  /* Zahlungslink: NUR per SMS. Die SMS-App oeffnet sich automatisch mit fertigem Text.
+     Ohne gespeicherte Nummer wird danach gefragt; kein Teilen/Kopieren mehr. */
+  window.bfSmsDirect = function(phone, text){
+    var p = String(phone || "").trim();
+    if(!normPhone(p)){
+      p = prompt("Handynummer des Kunden f\u00FCr die SMS (z.B. 079 123 45 67):", "") || "";
+      if(!normPhone(p)){
+        alert("Der Zahlungslink wird nur per SMS verschickt. Bitte eine g\u00FCltige Handynummer eingeben.");
+        return true;
+      }
+    }
+    window.location.href = "sms:+" + normPhone(p) + "?&body=" + encodeURIComponent(text);
+    return true;
+  };
 
   /* Garantieschein-Button in der Auftragskarte */
   document.addEventListener("click", function(e){
