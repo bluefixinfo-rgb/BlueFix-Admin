@@ -61,6 +61,35 @@ button.send:disabled{opacity:.6}
 .done{display:none;text-align:center;padding:36px 22px}
 .check{width:72px;height:72px;margin:0 auto 16px;border-radius:50%;display:grid;place-items:center;font-size:36px;background:rgba(52,211,153,.16);border:1.5px solid var(--ok);color:var(--ok)}
 .foot{text-align:center;color:var(--muted);font-size:12.5px;margin-top:10px;opacity:.8}
+
+.tiles{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.tiles.bad{outline:1.5px solid var(--err);outline-offset:6px;border-radius:14px}
+.tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:2px;margin:0;padding:14px 12px 13px;min-height:84px;color:var(--text);background:var(--field);border:1.5px solid rgba(120,160,255,.3);border-radius:14px;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .15s,transform .1s;user-select:none;-webkit-user-select:none}
+.tile:active{transform:scale(.97)}
+.tile input{position:absolute;opacity:0;pointer-events:none}
+.tile .ico{font-size:23px;line-height:1;margin-bottom:6px}
+.tile .nm{font:600 15px 'Inter',sans-serif;line-height:1.2}
+.tile .sb{font-size:12px;color:var(--muted);line-height:1.25}
+.tile .ck{position:absolute;top:9px;right:9px;width:22px;height:22px;border-radius:50%;border:1.5px solid rgba(120,160,255,.45);display:grid;place-items:center;transition:all .15s}
+.tile .ck::after{content:"";width:10px;height:5.5px;border-left:2.4px solid #fff;border-bottom:2.4px solid #fff;transform:rotate(-45deg) translate(1px,-1px);opacity:0}
+.tile:has(input:checked){border-color:var(--accent2);background:linear-gradient(160deg,rgba(59,130,246,.5),rgba(29,78,216,.42));box-shadow:0 6px 18px rgba(59,130,246,.28)}
+.tile:has(input:checked) .ck{background:#3b82f6;border-color:#93c5fd}
+.tile:has(input:checked) .ck::after{opacity:1}
+.tile:has(input:focus-visible){box-shadow:0 0 0 4px rgba(59,130,246,.4)}
+.tile.wide{grid-column:1/-1;min-height:0;flex-direction:row;align-items:center;gap:12px;padding:13px 12px}
+.tile.wide .ico{margin:0}
+.rcount{margin:12px 2px 0;font-size:13.5px;color:var(--accent2);font-weight:600;min-height:18px}
+input[type=date],input[type=time]{width:100%;min-width:0;padding:15px 16px;font:500 16px 'Inter',sans-serif;color:var(--text);background:var(--field);border:1.5px solid rgba(120,160,255,.3);border-radius:14px;outline:none;-webkit-appearance:none;appearance:none;min-height:54px;transition:border-color .2s,box-shadow .2s}
+input[type=date]:focus,input[type=time]:focus{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(59,130,246,.22)}
+input[type=date].bad,input[type=time].bad{border-color:var(--err)}
+.wgrid{display:grid;grid-template-columns:1.4fr 1fr;gap:10px}
+.wgrid label{margin:12px 0 7px}
+#wunschBox{display:none;margin-top:14px;padding:14px 14px 16px;border-radius:14px;background:rgba(59,130,246,.12);border:1px solid rgba(110,150,255,.25)}
+#wunschBox .t{font-weight:600;font-size:14.5px;margin:0 0 2px}
+textarea{width:100%;padding:14px 16px;font:500 16px 'Inter',sans-serif;color:var(--text);background:var(--field);border:1.5px solid rgba(120,160,255,.3);border-radius:14px;outline:none;resize:vertical;min-height:84px;transition:border-color .2s,box-shadow .2s}
+textarea::placeholder{color:rgba(190,205,240,.45)}
+textarea:focus{border-color:var(--accent2);box-shadow:0 0 0 4px rgba(59,130,246,.22)}
+textarea.bad{border-color:var(--err)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -97,12 +126,33 @@ button.send:disabled{opacity:.6}
     </div>
 
     <div class="card">
+      <h2 style="margin-bottom:6px">🔧 Was muss repariert werden?</h2>
+      <p class="sub" style="margin-bottom:14px">Tippe alles an, was gemacht werden soll. Mehrfachauswahl ist möglich.</p>
+      <div class="tiles" id="tiles" role="group" aria-label="Reparaturen"><label class="tile"><input type="checkbox" value="Display Budget"><span class="ico">📱</span><span class="nm">Display Budget</span><span class="sb">günstiger Ersatz</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Display Premium"><span class="ico">✨</span><span class="nm">Display Premium</span><span class="sb">hochwertiger Ersatz</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Akku"><span class="ico">🔋</span><span class="nm">Akku</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Ladebuchse"><span class="ico">🔌</span><span class="nm">Ladebuchse</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Backcover"><span class="ico">🧩</span><span class="nm">Backcover</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Wasserschaden"><span class="ico">💧</span><span class="nm">Wasserschaden</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Kamera vorne"><span class="ico">🤳</span><span class="nm">Kamera vorne</span><span class="ck"></span></label><label class="tile"><input type="checkbox" value="Kamera hinten"><span class="ico">📷</span><span class="nm">Kamera hinten</span><span class="ck"></span></label><label class="tile wide"><input type="checkbox" value="Sonstiges"><span class="ico">❓</span><span><span class="nm">Sonstiges</span><br><span class="sb">Etwas anderes? Beschreibe es kurz.</span></span><span class="ck"></span></label></div>
+      <div class="rcount" id="rcount" aria-live="polite"></div>
+      <div id="sonstBox" style="display:none">
+        <label for="sonst">Bitte kurz beschreiben</label>
+        <textarea id="sonst" placeholder="z.B. Lautsprecher knackt, Touch reagiert nicht …"></textarea>
+      </div>
+      <div class="err" id="reperr">Bitte wähle mindestens eine Reparatur aus.</div>
+    </div>
+
+    <div class="card">
       <h2 style="margin-bottom:14px">📦 Wie bekommen wir dein Gerät?</h2>
       <div class="pay two">
         <div><input type="radio" name="abgabe" id="a-post" value="Per Post"><label for="a-post"><span>📮</span>Per Post schicken</label></div>
         <div><input type="radio" name="abgabe" id="a-hand" value="Vorbeibringen"><label for="a-hand"><span>🏠</span>Vorbeibringen</label></div>
       </div>
       <div class="paynote" id="abgnote"></div>
+      <div id="wunschBox">
+        <p class="t">📅 Wann möchtest du vorbeikommen?</p>
+        <p class="hint" style="margin:0 0 4px">Das ist dein Wunsch. Wir bestätigen dir den Termin.</p>
+        <div class="wgrid">
+          <div><label for="wdatum">Datum</label><input id="wdatum" type="date"></div>
+          <div><label for="wzeit">Uhrzeit</label><input id="wzeit" type="time"></div>
+        </div>
+        <div class="err" id="wunscherr">Bitte wähle Datum und Uhrzeit.</div>
+      </div>
       <div class="err" id="abgerr">Bitte wähle, wie wir dein Gerät bekommen.</div>
     </div>
 
@@ -160,9 +210,35 @@ document.querySelectorAll('input[name=zahlung]').forEach(r => r.addEventListener
 }));
 const abNotes = {
   "Per Post": "Du bekommst von uns die Adresse, an die du dein Gerät schicken kannst. Wir melden uns dazu bei dir.",
-  "Vorbeibringen": "Wir melden uns bei dir, um einen Termin zum Vorbeibringen abzumachen."
+  "Vorbeibringen": "Wähle unten dein Wunsch-Datum und die Uhrzeit. Wir bestätigen dir den Termin."
 };
 document.querySelectorAll('input[name=abgabe]').forEach(r => r.addEventListener('change', () => { $('abgerr').style.display = 'none'; $('abgnote').textContent = abNotes[r.value]; $('abgnote').style.display = 'block'; }));
+
+/* Reparatur-Mehrfachauswahl (Kacheln) */
+const msBoxes=[...document.querySelectorAll('#tiles input')];
+function msSel(){return msBoxes.filter(b=>b.checked).map(b=>b.value)}
+function msUpdate(){
+  const sel=msSel();
+  $('rcount').textContent=!sel.length?'':sel.length===1?'1 Reparatur ausgewählt':sel.length+' Reparaturen ausgewählt';
+  $('sonstBox').style.display=sel.includes('Sonstiges')?'block':'none';
+  if(sel.length){$('reperr').style.display='none';$('tiles').classList.remove('bad')}
+}
+msBoxes.forEach(b=>b.addEventListener('change',()=>{
+  if(b.checked&&b.value.startsWith('Display ')){msBoxes.forEach(o=>{if(o!==b&&o.value.startsWith('Display '))o.checked=false})}
+  msUpdate();
+  if(b.checked&&b.value==='Sonstiges')setTimeout(()=>$('sonst').focus({preventScroll:false}),60);
+}));
+$('sonst').addEventListener('input',()=>$('sonst').classList.remove('bad'));
+(function(){
+  const pad=n=>String(n).padStart(2,'0'), t=new Date();
+  $('wdatum').min=t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate());
+  document.querySelectorAll('input[name=abgabe]').forEach(r=>r.addEventListener('change',()=>{
+    const hand=document.querySelector('input[name=abgabe]:checked').value==='Vorbeibringen';
+    $('wunschBox').style.display=hand?'block':'none';
+    if(hand) setTimeout(()=>$('wunschBox').scrollIntoView({behavior:'smooth',block:'nearest'}),80);
+  }));
+  ['wdatum','wzeit'].forEach(id=>$(id).addEventListener('input',()=>{$(id).classList.remove('bad');$('wunscherr').style.display='none'}));
+})();
 $('imei').addEventListener('input', e => e.target.value = e.target.value.replace(/\D/g, ''));
 ['vorname','nachname','handy','email','modell','imei'].forEach(id => $(id).addEventListener('input', () => $(id).classList.remove('bad')));
 
@@ -175,16 +251,31 @@ $('form').addEventListener('submit', async e => {
   if ($('handy').value.replace(/\D/g, '').length < 9) { $('handy').classList.add('bad'); ok = false; }
   const mail = $('email').value.trim();
   if (!/^\S+@\S+\.\S+$/.test(mail)) { $('email').classList.add('bad'); ok = false; }
+  const reps = msSel();
+  if (!reps.length) { $('reperr').style.display = 'block'; $('tiles').classList.add('bad'); ok = false; }
+  if (reps.includes('Sonstiges') && !$('sonst').value.trim()) { $('sonst').classList.add('bad'); ok = false; }
   const z = document.querySelector('input[name=zahlung]:checked');
   const ab = document.querySelector('input[name=abgabe]:checked');
   if (!ab) { $('abgerr').style.display = 'block'; ok = false; }
+  let wd = '', wz = '';
+  if (ab && ab.value === 'Vorbeibringen') {
+    wd = $('wdatum').value; wz = $('wzeit').value;
+    const now = new Date(), p = n => String(n).padStart(2, '0');
+    const todayStr = now.getFullYear() + '-' + p(now.getMonth() + 1) + '-' + p(now.getDate());
+    if (!wd || wd < todayStr) { $('wdatum').classList.add('bad'); ok = false; }
+    if (!wz) { $('wzeit').classList.add('bad'); ok = false; }
+    if (!wd || !wz || wd < todayStr) { $('wunscherr').textContent = wd && wd < todayStr ? 'Das Datum liegt in der Vergangenheit.' : 'Bitte wähle Datum und Uhrzeit.'; $('wunscherr').style.display = 'block'; }
+  }
   if (!z) { $('payerr').style.display = 'block'; ok = false; }
-  if (!ok) { $('generr').textContent = 'Bitte fülle alle Felder korrekt aus.'; $('generr').style.display = 'block'; document.querySelector('.bad, #abgerr[style*=block], #payerr[style*=block]')?.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  if (!ok) { $('generr').textContent = 'Bitte fülle alle Felder korrekt aus.'; $('generr').style.display = 'block'; document.querySelector('.bad, #wunscherr[style*=block], #reperr[style*=block], #abgerr[style*=block], #payerr[style*=block]')?.scrollIntoView({behavior:'smooth',block:'center'}); return; }
 
   const data = {
     vorname: $('vorname').value.trim(), nachname: $('nachname').value.trim(),
     handy: $('handy').value.trim(), email: mail,
     modell: $('modell').value.trim(), imei: $('imei').value.trim(),
+    wunschDatum: wd, wunschZeit: wz,
+    wunsch: wd ? new Date(wd + 'T12:00:00').toLocaleDateString('de-CH', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' }) + ' um ' + wz + ' Uhr' : '',
+    reparaturen: reps, auftrag: reps.join(' + '), beschreibung: reps.includes('Sonstiges') ? $('sonst').value.trim() : '',
     abgabe: ab.value, zahlungsart: z.value, typ: "formular", status: "neu", at: Date.now()
   };
   const btn = $('sendBtn'); btn.disabled = true; btn.textContent = "Wird gesendet…";
@@ -192,6 +283,7 @@ $('form').addEventListener('submit', async e => {
     if (!db) throw new Error("not-configured");
     await db.collection(COLLECTION).add(data);
     $('dname').textContent = data.vorname;
+    if (ab.value === 'Vorbeibringen') { $('doneAbg').textContent = 'Dein Wunsch-Termin: ' + data.wunsch + '. Wir bestätigen dir den Termin.'; $('doneAbg').style.display = 'block'; }
     if (ab.value === 'Per Post') { $('doneAbg').textContent = 'Du bekommst von uns die Adresse, an die du dein Gerät schicken kannst.'; $('doneAbg').style.display = 'block'; }
     $('form').style.display = 'none'; $('done').style.display = 'block'; window.scrollTo({top:0,behavior:'smooth'});
   } catch (err) {
