@@ -1799,7 +1799,7 @@ ${(n==null?void 0:n.message)||"Unbekannter Fehler"}`)}}function esc(e){return St
         </div>
         <div class="order-edit-actions order-pdf-bottom">
           <button class="btn btn-ghost btn-sm" type="button" data-pdf="${esc(s.id)}">\u{1F4C4} Garantie-PDF</button>
-          <button class="btn btn-ghost btn-sm" type="button" data-pdf-sms="${esc(s.id)}">\u{1F4F2} Garantie per SMS</button>
+          <button class="btn btn-ghost btn-sm" type="button" data-pdf-sms="${esc(s.id)}">\u2709\uFE0F Garantie per E-Mail</button>
         </div>
         <input type="file" id="signedFile-${esc(s.id)}" data-file-input="${esc(s.id)}" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none">
         <div class="upload-progress" id="uploadProgress-${esc(s.id)}" hidden>
@@ -2321,7 +2321,7 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
 })();
 </script>
 <script>
-/* ===== Rechnung & Garantieschein: Versand per SMS, immer mit fertigem Text ===== */
+/* ===== Rechnung & Garantieschein: Versand nur per E-Mail, immer mit fertigem Text ===== */
 (function(){
   var FIRMA_TEL = "076 229 91 82";
   var FIRMA_ADR = "Weierbuckstrasse 1, 8213 Neunkirch";
@@ -2330,6 +2330,7 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   function fmtD(ts){ return new Date(ts || Date.now()).toLocaleDateString("de-CH"); }
   function chf(n){ return "CHF " + Number(n || 0).toFixed(2); }
   function firstName(full){ return String(full || "").trim().split(/\s+/)[0] || ""; }
+  function lastName(full){ var p = String(full || "").trim().split(/\s+/); return p.length > 1 ? p.slice(1).join(" ") : ""; }
   function garantieEnde(o){
     var m = String(o.garantie || "6 Monate").match(/(\d+)\s*(monat|jahr)/i);
     if(!m) return "";
@@ -2337,55 +2338,61 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     d.setMonth(d.getMonth() + Number(m[1]) * (/jahr/i.test(m[2]) ? 12 : 1));
     return fmtD(d.getTime());
   }
-  function hello(vn, du){ return (du ? "Hallo" : "Guten Tag") + (vn ? " " + vn : ""); }
+  function hello(vn, nn, du){
+    if(du) return "Hallo" + (vn ? " " + vn : "") + ",";
+    var n = [vn, nn].filter(Boolean).join(" ");
+    return n ? "Guten Tag " + n + "," : "Guten Tag,";
+  }
   function outro(du){
-    return (du ? "Bei Fragen erreichst du uns jederzeit unter " : "Bei Fragen erreichen Sie uns jederzeit unter ") + FIRMA_TEL + ".\n\n" +
-      "Freundliche Grüsse\n" + (du ? "Dein BlueFix-Team" : "BlueFix - Handy Reparatur") + "\n" + FIRMA_ADR;
+    return (du ? "Bei Fragen erreichst du uns jederzeit unter " : "Bei Fragen erreichen Sie uns jederzeit unter ") + FIRMA_TEL + " oder per Antwort auf diese E-Mail.\n\n" +
+      "Freundliche Grüsse\n" + (du ? "Dein BlueFix-Team" : "Ihr BlueFix-Team") + "\nBlueFix - Handy Reparatur\n" + FIRMA_ADR;
   }
 
-  /* ---- Texte (bewusst ohne Sonderzeichen wie Gedankenstrich oder Aufzählungspunkt, damit die SMS günstig bleibt) ---- */
+  /* ---- Texte ---- */
+  function invoiceSubject(f, nr){ return "Ihre Rechnung " + nr + " von BlueFix"; }
   function invoiceText(inv, du){
     var nr = invoiceEnsureNr(inv.id);
     var f = load(INVOICES_KEY, []).find(function(x){ return x.id === inv.id; }) || inv;
     var items = invoiceItems(f);
     var total = Number(f.betrag) || items.reduce(function(s, i){ return s + (Number(i.betrag) || 0); }, 0);
-    var t = hello(firstName(f.kunde), du) + "\n\n" +
-      (du ? "vielen Dank, dass du dich für BlueFix entschieden hast. Hier ist deine Rechnung:"
-          : "vielen Dank, dass Sie sich für BlueFix entschieden haben. Hier ist Ihre Rechnung:") + "\n\n" +
+    var t = hello(firstName(f.kunde), lastName(f.kunde), du) + "\n\n" +
+      (du ? "vielen Dank für dein Vertrauen und dass du dich für BlueFix entschieden hast. Deine Rechnung findest du im Anhang dieser E-Mail (PDF). Hier die wichtigsten Angaben auf einen Blick:"
+          : "vielen Dank für Ihr Vertrauen und dass Sie sich für BlueFix entschieden haben. Ihre Rechnung finden Sie im Anhang dieser E-Mail (PDF). Hier die wichtigsten Angaben auf einen Blick:") + "\n\n" +
       "Rechnung Nr.: " + nr + "\n" +
       "Datum: " + fmtD(f.createdAt) + "\n" +
       (f.geraet ? "Gerät: " + f.geraet + "\n" : "") +
-      "Leistung:\n" + items.map(function(i){ return "- " + i.text + ": " + chf(i.betrag); }).join("\n") + "\n" +
+      "Leistung:\n" + items.map(function(i){ return "  - " + i.text + ": " + chf(i.betrag); }).join("\n") + "\n" +
       "Total: " + chf(total) + " (inkl. Ersatzteil und Einbau)\n\n";
     if(f.bezahlt){
       t += "Der Betrag ist bereits beglichen. Vielen Dank!\n\n";
     } else if(f.zahlungsart === "bank"){
-      t += (du ? "Bitte überweise den Betrag innerhalb von " : "Bitte überweisen Sie den Betrag innerhalb von ") + INVOICE_OVERDUE_DAYS + " Tagen:\n" +
+      t += (du ? "Bitte überweise den Betrag innerhalb von " : "Bitte überweisen Sie den Betrag innerhalb von ") + INVOICE_OVERDUE_DAYS + " Tagen auf folgendes Konto:\n" +
         "Empfänger: " + BANK_INFO.name + "\nIBAN: " + BANK_INFO.iban + "\nBank: " + BANK_INFO.bank + "\n" +
-        "Betrag: " + chf(total) + "\nZweck: Rechnung " + nr + "\n" +
-        (f.payToken ? "Alle Angaben auch hier: " + payUrl(f.payToken) + "\n" : "") + "\n";
+        "Betrag: " + chf(total) + "\nZahlungszweck: Rechnung " + nr + "\n" +
+        (f.payToken ? "Alle Zahlungsangaben finden Sie auch hier: " + payUrl(f.payToken) + "\n" : "") + "\n";
     } else if(f.zahlungsart === "twint"){
-      t += "Zahlung per Twint an " + BANK_INFO.twintNumber + " (" + chf(total) + ").\n" +
-        (f.payToken ? (du ? "Zahlungsseite: " : "Zahlungsseite: ") + payUrl(f.payToken) + "\n" : "") + "\n";
+      t += "Die Zahlung ist bequem per Twint an " + BANK_INFO.twintNumber + " möglich (" + chf(total) + ").\n" +
+        (f.payToken ? "Zahlungsseite: " + payUrl(f.payToken) + "\n" : "") + "\n";
     } else if(f.zahlungsart === "bar"){
       t += (du ? "Du bezahlst bar, sobald du dein Gerät abholst." : "Sie bezahlen bar bei der Abholung Ihres Geräts.") + "\n\n";
     }
     return t + outro(du);
   }
 
+  function warrantySubject(o){ return "Ihr Garantieschein von BlueFix"; }
   function warrantyText(o, du){
     var nr = orderEnsureNr(o.id) || o.nr || "";
     var ende = garantieEnde(o);
-    var t = hello(o.vorname, du) + "\n\n" +
-      (du ? "vielen Dank für deinen Auftrag bei BlueFix. Hier ist dein Garantieschein:"
-          : "vielen Dank für Ihren Auftrag bei BlueFix. Hier ist Ihr Garantieschein:") + "\n\n" +
+    var t = hello(o.vorname, o.nachname, du) + "\n\n" +
+      (du ? "vielen Dank für deinen Auftrag bei BlueFix. Deinen Garantieschein findest du im Anhang dieser E-Mail (PDF). Bitte bewahre ihn gut auf, er dient als Beleg für deine Reparatur."
+          : "vielen Dank für Ihren Auftrag bei BlueFix. Ihren Garantieschein finden Sie im Anhang dieser E-Mail (PDF). Bitte bewahren Sie ihn gut auf, er dient als Beleg für Ihre Reparatur.") + "\n\n" +
       (nr ? "Auftrag Nr.: " + nr + "\n" : "") +
       (o.modell ? "Gerät: " + o.modell + "\n" : "") +
       (o.auftrag ? "Reparatur: " + o.auftrag + "\n" : "") +
       "Auftragsdatum: " + fmtD(o.createdAt) + "\n" +
       "Garantie: " + (o.garantie || "6 Monate") + (ende ? " (gültig bis " + ende + ")" : "") + "\n\n" +
       "Die Garantie gilt im Rahmen der geltenden Garantiebedingungen. " +
-      (du ? "Bitte bewahre diese Nachricht als Beleg auf." : "Bitte bewahren Sie diese Nachricht als Beleg auf.") + "\n\n";
+      (du ? "Melde dich bei einem Problem einfach bei uns, wir schauen es uns gerne an." : "Sollte ein Problem auftreten, melden Sie sich einfach bei uns, wir schauen es uns gerne an.") + "\n\n";
     return t + outro(du);
   }
 
@@ -2396,80 +2403,90 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
       ? load(INVOICES_KEY, []).find(function(x){ return x.id === ctx.id; })
       : load(ORDERS_KEY, []).find(function(x){ return x.id === ctx.id; });
   }
-  function startPhone(doc){
-    if(doc.telefon) return doc.telefon;
+  function startMail(doc){
+    if(doc.email) return doc.email;
     if(doc.orderId){
       var o = load(ORDERS_KEY, []).find(function(x){ return x.id === doc.orderId; });
-      if(o && o.telefon) return o.telefon;
+      if(o && o.email) return o.email;
     }
     return "";
   }
   function refreshText(force){
     if(edited && !force) return;
     var doc = getDoc(); if(!doc) return;
-    var du = document.getElementById("smsForm").value === "du";
-    document.getElementById("smsMsg").value = ctx.kind === "inv" ? invoiceText(doc, du) : warrantyText(doc, du);
+    var du = document.getElementById("mlForm").value === "du";
+    document.getElementById("mlMsg").value = ctx.kind === "inv" ? invoiceText(doc, du) : warrantyText(doc, du);
   }
-  function openSms(kind, id){
+  function openMail(kind, id){
     var doc = (kind === "inv" ? load(INVOICES_KEY, []) : load(ORDERS_KEY, [])).find(function(x){ return x.id === id; });
     if(!doc) return;
     ctx = { kind: kind, id: id }; edited = false;
     var who = kind === "inv" ? doc.kunde : ((doc.vorname || "") + " " + (doc.nachname || "")).trim();
-    document.getElementById("statusModalTitle").textContent = kind === "inv" ? "\uD83D\uDCF2 Rechnung per SMS" : "\uD83D\uDCF2 Garantieschein per SMS";
+    var subj = kind === "inv" ? invoiceSubject(doc, invoiceEnsureNr(doc.id)) : warrantySubject(doc);
+    document.getElementById("statusModalTitle").textContent = kind === "inv" ? "\u2709\uFE0F Rechnung per E-Mail" : "\u2709\uFE0F Garantieschein per E-Mail";
     document.getElementById("statusModalBody").innerHTML =
       '<p class="card-sub">' + esc(who) + (kind === "inv" ? " \u00B7 " + chf(doc.betrag) : (doc.modell ? " \u00B7 " + esc(doc.modell) : "")) + '</p>' +
-      '<div class="field" style="margin-top:14px;"><label>Handynummer Kunde</label><input type="tel" id="smsPhone" inputmode="tel" value="' + esc(startPhone(doc)) + '" placeholder="z.B. 079 123 45 67"></div>' +
-      '<div class="field"><label>Anrede</label><select id="smsForm" class="status-select"><option value="sie">Sie (formell)</option><option value="du">Du</option></select></div>' +
-      '<div class="field"><label>Nachricht (du kannst den Text anpassen)</label><textarea id="smsMsg" rows="14"></textarea></div>' +
-      '<div class="status-send"><button class="btn btn-primary" type="button" id="smsSendBtn">\uD83D\uDCF2 Per SMS senden</button></div>' +
-      '<p class="card-sub" style="font-size:12.5px;margin-top:10px;">Eine SMS kann kein PDF anh\u00E4ngen, deshalb stehen alle Angaben direkt im Text. Das PDF bleibt wie bisher \u00FCber die ' + (kind === "inv" ? "Rechnung (PDF)" : "Garantie-PDF") + '-Taste abrufbar.</p>';
-    document.getElementById("smsForm").addEventListener("change", function(){ edited = false; refreshText(true); });
-    document.getElementById("smsMsg").addEventListener("input", function(){ edited = true; });
-    document.getElementById("smsSendBtn").addEventListener("click", sendSms);
+      '<div class="field" style="margin-top:14px;"><label>E-Mail-Adresse Kunde</label><input type="email" id="mlTo" inputmode="email" autocapitalize="off" value="' + esc(startMail(doc)) + '" placeholder="kunde@beispiel.ch"></div>' +
+      '<div class="field"><label>Betreff</label><input type="text" id="mlSubj" value="' + esc(subj) + '"></div>' +
+      '<div class="field"><label>Anrede</label><select id="mlForm" class="status-select"><option value="sie">Sie (formell)</option><option value="du">Du</option></select></div>' +
+      '<div class="field"><label>Nachricht (du kannst den Text anpassen)</label><textarea id="mlMsg" rows="14"></textarea></div>' +
+      '<div class="status-send" style="display:flex;flex-direction:column;gap:8px;">' +
+        '<button class="btn btn-ghost" type="button" id="mlPdfBtn">\uD83D\uDCCE ' + (kind === "inv" ? "Rechnung (PDF) \u00F6ffnen" : "Garantie-PDF \u00F6ffnen") + '</button>' +
+        '<button class="btn btn-primary" type="button" id="mlSendBtn">\u2709\uFE0F Per E-Mail senden</button>' +
+      '</div>' +
+      '<p class="card-sub" style="font-size:12.5px;margin-top:10px;">Tipp: Zuerst das PDF \u00F6ffnen und speichern, dann in der E-Mail als Anhang hinzuf\u00FCgen. Eine E-Mail-Vorlage kann das PDF nicht automatisch anh\u00E4ngen.</p>';
+    document.getElementById("mlForm").addEventListener("change", function(){ edited = false; refreshText(true); });
+    document.getElementById("mlMsg").addEventListener("input", function(){ edited = true; });
+    document.getElementById("mlSendBtn").addEventListener("click", sendMail);
+    document.getElementById("mlPdfBtn").addEventListener("click", function(){
+      var d = getDoc(); if(!d) return;
+      if(ctx.kind === "inv") invoiceOpenPdf(d.id); else generateWarrantyPDF(d);
+    });
     refreshText(true);
     document.getElementById("statusModal").classList.add("show");
   }
-  function sendSms(){
+  function sendMail(){
     var doc = getDoc(); if(!doc) return;
-    var phone = document.getElementById("smsPhone").value.trim();
-    var n = normPhone(phone);
-    if(!n){ alert("Bitte eine g\u00FCltige Handynummer eingeben, z.B. 079 123 45 67."); return; }
-    var text = document.getElementById("smsMsg").value;
+    var to = document.getElementById("mlTo").value.trim();
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ alert("Bitte eine g\u00FCltige E-Mail-Adresse eingeben."); return; }
+    var subject = document.getElementById("mlSubj").value.trim() || "BlueFix";
+    var text = document.getElementById("mlMsg").value;
     var all, d2;
     if(ctx.kind === "inv"){
       all = load(INVOICES_KEY, []); d2 = all.find(function(x){ return x.id === ctx.id; });
       if(d2){
-        if(phone !== (d2.telefon || "")) d2.telefon = phone;
-        d2.smsGesendet = { at: Date.now(), von: currentUser() };
+        if(to !== (d2.email || "")) d2.email = to;
+        d2.mailGesendet = { at: Date.now(), von: currentUser() };
         save(INVOICES_KEY, all);
-        try{ logActivity("\uD83D\uDCF2", "die Rechnung " + (d2.nr || "") + " an " + d2.kunde + " per SMS geschickt"); }catch(e){}
+        try{ logActivity("\u2709\uFE0F", "die Rechnung " + (d2.nr || "") + " an " + d2.kunde + " per E-Mail geschickt"); }catch(e){}
         try{ renderInvoices(); }catch(e){}
       }
     } else {
       all = load(ORDERS_KEY, []); d2 = all.find(function(x){ return x.id === ctx.id; });
       if(d2){
-        if(phone !== (d2.telefon || "")) d2.telefon = phone;
-        d2.garantieGesendet = { at: Date.now(), kanal: "sms", von: currentUser() };
-        try{ bfLogSent(d2, "garantie", "sms"); }catch(e){}
+        if(to !== (d2.email || "")) d2.email = to;
+        d2.garantieGesendet = { at: Date.now(), kanal: "mail", von: currentUser() };
+        try{ bfLogSent(d2, "garantie", "mail"); }catch(e){}
         save(ORDERS_KEY, all);
-        try{ logActivity("\uD83D\uDCF2", "den Garantieschein an " + d2.vorname + " " + d2.nachname + " per SMS geschickt"); }catch(e){}
+        try{ logActivity("\u2709\uFE0F", "den Garantieschein an " + d2.vorname + " " + d2.nachname + " per E-Mail geschickt"); }catch(e){}
         try{ renderOrders(); }catch(e){}
       }
     }
     document.getElementById("statusModal").classList.remove("show");
-    window.location.href = "sms:+" + n + "?&body=" + encodeURIComponent(text);
+    try{ openGmailCompose(to, subject, text); }
+    catch(e){ window.location.href = "mailto:" + to + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text); }
   }
 
   try{ SENT_LABELS.garantie = "\uD83D\uDCC4 Garantieschein"; }catch(e){}
 
-  /* Rechnung: "Senden" öffnet jetzt den SMS-Dialog (statt Teilen-Menü mit allen Apps) */
-  window.invoiceSharePdf = function(id){ openSms("inv", id); };
+  /* Rechnung: "Senden" öffnet den E-Mail-Dialog (statt Teilen-Menü mit allen Apps) */
+  window.invoiceSharePdf = function(id){ openMail("inv", id); };
 
-  /* Zahlungslink: ebenfalls per SMS. Ohne Nummer wird danach gefragt; bei Abbruch bleibt das alte Teilen/Kopieren. */
+  /* Zahlungslink bleibt wie bisher (SMS bzw. Teilen) */
   window.bfSmsDirect = function(phone, text){
     var p = String(phone || "").trim();
     if(!normPhone(p)){
-      p = prompt("Handynummer des Kunden für die SMS (z.B. 079 123 45 67):", "") || "";
+      p = prompt("Handynummer des Kunden f\u00FCr die SMS (z.B. 079 123 45 67):", "") || "";
       if(!normPhone(p)) return false;
     }
     window.location.href = "sms:+" + normPhone(p) + "?&body=" + encodeURIComponent(text);
@@ -2479,10 +2496,10 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   /* Garantieschein-Button in der Auftragskarte */
   document.addEventListener("click", function(e){
     var b = e.target.closest && e.target.closest("[data-pdf-sms]");
-    if(b){ e.preventDefault(); openSms("order", b.getAttribute("data-pdf-sms")); }
+    if(b){ e.preventDefault(); openMail("order", b.getAttribute("data-pdf-sms")); }
   });
 
-  window.__bfSmsTexts = { invoiceText: invoiceText, warrantyText: warrantyText };
+  window.__bfMailTexts = { invoiceText: invoiceText, warrantyText: warrantyText };
 })();
 </script>
 </body>
