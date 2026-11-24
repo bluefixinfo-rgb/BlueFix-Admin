@@ -2482,16 +2482,8 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   /* Rechnung: "Senden" öffnet den E-Mail-Dialog (statt Teilen-Menü mit allen Apps) */
   window.invoiceSharePdf = function(id){ openMail("inv", id); };
 
-  /* Zahlungslink bleibt wie bisher (SMS bzw. Teilen) */
-  window.bfSmsDirect = function(phone, text){
-    var p = String(phone || "").trim();
-    if(!normPhone(p)){
-      p = prompt("Handynummer des Kunden f\u00FCr die SMS (z.B. 079 123 45 67):", "") || "";
-      if(!normPhone(p)) return false;
-    }
-    window.location.href = "sms:+" + normPhone(p) + "?&body=" + encodeURIComponent(text);
-    return true;
-  };
+  /* Kein SMS-Versand mehr: false = die App nutzt wieder das normale Teilen/Kopieren */
+  window.bfSmsDirect = function(){ return false; };
 
   /* Garantieschein-Button in der Auftragskarte */
   document.addEventListener("click", function(e){
