@@ -1770,7 +1770,7 @@ input,select,textarea{font-family:var(--sans);}
 
 ${(r==null?void 0:r.message)||"Unbekannter Fehler"}`)}finally{d&&(d.disabled=!1)}}async function getRemoteFile(e){if(!fbReady||!fbDb||!e)return null;const n=await fbDb.collection(FILE_CHUNK_COLLECTION).doc(`${e}_meta`).get();if(!n.exists)return null;const t=n.data()||{};if(!t.complete||!t.total)return null;const i=[];for(let c=0;c<t.total;c++)i.push(fbDb.collection(FILE_CHUNK_COLLECTION).doc(`${e}_${c}`).get().then(d=>{if(!d.exists)throw new Error(`Dateiteil ${c+1} fehlt.`);const o=d.data()||{};if(o.fileId!==e||o.index!==c||!o.data)throw new Error(`Dateiteil ${c+1} ist ung\xFCltig.`);return{index:c,data:base64ToBytes(o.data)}}));const l=await Promise.all(i);l.sort((c,d)=>c.index-d.index);const s=new Uint8Array(l.reduce((c,d)=>c+d.data.length,0));let a=0;return l.forEach(c=>{s.set(c.data,a),a+=c.data.length}),{name:t.name||"Garantieschein",type:t.type||"application/octet-stream",size:t.size||s.length,uploadedAt:t.uploadedAt||0,uploadedBy:t.uploadedBy||"",blob:new Blob([s],{type:t.type||"application/octet-stream"})}}function showFilePreview(e,n,t){const i=t==="application/pdf"||/\.pdf(?:$|[?#])/i.test(e)||/\.pdf$/i.test(n||"");let l=n||"Datei";if(i&&!/\.pdf$/i.test(l)&&(l+=".pdf"),i&&window.open(e,"_blank"))return;document.getElementById("filePreviewName").textContent=n||"Datei",document.getElementById("filePreviewFrame").src=i?e+"#view=Fit&toolbar=0&navpanes=0":e;const s=document.getElementById("filePreviewDownload");s.href=e,s.setAttribute("download",l),s.style.display="",document.getElementById("filePreviewOverlay").classList.add("show")}document.getElementById("filePreviewClose").addEventListener("click",()=>{document.getElementById("filePreviewOverlay").classList.remove("show"),document.getElementById("filePreviewFrame").src="about:blank";const e=document.getElementById("filePreviewDownload");e.style.display="none",e.removeAttribute("href")});async function openSignedFile(e){if(e)try{if(e.url){showFilePreview(e.url,e.name,e.type);return}const n=e.remoteId||e.localId;if(!n){alert("Kein Garantieschein vorhanden.");return}let t=signedFileUrlCache.get(n);if(t){showFilePreview(t,e.name,e.type);return}if(t=await cacheSignedFile(e),t){showFilePreview(t,e.name,e.type);return}throw new Error("Die Datei konnte nicht gefunden werden. Bitte die Datei erneut hochladen.")}catch(n){console.error("Garantieschein konnte nicht ge\xF6ffnet werden:",n),alert(`Der Garantieschein konnte nicht ge\xF6ffnet werden.
 
-${(n==null?void 0:n.message)||"Unbekannter Fehler"}`)}}function esc(e){return String(e!=null?e:"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}function linkify(e){return esc(e).replace(/\n/g,"<br>").replace(/((https?:\/\/|www\.)[^\s<]+)/gi,t=>{let i=t,l="";const s=i.match(/[.,;:!?)]+$/);return s&&(l=s[0],i=i.slice(0,-l.length)),`<a href="${/^www\./i.test(i)?"https://"+i:i}" target="_blank" rel="noopener noreferrer" class="link-glow">${i}</a>${l}`})}function generateWarrantyPDF(e){var h;{const w=orderEnsureNr(e.id);w&&(e={...e,nr:w})}if(!window.jspdf||!window.jspdf.jsPDF){alert("PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung pr\xFCfen. Der Auftrag wurde trotzdem gespeichert.");return}const{jsPDF:n}=window.jspdf,t=new n({unit:"mm",format:"a4"}),i=new Date(e.createdAt).toLocaleDateString("de-CH"),l=[6,16,31],s=[30,111,239],a=[18,27,43],c=[92,105,125],d=[244,248,255],o=[218,226,238],u=210,r=18,m=(h=document.querySelector(".brand-logo-img"))==null?void 0:h.src;if(t.setFillColor(...l),t.rect(0,0,u,42,"F"),t.setFillColor(...s),t.rect(0,40,u,2,"F"),m)try{t.addImage(m,"PNG",18,6,28,28)}catch{t.setTextColor(255,255,255),t.setFontSize(22),t.setFont(void 0,"bold"),t.text("BlueFix",18,19)}t.setTextColor(220,230,245),t.setFontSize(8.5),t.setFont(void 0,"normal"),t.text("HANDY REPARATUR",190,14,{align:"right"}),t.setTextColor(255,255,255),t.setFontSize(15),t.setFont(void 0,"bold"),t.text("GARANTIE-SCHEIN",190,24,{align:"right"}),t.setTextColor(160,177,202),t.setFontSize(8),t.setFont(void 0,"normal"),t.text("Reparaturbeleg \xB7 BlueFix",190,31,{align:"right"});let g=54;t.setTextColor(...c),t.setFontSize(8),t.text("AUFTRAG",r,g),t.text("AUSGESTELLT AM",120,g),t.setTextColor(...a),t.setFontSize(10),t.setFont(void 0,"bold"),t.text(String(e.nr||e.id||"\u2014"),r,g+6),t.text(i,120,g+6),g=72,t.setFillColor(...d),t.setDrawColor(...o),t.roundedRect(r,g,u-r*2,78,5,5,"FD"),t.setTextColor(...s),t.setFontSize(10),t.setFont(void 0,"bold"),t.text("AUFTRAGSDATEN",r+8,g+11);const I=[["Kunde",e.vorname+" "+e.nachname],["Ger\xE4t",e.modell],["IMEI",e.imei],["Reparatur",e.auftrag],["Preis","CHF "+Number(e.preis||0).toFixed(2)+(e.kombiRabatt?" ("+e.kombiRabatt+"% Kombi-Rabatt)":"")+(e.rabattCode?" ("+(e.rabattProzent||10)+"% Rabatt, "+e.rabattCode+")":"")],["Garantiedauer",e.garantie||"\u2014"]],C=[r+8,108];I.forEach(([w,f],Y)=>{const A=Y%2,W=Math.floor(Y/2),X=g+22+W*17;t.setTextColor(...c),t.setFontSize(7.5),t.setFont(void 0,"bold"),t.text(w.toUpperCase(),C[A],X),t.setTextColor(...a),t.setFontSize(10),t.setFont(void 0,"normal"),t.text(String(f||"\u2014"),C[A],X+6)}),g=162,t.setTextColor(...a),t.setFontSize(11.5),t.setFont(void 0,"bold"),t.text("AGB & Garantiehinweis",r,g),t.setTextColor(...c),t.setFontSize(8.5),t.setFont(void 0,"normal");const G="Der Kunde best\xE4tigt, die geltenden AGB vor Auftragserteilung gelesen und akzeptiert zu haben. Die Garantie gilt f\xFCr die oben eingetragene Dauer und nur im Rahmen der geltenden Garantiebedingungen. Bei Nichtbeachtung der Garantiebedingungen besteht kein Garantieanspruch.";let B=g+8;t.splitTextToSize(G,u-r*2).forEach(w=>{t.text(w,r,B),B+=4.6}),t.setFillColor(255,250,240),t.setDrawColor(241,205,145),t.roundedRect(r,190,u-r*2,25,4,4,"FD"),t.setTextColor(146,95,25),t.setFontSize(8.5),t.setFont(void 0,"bold"),t.text("WICHTIG",r+7,199),t.setTextColor(...c),t.setFontSize(8),t.setFont(void 0,"normal"),t.splitTextToSize("Bitte diesen Garantie-Schein aufbewahren und bei einem Garantieanspruch vorlegen. Die IMEI dient zur eindeutigen Zuordnung des Ger\xE4ts.",u-r*2-14).forEach((w,f)=>t.text(w,r+7,205+f*4.3)),g=232,t.setTextColor(...a),t.setFontSize(11.5),t.setFont(void 0,"bold"),t.text("Unterschriften",r,g),t.setTextColor(...c),t.setFontSize(8),t.setFont(void 0,"normal"),t.text(e.signedFile?"Unterschriebene Version wurde im Auftrag hinterlegt.":"Kunde unterschreibt nachtr\xE4glich direkt auf diesem PDF.",r,g+6);const p=265;t.setDrawColor(...o),t.setLineWidth(.6),t.line(r,p,92,p),t.line(118,p,192,p),t.setTextColor(...a),t.setFontSize(8.5),t.setFont(void 0,"bold"),t.text("Unterschrift Kunde",r,p+7),t.text("Unterschrift BlueFix",118,p+7),e.bluefixSignature&&t.addImage(e.bluefixSignature,"PNG",118,237,74,26),t.setDrawColor(...o),t.setLineWidth(.3),t.line(r,282,u-r,282),t.setTextColor(...c),t.setFontSize(7.5),t.setFont(void 0,"normal"),t.text("BlueFix \xB7 Garantie-Schein",r,288),t.text("Auftrags-Nr. "+String(e.nr||e.id||"\u2014"),u-r,288,{align:"right"});const b=t.output("bloburl");showFilePreview(b,"Garantie-Schein \xB7 "+(e.nr||e.id||""),"application/pdf")}const CARRIERS={dhl:{name:"DHL",url:e=>"https://www.dhl.com/de-de/home/tracking.html?tracking-id="+encodeURIComponent(e)},post:{name:"Schweizer Post",url:e=>"https://service.post.ch/ekp-web/ui/list?formattedParcelCodes="+encodeURIComponent(e)},asendia:{name:"Asendia",url:e=>"https://track.asendia.com/track/"+encodeURIComponent(e)}};function trackingHtml(e,n){e=String(e||"").trim();const t=CARRIERS[n],i=e.replace(/\s+/g,"");let l;return/^https?:\/\//i.test(e)?l=e:/^[\w-]+(\.[\w-]+)+\/\S*/.test(e)?l="https://"+e:l=t?t.url(i):"https://parcelsapp.com/de/tracking/"+encodeURIComponent(i),(t?esc(t.name)+" \xB7 ":"")+'<a href="'+esc(l)+'" target="_blank" rel="noopener" class="link-glow">'+esc(e)+" \u2197</a>"}const expandedOrders=new Set;function __ordersBind(t,f){["ordersList","eliaOrdersList"].forEach(function(id){var el=document.getElementById(id);el&&el.addEventListener(t,f)})}function renderOrders(){var l;renderDashboard();try{renderAiOrders()}catch{}syncStatusWatchers(),syncViewWatchers();try{renderReviewBar()}catch{}const e=load(ORDERS_KEY,[]),n=document.getElementById("ordersList"),t=(((l=document.getElementById("orderSearch"))==null?void 0:l.value)||"").trim().toLowerCase();if(n.innerHTML="",!orderTypeFilter&&!reviewFilter){n.innerHTML='<div class="empty-state">W\xE4hle oben \xAB\u{1F464} Kunden Auftrag\xBB oder \xAB\u{1F465} Team Auftrag\xBB, um die Auftr\xE4ge zu sehen.</div>';return}const i=e.filter(s=>(!orderTypeFilter||s.typ===orderTypeFilter)&&orderMatchesSearch(s,t)&&(!reviewFilter||reviewDue(s)));if(!i.length){n.innerHTML=`<div class="empty-state">${e.length?"Keine Auftr\xE4ge f\xFCr diese Suche.":"Noch keine Auftr\xE4ge. W\xE4hle \u201EKunden Auftrag\u201C oder \u201ETeam Auftrag\u201C."}</div>`;return}renderOrderCardsInto(n,i)}function renderOrderCardsInto(n,i){i.forEach(s=>{const a=document.createElement("div");a.className="card";const c=s.typ==="kunde",d=s.signedFile;a.innerHTML=`<div class="card-top">
+${(n==null?void 0:n.message)||"Unbekannter Fehler"}`)}}function esc(e){return String(e!=null?e:"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}function linkify(e){return esc(e).replace(/\n/g,"<br>").replace(/((https?:\/\/|www\.)[^\s<]+)/gi,t=>{let i=t,l="";const s=i.match(/[.,;:!?)]+$/);return s&&(l=s[0],i=i.slice(0,-l.length)),`<a href="${/^www\./i.test(i)?"https://"+i:i}" target="_blank" rel="noopener noreferrer" class="link-glow">${i}</a>${l}`})}function generateWarrantyPDF(e){var h;{const w=orderEnsureNr(e.id);w&&(e={...e,nr:w})}if(!window.jspdf||!window.jspdf.jsPDF){alert("PDF-Modul konnte nicht geladen werden. Bitte Internetverbindung pr\xFCfen. Der Auftrag wurde trotzdem gespeichert.");return}const{jsPDF:n}=window.jspdf,t=new n({unit:"mm",format:"a4"}),i=new Date(e.createdAt).toLocaleDateString("de-CH"),l=[6,16,31],s=[30,111,239],a=[18,27,43],c=[92,105,125],d=[244,248,255],o=[218,226,238],u=210,r=18,m=(h=document.querySelector(".brand-logo-img"))==null?void 0:h.src;if(t.setFillColor(...l),t.rect(0,0,u,42,"F"),t.setFillColor(...s),t.rect(0,40,u,2,"F"),m)try{t.addImage(m,"PNG",18,6,28,28)}catch{t.setTextColor(255,255,255),t.setFontSize(22),t.setFont(void 0,"bold"),t.text("BlueFix",18,19)}t.setTextColor(220,230,245),t.setFontSize(8.5),t.setFont(void 0,"normal"),t.text("HANDY REPARATUR",190,14,{align:"right"}),t.setTextColor(255,255,255),t.setFontSize(15),t.setFont(void 0,"bold"),t.text("GARANTIE-SCHEIN",190,24,{align:"right"}),t.setTextColor(160,177,202),t.setFontSize(8),t.setFont(void 0,"normal"),t.text("Reparaturbeleg \xB7 BlueFix",190,31,{align:"right"});let g=54;t.setTextColor(...c),t.setFontSize(8),t.text("AUFTRAG",r,g),t.text("AUSGESTELLT AM",120,g),t.setTextColor(...a),t.setFontSize(10),t.setFont(void 0,"bold"),t.text(String(e.nr||e.id||"\u2014"),r,g+6),t.text(i,120,g+6),g=72,t.setFillColor(...d),t.setDrawColor(...o),t.roundedRect(r,g,u-r*2,78,5,5,"FD"),t.setTextColor(...s),t.setFontSize(10),t.setFont(void 0,"bold"),t.text("AUFTRAGSDATEN",r+8,g+11);const I=[["Kunde",e.vorname+" "+e.nachname],["Ger\xE4t",e.modell],["IMEI",e.imei],["Reparatur",e.auftrag],["Preis","CHF "+Number(e.preis||0).toFixed(2)+(e.kombiRabatt?" ("+e.kombiRabatt+"% Kombi-Rabatt)":"")+(e.rabattCode?" ("+(e.rabattProzent||10)+"% Rabatt, "+e.rabattCode+")":"")],["Garantiedauer",e.garantie||"\u2014"]],C=[r+8,108];I.forEach(([w,f],Y)=>{const A=Y%2,W=Math.floor(Y/2),X=g+22+W*17;t.setTextColor(...c),t.setFontSize(7.5),t.setFont(void 0,"bold"),t.text(w.toUpperCase(),C[A],X),t.setTextColor(...a),t.setFontSize(10),t.setFont(void 0,"normal"),t.text(String(f||"\u2014"),C[A],X+6)}),g=162,t.setTextColor(...a),t.setFontSize(11.5),t.setFont(void 0,"bold"),t.text("AGB & Garantiehinweis",r,g),t.setTextColor(...c),t.setFontSize(8.5),t.setFont(void 0,"normal");const G="Der Kunde best\xE4tigt, die geltenden AGB vor Auftragserteilung gelesen und akzeptiert zu haben. Die Garantie gilt f\xFCr die oben eingetragene Dauer und nur im Rahmen der geltenden Garantiebedingungen. Bei Nichtbeachtung der Garantiebedingungen besteht kein Garantieanspruch.";let B=g+8;t.splitTextToSize(G,u-r*2).forEach(w=>{t.text(w,r,B),B+=4.6}),t.setFillColor(255,250,240),t.setDrawColor(241,205,145),t.roundedRect(r,190,u-r*2,25,4,4,"FD"),t.setTextColor(146,95,25),t.setFontSize(8.5),t.setFont(void 0,"bold"),t.text("WICHTIG",r+7,199),t.setTextColor(...c),t.setFontSize(8),t.setFont(void 0,"normal"),t.splitTextToSize("Bitte diesen Garantie-Schein aufbewahren und bei einem Garantieanspruch vorlegen. Die IMEI dient zur eindeutigen Zuordnung des Ger\xE4ts.",u-r*2-14).forEach((w,f)=>t.text(w,r+7,205+f*4.3)),g=232,t.setTextColor(...a),t.setFontSize(11.5),t.setFont(void 0,"bold"),t.text("Unterschriften",r,g),t.setTextColor(...c),t.setFontSize(8),t.setFont(void 0,"normal"),t.text(e.signedFile?"Unterschriebene Version wurde im Auftrag hinterlegt.":"Kunde unterschreibt nachtr\xE4glich direkt auf diesem PDF.",r,g+6);const p=265;t.setDrawColor(...o),t.setLineWidth(.6),t.line(r,p,92,p),t.line(118,p,192,p),t.setTextColor(...a),t.setFontSize(8.5),t.setFont(void 0,"bold"),t.text("Unterschrift Kunde",r,p+7),t.text("Unterschrift BlueFix",118,p+7),e.bluefixSignature&&t.addImage(e.bluefixSignature,"PNG",118,237,74,26),t.setDrawColor(...o),t.setLineWidth(.3),t.line(r,282,u-r,282),t.setTextColor(...c),t.setFontSize(7.5),t.setFont(void 0,"normal"),t.text("BlueFix \xB7 Garantie-Schein",r,288),t.text("Auftrags-Nr. "+String(e.nr||e.id||"\u2014"),u-r,288,{align:"right"});if(window.__wantWarrantyBlob===!0){window.__wantWarrantyBlob=t.output("blob");return}const b=t.output("bloburl");showFilePreview(b,"Garantie-Schein \xB7 "+(e.nr||e.id||""),"application/pdf")}const CARRIERS={dhl:{name:"DHL",url:e=>"https://www.dhl.com/de-de/home/tracking.html?tracking-id="+encodeURIComponent(e)},post:{name:"Schweizer Post",url:e=>"https://service.post.ch/ekp-web/ui/list?formattedParcelCodes="+encodeURIComponent(e)},asendia:{name:"Asendia",url:e=>"https://track.asendia.com/track/"+encodeURIComponent(e)}};function trackingHtml(e,n){e=String(e||"").trim();const t=CARRIERS[n],i=e.replace(/\s+/g,"");let l;return/^https?:\/\//i.test(e)?l=e:/^[\w-]+(\.[\w-]+)+\/\S*/.test(e)?l="https://"+e:l=t?t.url(i):"https://parcelsapp.com/de/tracking/"+encodeURIComponent(i),(t?esc(t.name)+" \xB7 ":"")+'<a href="'+esc(l)+'" target="_blank" rel="noopener" class="link-glow">'+esc(e)+" \u2197</a>"}const expandedOrders=new Set;function __ordersBind(t,f){["ordersList","eliaOrdersList"].forEach(function(id){var el=document.getElementById(id);el&&el.addEventListener(t,f)})}function renderOrders(){var l;renderDashboard();try{renderAiOrders()}catch{}syncStatusWatchers(),syncViewWatchers();try{renderReviewBar()}catch{}const e=load(ORDERS_KEY,[]),n=document.getElementById("ordersList"),t=(((l=document.getElementById("orderSearch"))==null?void 0:l.value)||"").trim().toLowerCase();if(n.innerHTML="",!orderTypeFilter&&!reviewFilter){n.innerHTML='<div class="empty-state">W\xE4hle oben \xAB\u{1F464} Kunden Auftrag\xBB oder \xAB\u{1F465} Team Auftrag\xBB, um die Auftr\xE4ge zu sehen.</div>';return}const i=e.filter(s=>(!orderTypeFilter||s.typ===orderTypeFilter)&&orderMatchesSearch(s,t)&&(!reviewFilter||reviewDue(s)));if(!i.length){n.innerHTML=`<div class="empty-state">${e.length?"Keine Auftr\xE4ge f\xFCr diese Suche.":"Noch keine Auftr\xE4ge. W\xE4hle \u201EKunden Auftrag\u201C oder \u201ETeam Auftrag\u201C."}</div>`;return}renderOrderCardsInto(n,i)}function renderOrderCardsInto(n,i){i.forEach(s=>{const a=document.createElement("div");a.className="card";const c=s.typ==="kunde",d=s.signedFile;a.innerHTML=`<div class="card-top">
       <div><p class="card-title"><button type="button" class="cust-link" data-cust="${esc(s.vorname+" "+s.nachname)}" data-cust-phone="${esc(s.telefon||"")}">${esc(s.vorname)} ${esc(s.nachname)}</button>${(c?!d:s.status!=="erledigt")?'<span class="order-live-dot" title="Auftrag offen"></span>':""}</p><p class="card-sub">${c&&s.nr?esc(s.nr)+" \xB7 ":""}${esc(s.modell)} \xB7 ${esc(s.auftrag)} \xB7 ${c?"Kunden Auftrag":"Team Auftrag"}${s.partner?" \xB7 \u{1F4E3} "+esc(s.partner):""}</p></div>
       <div class="card-actions">
         <button class="icon-btn-sm" data-del="${esc(s.id)}" title="L\xF6schen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>
@@ -2431,10 +2431,10 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
       '<div class="field"><label>Anrede</label><select id="mlForm" class="status-select"><option value="sie">Sie (formell)</option><option value="du">Du</option></select></div>' +
       '<div class="field"><label>Nachricht (du kannst den Text anpassen)</label><textarea id="mlMsg" rows="14"></textarea></div>' +
       '<div class="status-send" style="display:flex;flex-direction:column;gap:8px;">' +
-        '<button class="btn btn-ghost" type="button" id="mlPdfBtn">\uD83D\uDCCE ' + (kind === "inv" ? "Rechnung (PDF) \u00F6ffnen" : "Garantie-PDF \u00F6ffnen") + '</button>' +
-        '<button class="btn btn-primary" type="button" id="mlSendBtn">\u2709\uFE0F Per E-Mail senden</button>' +
+        '<button class="btn btn-ghost" type="button" id="mlPdfBtn">\uD83D\uDC41 ' + (kind === "inv" ? "Rechnung (PDF) ansehen" : "Garantie-PDF ansehen") + '</button>' +
+        '<button class="btn btn-primary" type="button" id="mlSendBtn">\u2709\uFE0F Mit PDF per E-Mail senden</button>' +
       '</div>' +
-      '<p class="card-sub" style="font-size:12.5px;margin-top:10px;">Tipp: Zuerst das PDF \u00F6ffnen und speichern, dann in der E-Mail als Anhang hinzuf\u00FCgen. Eine E-Mail-Vorlage kann das PDF nicht automatisch anh\u00E4ngen.</p>';
+      '<p class="card-sub" style="font-size:12.5px;margin-top:10px;">Das PDF wird automatisch an die E-Mail angeh\u00E4ngt und direkt von BlueFix verschickt.</p>';
     document.getElementById("mlForm").addEventListener("change", function(){ edited = false; refreshText(true); });
     document.getElementById("mlMsg").addEventListener("input", function(){ edited = true; });
     document.getElementById("mlSendBtn").addEventListener("click", sendMail);
@@ -2445,36 +2445,94 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     refreshText(true);
     document.getElementById("statusModal").classList.add("show");
   }
-  function sendMail(){
+  function hex32(){ var a = new Uint8Array(16); crypto.getRandomValues(a); return Array.prototype.map.call(a, function(x){ return ("0" + x.toString(16)).slice(-2); }).join(""); }
+  function blobToB64(blob){
+    return new Promise(function(ok, fail){
+      var r = new FileReader();
+      r.onload = function(){ ok(String(r.result).split(",")[1] || ""); };
+      r.onerror = function(){ fail(new Error("PDF konnte nicht gelesen werden")); };
+      r.readAsDataURL(blob);
+    });
+  }
+  function makePdf(doc){
+    if(ctx.kind === "inv"){
+      var t = buildInvoicePdf(doc);
+      return t ? { blob: t.blob, name: t.name } : null;
+    }
+    window.__wantWarrantyBlob = true;
+    try{ generateWarrantyPDF(doc); }catch(e){ console.warn(e); }
+    var b = window.__wantWarrantyBlob; window.__wantWarrantyBlob = false;
+    return (b && b !== true) ? { blob: b, name: "Garantieschein " + (doc.nr || "") + ".pdf" } : null;
+  }
+  var sending = false;
+  async function sendMail(){
+    if(sending) return;
     var doc = getDoc(); if(!doc) return;
     var to = document.getElementById("mlTo").value.trim();
     if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)){ alert("Bitte eine g\u00FCltige E-Mail-Adresse eingeben."); return; }
+    if(!fbReady || !fbDb){ alert("Keine Verbindung zum Server. Bitte Internet pr\u00FCfen und nochmals versuchen."); return; }
     var subject = document.getElementById("mlSubj").value.trim() || "BlueFix";
     var text = document.getElementById("mlMsg").value;
-    var all, d2;
-    if(ctx.kind === "inv"){
-      all = load(INVOICES_KEY, []); d2 = all.find(function(x){ return x.id === ctx.id; });
-      if(d2){
-        if(to !== (d2.email || "")) d2.email = to;
-        d2.mailGesendet = { at: Date.now(), von: currentUser() };
-        save(INVOICES_KEY, all);
-        try{ logActivity("\u2709\uFE0F", "die Rechnung " + (d2.nr || "") + " an " + d2.kunde + " per E-Mail geschickt"); }catch(e){}
-        try{ renderInvoices(); }catch(e){}
-      }
-    } else {
-      all = load(ORDERS_KEY, []); d2 = all.find(function(x){ return x.id === ctx.id; });
-      if(d2){
-        if(to !== (d2.email || "")) d2.email = to;
-        d2.garantieGesendet = { at: Date.now(), kanal: "mail", von: currentUser() };
-        try{ bfLogSent(d2, "garantie", "mail"); }catch(e){}
+    var btn = document.getElementById("mlSendBtn");
+    sending = true; btn.disabled = true; btn.textContent = "Wird gesendet\u2026";
+    try{
+      var pdf = makePdf(doc);
+      if(!pdf) throw new Error("PDF konnte nicht erstellt werden");
+      if(pdf.blob.size > 3 * 1024 * 1024) throw new Error("PDF ist zu gross (max. 3 MB)");
+      var b64 = await blobToB64(pdf.blob);
+
+      /* E-Mail-Adresse in ein Status-Dokument schreiben: der Server schickt nur an diese gespeicherte Adresse */
+      var all = ctx.kind === "inv" ? load(INVOICES_KEY, []) : load(ORDERS_KEY, []);
+      var d2 = all.find(function(x){ return x.id === ctx.id; });
+      if(!d2) throw new Error("Eintrag nicht gefunden");
+      d2.email = to;
+      var token;
+      if(ctx.kind === "inv"){
+        if(!/^[0-9a-f]{32}$/.test(d2.mailToken || "")) d2.mailToken = hex32();
+        token = d2.mailToken;
+        await fbDb.collection(STATUS_COLLECTION).doc(token).set({ typ: "mail", vorname: firstName(d2.kunde), email: to.toLowerCase(), updatedAt: Date.now() }, { merge: true });
+      } else {
+        if(!/^[0-9a-f]{32}$/.test(d2.statusToken || "")) d2.statusToken = hex32();
+        token = d2.statusToken;
         save(ORDERS_KEY, all);
-        try{ logActivity("\u2709\uFE0F", "den Garantieschein an " + d2.vorname + " " + d2.nachname + " per E-Mail geschickt"); }catch(e){}
-        try{ renderOrders(); }catch(e){}
+        await publishStatus(d2);
       }
+      save(ctx.kind === "inv" ? INVOICES_KEY : ORDERS_KEY, all);
+
+      var r = await notifyFetch({ method: "POST", headers: { "Content-Type": "text/plain" }, body: JSON.stringify({
+        token: token, kind: ctx.kind === "inv" ? "rechnung" : "garantie", subject: subject, text: text, filename: pdf.name, pdf: b64
+      }) }, "/api/send-document");
+      var raw = await r.text(), j = {};
+      try{ j = JSON.parse(raw); }catch(e){}
+      if(j && j.ok && j.skipped === "gerade erst gesendet"){ bfToast("\u2139\uFE0F Wurde gerade erst gesendet"); return; }
+      if(!(j && j.sent)) throw new Error((j && (j.error || j.skipped)) || ("HTTP " + r.status + " " + raw.replace(/\s+/g, " ").slice(0, 120)));
+
+      all = ctx.kind === "inv" ? load(INVOICES_KEY, []) : load(ORDERS_KEY, []);
+      d2 = all.find(function(x){ return x.id === ctx.id; });
+      if(d2){
+        if(ctx.kind === "inv"){
+          d2.mailGesendet = { at: Date.now(), von: currentUser() };
+          save(INVOICES_KEY, all);
+          try{ logActivity("\u2709\uFE0F", "die Rechnung " + (d2.nr || "") + " an " + d2.kunde + " per E-Mail geschickt"); }catch(e){}
+          try{ renderInvoices(); }catch(e){}
+        } else {
+          d2.garantieGesendet = { at: Date.now(), kanal: "mail", von: currentUser() };
+          try{ bfLogSent(d2, "garantie", "mail"); }catch(e){}
+          save(ORDERS_KEY, all);
+          try{ logActivity("\u2709\uFE0F", "den Garantieschein an " + d2.vorname + " " + d2.nachname + " per E-Mail geschickt"); }catch(e){}
+          try{ renderOrders(); }catch(e){}
+        }
+      }
+      bfToast("\u2705 " + (ctx.kind === "inv" ? "Rechnung" : "Garantieschein") + " mit PDF an " + (j.to || to) + " gesendet");
+      document.getElementById("statusModal").classList.remove("show");
+    }catch(err){
+      console.warn("Dokument-Mail fehlgeschlagen:", err);
+      bfToast("\u26A0\uFE0F E-Mail-Versand fehlgeschlagen: " + String((err && err.message) || err).slice(0, 140), true);
+    }finally{
+      sending = false;
+      var b2 = document.getElementById("mlSendBtn");
+      if(b2){ b2.disabled = false; b2.textContent = "\u2709\uFE0F Mit PDF per E-Mail senden"; }
     }
-    document.getElementById("statusModal").classList.remove("show");
-    try{ openGmailCompose(to, subject, text); }
-    catch(e){ window.location.href = "mailto:" + to + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(text); }
   }
 
   try{ SENT_LABELS.garantie = "\uD83D\uDCC4 Garantieschein"; }catch(e){}
