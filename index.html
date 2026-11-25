@@ -1885,7 +1885,7 @@ BlueFix`;logActivity("\u{1F517}","den "+(s?"\xDCberweisungs":"Twint-Zahlungs")+"
         <button class="btn btn-ghost btn-sm" data-pdf-inv="${a.id}" style="flex:1;">\u{1F4C4} Rechnung (PDF)</button>
         <button class="btn btn-primary btn-sm" data-send-inv="${a.id}" style="flex:1;">✉️ Per E-Mail senden</button>
       </div>
-      ${(a.zahlungsart==="twint"||a.zahlungsart==="bank")&&!a.bezahlt?`<button class="btn btn-ghost btn-sm" data-pay-link="${a.id}" style="width:100%;margin-top:8px;">\u{1F4F2} ${a.payToken?"Zahlungslink erneut per SMS senden":a.zahlungsart==="bank"?"\xDCberweisungslink per SMS senden":"Twint-Zahlungslink per SMS senden"}</button>`:""}
+      ${(a.zahlungsart==="twint"||a.zahlungsart==="bank")&&!a.bezahlt&&!a.payToken?`<button class="btn btn-ghost btn-sm" data-pay-link="${a.id}" style="width:100%;margin-top:8px;">\u{1F4F2} ${a.payToken?"Zahlungslink erneut per SMS senden":a.zahlungsart==="bank"?"\xDCberweisungslink per SMS senden":"Twint-Zahlungslink per SMS senden"}</button>`:""}
       ${isOverdue(a)?`<button class="btn btn-danger btn-sm" data-mahn-inv="${a.id}" style="width:100%;margin-top:8px;">\u{1F4E8} ${mahnCount(a)?"N\xE4chste Mahnung senden":"Zahlungserinnerung senden"}</button>`:""}
     `;{const d=c.querySelector(".card-top");if(d){const o=document.createElement("div");for(o.className="card-more";d.nextSibling;)o.appendChild(d.nextSibling);c.appendChild(o),d.dataset.toggle=a.id;const u=d.querySelector(".card-actions");if(u){const r=document.createElement("span");r.className="card-chev",r.textContent="\u25BE",u.prepend(r)}expandedInvoices.has(a.id)||c.classList.add("collapsed")}}n.appendChild(c)}),invUpdateToggleAll(l),n.querySelectorAll("[data-pay-link]").forEach(a=>a.addEventListener("click",()=>invSendPayLink(a.dataset.payLink)));try{syncPayWatchers()}catch{}n.querySelectorAll("[data-del-inv]").forEach(a=>a.addEventListener("click",()=>{showConfirm("Diese Rechnung wirklich l\xF6schen?",()=>{{const c=load(INVOICES_KEY,[]).find(d=>d.id===a.dataset.delInv);c&&logActivity("\u{1F5D1}\uFE0F","die Rechnung von "+c.kunde+" (CHF "+c.betrag.toFixed(2)+") gel\xF6scht")}save(INVOICES_KEY,load(INVOICES_KEY,[]).filter(c=>c.id!==a.dataset.delInv)),renderInvoices()})})),n.querySelectorAll("[data-paid-inv]").forEach(a=>a.addEventListener("click",()=>{const c=load(INVOICES_KEY,[]),d=c.find(o=>o.id===a.dataset.paidInv);d&&(d.bezahlt=!0,d.paidAt=Date.now(),delete d.autoBezahlt,save(INVOICES_KEY,c),logInvoiceState(d,!0),renderInvoices())})),n.querySelectorAll("[data-unpaid-inv]").forEach(a=>a.addEventListener("click",()=>{const c=load(INVOICES_KEY,[]),d=c.find(o=>o.id===a.dataset.unpaidInv);d&&(d.bezahlt=!1,delete d.paidAt,delete d.autoBezahlt,invResetPayConfirm(d),save(INVOICES_KEY,c),logInvoiceState(d,!1),renderInvoices())})),n.querySelectorAll("[data-view-inv]").forEach(a=>a.addEventListener("click",()=>{const c=load(INVOICES_KEY,[]).find(d=>d.id===a.dataset.viewInv);c&&showInvoiceDetail(c)})),n.querySelectorAll("[data-pdf-inv]").forEach(a=>a.addEventListener("click",()=>invoiceOpenPdf(a.dataset.pdfInv))),n.querySelectorAll("[data-send-inv]").forEach(a=>a.addEventListener("click",()=>invoiceSharePdf(a.dataset.sendInv))),n.querySelectorAll("[data-mahn-inv]").forEach(a=>a.addEventListener("click",()=>openMahnModal(a.dataset.mahnInv)))}function buildSwissQRPayload(e,n){return["SPC","0200","1",BANK_INFO.ibanRaw,"S",BANK_INFO.name,BANK_INFO.strasse,BANK_INFO.hausnr,BANK_INFO.plz,BANK_INFO.ort,"CH","","","","","","","",e.toFixed(2),"CHF","","","","","","","","NON","",(n||"").slice(0,140),"EPD"].join(`\r
 `)}function showInvoiceDetail(e){const n=document.getElementById("invoiceDetailContent");let t=`<div class="card-grid" style="margin-bottom:6px;">
@@ -2794,7 +2794,7 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     var h = ensureHost();
     while(live.length >= 3){ dismiss(live[0], 0, 0); live.shift(); }
     var el = document.createElement("div");
-    el.style.cssText = "pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;width:max-content;max-width:min(92vw,420px);box-sizing:border-box;padding:13px 18px;border-radius:16px;font:600 14px/1.35 Inter,system-ui,sans-serif;color:#fff;text-align:center;white-space:pre-line;border:1px solid rgba(255,255,255,.2);-webkit-backdrop-filter:blur(14px) saturate(1.4);backdrop-filter:blur(14px) saturate(1.4);opacity:0;transform:translate(0,-26px) scale(.96);transition:opacity .28s ease,transform .34s cubic-bezier(.2,.9,.3,1.15);" +
+    el.style.cssText = "pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;width:max-content;max-width:min(92vw,420px);box-sizing:border-box;padding:13px 18px;border-radius:16px;font:600 14px/1.35 Inter,system-ui,sans-serif;color:#fff;text-align:center;white-space:pre-line;border:1px solid rgba(255,255,255,.2);will-change:transform,opacity;contain:layout paint;opacity:0;transform:translate3d(0,-26px,0) scale(.96);transition:opacity .28s ease,transform .34s cubic-bezier(.2,.9,.3,1.15);" +
       "background:" + (bad ? "linear-gradient(135deg,rgba(194,58,58,.96),rgba(150,36,48,.96))" : "linear-gradient(135deg,rgba(74,156,255,.96),rgba(30,111,239,.96))") + ";" +
       "box-shadow:0 12px 32px rgba(0,0,0,.45)," + (bad ? "0 0 18px rgba(194,58,58,.45)" : "0 0 18px rgba(30,111,239,.5)") + ",inset 0 1px 0 rgba(255,255,255,.4);";
     if(title){
@@ -2807,8 +2807,10 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     var item = { el: el, key: key, gone: false, timer: null };
     live.push(item);
     attachSwipe(item);
-    el.getBoundingClientRect();
-    el.style.opacity = "1"; el.style.transform = "translate(0,0) scale(1)";
+    requestAnimationFrame(function(){ requestAnimationFrame(function(){
+      if(item.gone) return;
+      el.style.opacity = "1"; el.style.transform = "translate3d(0,0,0) scale(1)";
+    }); });
     arm(item, Math.max(4200, Math.min(9000, 2200 + text.length * 55 + (title ? 1200 : 0))));
   }
 
@@ -2882,6 +2884,195 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     w.__bfKeep = true;
     window[name] = w;
   });
+})();
+
+/* ===== E-Mail-Adressen pruefen: Tippfehler erkennen und Korrektur vorschlagen ===== */
+(function(){
+  var KNOWN = ["gmail.com","googlemail.com","outlook.com","outlook.de","outlook.ch","outlook.fr","hotmail.com","hotmail.ch","hotmail.de","hotmail.fr","live.com","live.ch","live.de","msn.com","yahoo.com","yahoo.de","yahoo.fr","icloud.com","me.com","mac.com","aol.com","proton.me","protonmail.com","protonmail.ch","pm.me","tutanota.com","tuta.com","mail.com","mail.ch","gmx.ch","gmx.net","gmx.de","gmx.at","gmx.com","web.de","t-online.de","freenet.de","bluewin.ch","bluemail.ch","sunrise.ch","hispeed.ch","quickline.ch","swissonline.ch","besonet.ch","vtxnet.ch","cablecom.ch","upc.ch"];
+  var TLDS = ["com","ch","de","net","org","fr","it","at","li","eu","info","me","io","co","uk","us","biz","app","dev","online","shop","swiss","email"];
+  var TLD_TYPOS = {comm:"com",con:"com",cmo:"com",ocm:"com",vom:"com",xom:"com",c0m:"com",cim:"com",comn:"com",coom:"com",cpm:"com",colm:"com",cm:"com",om:"com",chh:"ch",cch:"ch",hc:"ch",cj:"ch",cg:"ch",dh:"ch",vh:"ch",nte:"net",ner:"net",nett:"net",ent:"net",orgg:"org",ogr:"org",rog:"org",edu:"edu"};
+  var PROVIDER_COM = ["gmail","googlemail","icloud","protonmail"];
+  var OWN = ["bluefix.ch","blue-fix.ch"];
+
+  function osa(a, b){ /* Tippfehler-Abstand inkl. vertauschter Buchstaben */
+    var m = a.length, n = b.length, d = [], i, j, c;
+    for(i = 0; i <= m; i++){ d[i] = [i]; }
+    for(j = 0; j <= n; j++){ d[0][j] = j; }
+    for(i = 1; i <= m; i++){
+      for(j = 1; j <= n; j++){
+        c = a[i - 1] === b[j - 1] ? 0 : 1;
+        d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + c);
+        if(i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
+      }
+    }
+    return d[m][n];
+  }
+  function closest(list, x, max){
+    var best = null, bd = 99;
+    list.forEach(function(k){ var dd = osa(x, k); if(dd < bd){ bd = dd; best = k; } });
+    return (best && bd > 0 && bd <= max) ? best : null;
+  }
+
+  /* Ergebnis: {state:"ok"|"typo"|"invalid", fixed, why} */
+  window.bfMailVerdict = function(raw){
+    var s = String(raw == null ? "" : raw).trim();
+    if(!s) return { state: "ok" };
+    var compact = s.replace(/\s+/g, "");
+    var spaced = compact !== s;
+    var at = (compact.match(/@/g) || []).length;
+    var local, domain, cleanWhy = spaced ? "Leerzeichen entfernt." : "";
+
+    if(at === 0){
+      var mm = compact.toLowerCase().match(/(gmail|googlemail|hotmail|outlook|yahoo|icloud|bluewin|gmx|proton|sunrise)\.[a-z.]+$/);
+      if(mm && compact.length - mm[0].length >= 2){
+        return { state: "typo", fixed: compact.slice(0, compact.length - mm[0].length) + "@" + mm[0], why: "Das @ fehlt." };
+      }
+      return { state: "invalid", why: "Das @-Zeichen fehlt." };
+    }
+    if(at > 1){
+      var c2 = compact.replace(/@{2,}/g, "@");
+      if((c2.match(/@/g) || []).length === 1){ compact = c2; spaced = true; cleanWhy = "Doppeltes @ entfernt."; }
+      else return { state: "invalid", why: "Es darf nur ein @-Zeichen vorkommen." };
+    }
+    var parts = compact.split("@"); local = parts[0]; domain = parts[1];
+    if(!local) return { state: "invalid", why: "Vor dem @ fehlt etwas." };
+    if(!domain) return { state: "invalid", why: "Nach dem @ fehlt etwas." };
+
+    var fixedLocal = local.replace(/\.{2,}/g, ".");
+    if(fixedLocal !== local){ spaced = true; cleanWhy = "Doppelter Punkt entfernt."; }
+    local = fixedLocal;
+    if(local.length > 64 || !/^[A-Za-z0-9.!#$%&'*+\/=?^_`{|}~-]+$/.test(local) || /^\./.test(local) || /\.$/.test(local)){
+      return { state: "invalid", why: "Der Teil vor dem @ enthält ungültige Zeichen." };
+    }
+
+    var origDomLower = parts[1].toLowerCase();
+    if(/[,;]/.test(domain)){ spaced = true; cleanWhy = "Komma statt Punkt."; }
+    else if(/\.{2,}|^\.|\.$/.test(domain)){ spaced = true; cleanWhy = "Doppelter oder überflüssiger Punkt."; }
+    domain = domain.toLowerCase().replace(/[,;]/g, ".").replace(/\.{2,}/g, ".").replace(/^\.+|\.+$/g, "");
+    if(!domain) return { state: "invalid", why: "Nach dem @ fehlt etwas." };
+    var labels = domain.split(".");
+    var rebuilt = function(d){ return local + "@" + d; };
+
+    if(labels.length < 2){
+      var kd = KNOWN.filter(function(k){ return k.split(".")[0] === labels[0]; })[0];
+      if(kd) return { state: "typo", fixed: rebuilt(kd), why: "Die Endung fehlt." };
+      var near0 = labels[0].length >= 5 ? closest(KNOWN.map(function(k){ return k.split(".")[0]; }), labels[0], 1) : null;
+      if(near0){ var k2 = KNOWN.filter(function(k){ return k.split(".")[0] === near0; })[0]; return { state: "typo", fixed: rebuilt(k2), why: "Die Endung fehlt." }; }
+      return { state: "invalid", why: "Die Endung fehlt (z. B. .ch oder .com)." };
+    }
+    for(var li = 0; li < labels.length; li++){
+      if(!/^[a-z0-9-]+$/.test(labels[li]) || /^-|-$/.test(labels[li])) return { state: "invalid", why: "Die Domain enthält ungültige Zeichen." };
+    }
+
+    var tld = labels[labels.length - 1], base = labels.slice(0, -1).join(".");
+    var full = domain;
+
+    if(OWN.indexOf(full) >= 0) return spaced ? { state: "typo", fixed: rebuilt(full), why: cleanWhy || "Zeichen bereinigt." } : { state: "ok" };
+    if(KNOWN.indexOf(full) >= 0){
+      return spaced ? { state: "typo", fixed: rebuilt(full), why: cleanWhy || "Zeichen bereinigt." } : { state: "ok" };
+    }
+    if(PROVIDER_COM.indexOf(base) >= 0 && tld !== "com") return { state: "typo", fixed: rebuilt(base + ".com"), why: base + " endet auf .com." };
+
+    var thr = full.length >= 7 ? 1 : 0;
+    var near = thr ? closest(KNOWN, full, thr) : null;
+    if(near) return { state: "typo", fixed: rebuilt(near), why: "Ähnlich wie " + near + "." };
+
+    if(TLDS.indexOf(tld) < 0){
+      var t2 = TLD_TYPOS[tld] || closest(TLDS, tld, 1);
+      if(t2 && t2 !== "edu") return { state: "typo", fixed: rebuilt(base + "." + t2), why: "Die Endung ." + tld + " gibt es nicht." };
+    }
+    if(spaced) return { state: "typo", fixed: rebuilt(full), why: cleanWhy || "Zeichen bereinigt." };
+    return { state: "ok" };
+  };
+
+  /* ---- Anzeige: Hinweis unter dem Feld ---- */
+  var css = document.createElement("style");
+  css.textContent =
+    ".bf-mailhint{margin-top:8px;padding:10px 12px;border-radius:12px;font:600 13px/1.4 Inter,system-ui,sans-serif;color:#d6e6ff;background:rgba(30,111,239,.18);border:1px solid rgba(74,156,255,.5);}" +
+    ".bf-mailhint.bad{color:#ffd9d9;background:rgba(194,58,58,.2);border-color:rgba(230,90,90,.55);}" +
+    ".bf-mailhint b{color:#fff;word-break:break-all;}" +
+    ".bf-mailhint .bf-mh-row{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}" +
+    ".bf-mailhint button{font:700 13px/1 Inter,system-ui,sans-serif;padding:9px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.1);color:#fff;cursor:pointer;}" +
+    ".bf-mailhint button.primary{background:linear-gradient(135deg,#4a9cff,#1e6fef);border-color:transparent;}";
+  document.head.appendChild(css);
+
+  function isMailInput(el){
+    if(!el || el.tagName !== "INPUT") return false;
+    var t = (el.type || "").toLowerCase();
+    if(t === "email") return true;
+    if(t !== "text" && t !== "") return false;
+    return /mail/i.test(el.id || "") || /mail/i.test(el.name || "");
+  }
+  function hintOf(inp){ return inp.__bfHint && inp.__bfHint.isConnected ? inp.__bfHint : null; }
+  function clearHint(inp){ var hn = hintOf(inp); if(hn) hn.remove(); inp.__bfHint = null; }
+
+  function showHint(inp, v){
+    clearHint(inp);
+    var box = document.createElement("div");
+    box.className = "bf-mailhint" + (v.state === "invalid" ? " bad" : "");
+    var txt = document.createElement("div");
+    if(v.state === "typo"){
+      txt.appendChild(document.createTextNode("Tippfehler? Meintest du "));
+      var b = document.createElement("b"); b.textContent = v.fixed; txt.appendChild(b);
+      txt.appendChild(document.createTextNode(" ? " + (v.why || "")));
+    } else {
+      txt.textContent = "Diese E-Mail-Adresse stimmt so nicht. " + (v.why || "");
+    }
+    box.appendChild(txt);
+    if(v.state === "typo"){
+      var row = document.createElement("div"); row.className = "bf-mh-row";
+      var yes = document.createElement("button"); yes.type = "button"; yes.className = "primary"; yes.textContent = "Übernehmen";
+      var no = document.createElement("button"); no.type = "button"; no.textContent = "So lassen";
+      yes.addEventListener("click", function(){
+        inp.value = v.fixed; inp.dataset.bfMailOk = "";
+        clearHint(inp);
+        inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true }));
+        try{ bfToast("\u2705 E-Mail korrigiert"); }catch(e){}
+      });
+      no.addEventListener("click", function(){ inp.dataset.bfMailOk = inp.value.trim().toLowerCase(); clearHint(inp); });
+      row.appendChild(yes); row.appendChild(no); box.appendChild(row);
+    }
+    inp.insertAdjacentElement("afterend", box);
+    inp.__bfHint = box;
+  }
+
+  /* true = Adresse ist okay (oder bewusst so gelassen); false = Hinweis wird gezeigt */
+  function check(inp, loud){
+    var val = inp.value.trim();
+    if(!val){ clearHint(inp); return true; }
+    if(inp.dataset.bfMailOk && inp.dataset.bfMailOk === val.toLowerCase()){ clearHint(inp); return true; }
+    var v = window.bfMailVerdict(val);
+    if(v.state === "ok"){ clearHint(inp); return true; }
+    if(!hintOf(inp)) showHint(inp, v);
+    return false;
+  }
+
+  document.addEventListener("focusout", function(e){ if(isMailInput(e.target)) check(e.target, false); }, true);
+  document.addEventListener("change", function(e){ if(isMailInput(e.target)) check(e.target, false); }, true);
+  document.addEventListener("input", function(e){ if(isMailInput(e.target)){ e.target.dataset.bfMailOk = e.target.dataset.bfMailOk && e.target.dataset.bfMailOk === e.target.value.trim().toLowerCase() ? e.target.dataset.bfMailOk : ""; clearHint(e.target); } }, true);
+
+  /* Versenden/Speichern wird gestoppt, solange eine Adresse im selben Fenster noch nicht stimmt */
+  var GO = /send|speicher|erstell|best\u00E4tig|abschick|versend|hinzuf|anleg|sichern|weiter|\u00FCbernehm|bestell/i;
+  var STOP = /schliess|abbrech|zur\u00FCck|l\u00F6sch|entfern|\u00D7|^x$/i;
+  document.addEventListener("click", function(e){
+    var btn = e.target.closest && e.target.closest("button, .btn");
+    if(!btn || btn.closest(".bf-mailhint")) return;
+    var label = (btn.textContent || "").trim();
+    if(STOP.test(label)) return;
+    if(!(btn.classList.contains("btn-primary") || GO.test(label) || GO.test(btn.id || ""))) return;
+    var node = btn, inputs = [];
+    for(var up = 0; up < 8 && node && node !== document.body; up++){
+      node = node.parentElement; if(!node) break;
+      inputs = Array.prototype.filter.call(node.querySelectorAll("input"), function(i){ return isMailInput(i) && i.offsetParent !== null; });
+      if(inputs.length) break;
+    }
+    var bad = inputs.filter(function(i){ return !check(i, true); })[0];
+    if(bad){
+      e.preventDefault(); e.stopImmediatePropagation();
+      try{ bfToast("\u26A0\uFE0F E-Mail-Adresse bitte pr\u00FCfen", true); }catch(x){}
+      try{ bad.scrollIntoView({ block: "center", behavior: "smooth" }); }catch(x){}
+    }
+  }, true);
 })();
 </script>
 </body>
