@@ -2203,6 +2203,7 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
     }
     if(f.beschreibung) notes.push("Problem laut Kunde: "+f.beschreibung);
     if(f.wunsch) notes.push("Wunsch-Termin laut Kunde: "+f.wunsch);
+    if(f.rabattcode){ set("custRabatt",f.rabattcode); notes.push("Rabattcode laut Kunde: "+f.rabattcode+(f.rabattStatus==="gueltig"?" (im Formular geprüft)":" (nicht geprüft)")+" – bitte unten auf Prüfen tippen"); }
     set("custNotizen",notes.join("\n"));
     custPaySet(PAY[f.zahlungsart]||"");
     pendingFormId=f.id;
