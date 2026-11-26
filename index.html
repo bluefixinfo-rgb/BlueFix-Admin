@@ -930,6 +930,25 @@ input,select,textarea{font-family:var(--sans);}
 .rev-box .rep-info{margin-bottom:10px;}
 .rev-bar{border-color:rgba(245,166,35,0.5); background:rgba(245,166,35,0.08);}
 @media (max-width:420px){ .foto-cols{grid-template-columns:1fr;} }
+
+/* v5.0: Aufträge-Ansicht aufgeräumt – gleich grosse Kacheln, nichts überlappt */
+.orders-seg{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px;}
+.orders-seg .seg-btn{min-height:48px;padding:0 10px;border:1px solid var(--line);background:rgba(255,255,255,.03);border-radius:12px;font-size:14px;gap:8px;white-space:nowrap;overflow:hidden;}
+.orders-seg .seg-btn.active{border-color:rgba(74,156,255,.55);}
+.orders-toolbar{display:grid;grid-template-columns:1fr;gap:12px;margin-bottom:16px;}
+.orders-toolbar .order-type-buttons{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;min-width:0;flex:none;}
+.orders-toolbar .order-type-buttons .btn{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;width:100%!important;min-width:0;min-height:68px;padding:8px 6px;border-radius:14px;font-size:13px;line-height:1.2;text-align:center;white-space:normal;}
+.order-type-buttons .ot-ico{font-size:22px;line-height:1;}
+.order-type-buttons .ot-lbl{font-size:13px;font-weight:600;}
+.order-type-buttons .btn .seg-badge{position:absolute;top:6px;right:6px;}
+#customerOrderBtn,#teamOrderBtn{flex:none;font-size:13px;}
+/* Filter-Leisten (Offen/Alle, Formular senden) bleiben normale Reihen */
+#aiFilterBtns,#formFilterBtns,#formLinkBtn{min-width:0;}
+#aiFilterBtns,#formFilterBtns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+#aiFilterBtns .btn,#formFilterBtns .btn{flex-direction:row;min-height:44px;font-size:14px;}
+.orders-toolbar .order-search{min-width:0;width:100%;}
+.orders-toolbar .order-type-buttons:has(#formLinkBtn){grid-template-columns:1fr;}
+#formLinkBtn{flex-direction:row;min-height:44px;font-size:14px;}
 </style>
 <style id="lcStyle">
 /* ===== Kunden-Chats (Live-Chat von der Website) ===== */
@@ -1157,9 +1176,9 @@ input,select,textarea{font-family:var(--sans);}
     <div id="ownOrdersWrap">
     <div class="orders-toolbar">
       <div class="order-type-buttons">
-        <button class="btn btn-ghost" id="customerOrderBtn">👤 Kunden Auftrag</button>
-        <button class="btn btn-ghost" id="teamOrderBtn">👥 Team Auftrag</button>
-        <button class="btn btn-ghost" id="trashBtn" type="button">🗑️ Papierkorb <span class="seg-badge" id="trashBadge" hidden>0</span></button>
+        <button class="btn btn-ghost" id="customerOrderBtn"><span class="ot-ico">👤</span><span class="ot-lbl">Kunden Auftrag</span></button>
+        <button class="btn btn-ghost" id="teamOrderBtn"><span class="ot-ico">👥</span><span class="ot-lbl">Team Auftrag</span></button>
+        <button class="btn btn-ghost" id="trashBtn" type="button"><span class="ot-ico">🗑️</span><span class="ot-lbl">Papierkorb</span><span class="seg-badge" id="trashBadge" hidden>0</span></button>
       </div>
       <div class="order-search"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     </div>
