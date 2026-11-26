@@ -3076,5 +3076,50 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
   }, true);
 })();
 </script>
+<script>
+/* EINMALIGE WIEDERHERSTELLUNG Auftrag BF-3915 (Franziska Mastrovito). Nach erfolgreichem Lauf kann dieser Block gelöscht werden. */
+(function(){
+  var FLAG="bf3915_restored_v1";
+  try{ if(localStorage.getItem(FLAG)) return; }catch(e){}
+  var tries=0;
+  var timer=setInterval(function(){
+    tries++;
+    if(tries>600){ clearInterval(timer); return; }
+    try{
+      if(typeof currentUser!=="function"||!currentUser()||!fbReady||!fbDb) return;
+    }catch(e){ return; }
+    clearInterval(timer);
+    var ref=fbDb.collection("bluefix_sync").doc(ORDERS_KEY);
+    var added=false, finalList=null;
+    fbDb.runTransaction(async function(t){
+      var snap=await t.get(ref);
+      if(!snap.exists) throw new Error("no-doc");
+      var list=(snap.data()||{}).data||[];
+      if(list.some(function(o){return o&&(o.id==="restore-bf-3915"||o.nr==="BF-3915");})){ finalList=list; return; }
+      var order={
+        id:"restore-bf-3915", nr:"BF-3915", typ:"kunde",
+        vorname:"Franziska", nachname:"Mastrovito",
+        modell:"Nokia C21", imei:"000000000000000",
+        preis:55, garantie:"6 Monate", abgabe:"Vorbeibringen",
+        telefon:"+41 78 720 29 82", email:"franziskamariamastrovito@gmail.com",
+        repStatus:"angenommen", statusToken:newStatusToken(), statusUpdatedAt:Date.now(),
+        auftrag:"Display Premium", notizen:"", agbAccepted:true,
+        zahlungsart:"bar", createdBy:currentUser(), createdAt:Date.now()
+      };
+      list=[order].concat(list);
+      t.set(ref,{data:list,updatedBy:currentUser(),updatedAt:firebase.firestore.FieldValue.serverTimestamp()});
+      added=true; finalList=list;
+    }).then(function(){
+      try{ localStorage.setItem(ORDERS_KEY,JSON.stringify(finalList)); }catch(e){}
+      try{ localStorage.setItem(FLAG,"1"); }catch(e){}
+      if(added){
+        try{ var o=finalList.find(function(x){return x.id==="restore-bf-3915";}); publishStatus(o); }catch(e){}
+        try{ renderOrders(); }catch(e){}
+        try{ bfToast("\u2705 Auftrag BF-3915 wiederhergestellt"); }catch(e){}
+      }
+    }).catch(function(e){ console.warn("BF-3915 Wiederherstellung fehlgeschlagen:",e); });
+  },1000);
+})();
+</script>
 </body>
 </html>
