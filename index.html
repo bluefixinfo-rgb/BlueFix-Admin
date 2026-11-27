@@ -1274,6 +1274,10 @@ input,select,textarea{font-family:var(--sans);}
           <div><div class="rev-col-label"><i class="rev-dot" style="background:var(--warn)"></i>Offen</div><div class="rev-num" id="revOpen"></div><div class="rev-note" id="revOpenN"></div></div>
         </div>
       </div>
+      <div class="card rev-card" id="revProfitCard" style="display:none;">
+        <div class="rev-card-head"><span class="rev-title">Gewinn pro Monat</span><span class="rev-trend" id="revProfitTotal"></span></div>
+        <div id="revProfitBody"></div>
+      </div>
     </div>
   </div>
 
@@ -3255,6 +3259,43 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
 function custEinkaufApply(o){if(currentUser()!=="jerome")return;var v=document.getElementById("custEinkauf").value.trim(),n=parseFloat(v.replace(",","."));if(v!==""&&isFinite(n)&&n>=0)o.einkauf=n;else delete o.einkauf}
 function custMargeUpdate(){var m=document.getElementById("custMarge");if(!m)return;var e=parseFloat(document.getElementById("custEinkauf").value),p=parseFloat(document.getElementById("custPreis").value)||0;if(!isFinite(e)){m.textContent="";m.style.color="";return}var g=p-e;m.textContent="Gewinn: CHF "+g.toFixed(2)+(p>0?" ("+Math.round(g/p*100)+" %)":"");m.style.color=g>=0?"#7fd6a0":"#ff9a9a"}
 document.getElementById("custEinkauf").addEventListener("input",custMargeUpdate);document.getElementById("custPreis").addEventListener("input",custMargeUpdate);
+</script>
+<script>
+(function(){
+function pf(n){return revChf(n)}
+function renderProfit(){
+  var c=document.getElementById("revProfitCard");if(!c)return;
+  if(currentUser()!=="jerome"){c.style.display="none";return}
+  c.style.display="";
+  var by={},tot={g:0,n:0};
+  load(ORDERS_KEY,[]).forEach(function(o){
+    if(!o||o.typ!=="kunde")return;
+    var d=new Date(o.createdAt||0),k=revKey(d.getFullYear(),d.getMonth()),m=by[k]||(by[k]={g:0,u:0,e:0,n:0,miss:0}),p=Number(o.preis)||0;
+    if(o.einkauf!=null&&o.einkauf!==""&&isFinite(Number(o.einkauf))){var e=Number(o.einkauf);m.g+=p-e;m.u+=p;m.e+=e;m.n++;tot.g+=p-e;tot.n++}
+    else if(p>0)m.miss++;
+  });
+  var months=(revMonthsCache&&revMonthsCache.length?revMonthsCache:[]);
+  if(!months.length){var now=new Date();months=[{key:revKey(now.getFullYear(),now.getMonth()),year:now.getFullYear(),month:now.getMonth()}]}
+  var selKey=revSelectedKey||months[months.length-1].key,sel=months.find(function(m){return m.key===selKey})||months[months.length-1];
+  var sm=by[sel.key]||{g:0,u:0,e:0,n:0,miss:0};
+  var col=function(v){return v>=0?"#7fd6a0":"#ff9a9a"};
+  var margin=sm.u>0?Math.round(sm.g/sm.u*100):0;
+  var html='<div class="rev-month-now" style="color:'+col(sm.g)+'">'+pf(sm.g)+'</div>'
+   +'<div class="rev-trend">'+REV_MONTHS_LONG[sel.month]+' '+sel.year+(sm.n?' · Marge '+margin+' % · '+sm.n+(sm.n===1?' Auftrag':' Aufträge'):' · noch kein Einkaufspreis erfasst')+'</div>';
+  if(sm.n)html+='<div class="rev-detail"><span class="muted">Umsatz '+pf(sm.u)+' · Einkauf '+pf(sm.e)+'</span></div>';
+  if(sm.miss)html+='<div class="rev-note" style="margin-top:6px;">'+sm.miss+(sm.miss===1?' Auftrag':' Aufträge')+' ohne Einkaufspreis nicht eingerechnet</div>';
+  var last=months.slice(-6),max=Math.max.apply(null,last.map(function(m){return Math.abs((by[m.key]||{g:0}).g)}).concat([1]));
+  html+='<div style="margin-top:14px;display:grid;gap:7px;">'+last.map(function(m){
+    var g=(by[m.key]||{g:0}).g,w=Math.max(Math.abs(g)/max*100,g?3:0),on=m.key===sel.key;
+    return '<div style="display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:8px;font-size:12px;'+(on?'color:var(--white);font-weight:600;':'color:var(--muted);')+'"><span>'+REV_MONTHS[m.month]+'</span><span style="height:8px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;display:block;"><i style="display:block;height:100%;width:'+w+'%;background:'+col(g)+';border-radius:99px;"></i></span><span>'+(g?pf(g):'–')+'</span></div>';
+  }).join('')+'</div>';
+  document.getElementById("revProfitBody").innerHTML=html;
+  document.getElementById("revProfitTotal").textContent="Gesamt "+pf(tot.g)+(tot.n?" ("+tot.n+")":"");
+}
+var base=renderRevenueChart;
+renderRevenueChart=function(){var r=base.apply(this,arguments);try{renderProfit()}catch(e){console.warn(e)}return r};
+window.renderProfit=renderProfit;
+})();
 </script>
 </body>
 </html>
