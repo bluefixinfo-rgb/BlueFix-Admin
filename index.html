@@ -981,6 +981,48 @@ button[data-edit-team]{padding:4px 11px!important;font-size:12px!important;min-h
 .orders-toolbar .order-search{min-width:0;width:100%;}
 .orders-toolbar .order-type-buttons:has(#formLinkBtn){grid-template-columns:1fr;}
 #formLinkBtn{flex-direction:row;min-height:44px;font-size:14px;}
+
+/* v6: Aufträge – sortiert & lebendig */
+.ord-label{display:flex;align-items:center;gap:10px;margin:2px 4px 8px;font-size:11px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--muted);}
+.ord-label::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.16),transparent);}
+#tab-orders .section-head-row{margin-bottom:12px;}
+#tab-orders .section-head-row h2{display:flex;align-items:center;gap:10px;}
+#tab-orders .section-head-row h2::before{content:"";width:9px;height:9px;border-radius:50%;background:#2fbf71;animation:bfLive 2s ease-out infinite;}
+@keyframes bfLive{0%{box-shadow:0 0 0 0 rgba(47,191,113,.6)}70%{box-shadow:0 0 0 9px rgba(47,191,113,0)}100%{box-shadow:0 0 0 0 rgba(47,191,113,0)}}
+@keyframes bfRise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes bfFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes bfBadge{0%,100%{box-shadow:0 0 0 0 rgba(227,72,72,.55)}60%{box-shadow:0 0 0 7px rgba(227,72,72,0)}}
+@keyframes bfGlow{0%,100%{filter:drop-shadow(0 0 0 rgba(74,156,255,0))}50%{filter:drop-shadow(0 0 7px rgba(74,156,255,.7))}}
+#ownOrdersWrap > *{animation:bfRise .5s var(--ease-glass) both;}
+#ownOrdersWrap > :nth-child(2){animation-delay:.04s}
+#ownOrdersWrap > :nth-child(3){animation-delay:.09s}
+#ownOrdersWrap > :nth-child(4){animation-delay:.14s}
+#ownOrdersWrap > :nth-child(5){animation-delay:.19s}
+#ownOrdersWrap > :nth-child(6){animation-delay:.24s}
+#ownOrdersWrap > :nth-child(7){animation-delay:.29s}
+.orders-seg{background:linear-gradient(160deg,rgba(255,255,255,.06),rgba(255,255,255,.02));}
+.orders-seg .seg-btn{transition:transform .18s var(--ease-glass),background .25s,border-color .25s,box-shadow .25s,color .25s;}
+.orders-seg .seg-btn:active{transform:scale(.96);}
+.orders-seg .seg-btn.active{background:linear-gradient(135deg,rgba(30,111,239,.5),rgba(74,156,255,.16));box-shadow:0 8px 22px -10px rgba(30,111,239,.9),inset 0 1px 0 rgba(255,255,255,.22);}
+.seg-badge:not([hidden]){animation:bfBadge 1.9s ease-out infinite;}
+.orders-toolbar{margin-bottom:14px;}
+.orders-toolbar .order-type-buttons .btn{transition:transform .18s var(--ease-glass),border-color .25s,box-shadow .25s,background .25s,color .25s;}
+.orders-toolbar .order-type-buttons .btn:hover{transform:translateY(-2px);border-color:rgba(74,156,255,.5);}
+.orders-toolbar .order-type-buttons .btn:active{transform:scale(.96);}
+.orders-toolbar .order-type-buttons .btn.active{background:linear-gradient(135deg,#1e6fef,#2f8bff);border-color:rgba(160,205,255,.7);color:#fff;box-shadow:0 10px 24px -10px rgba(30,111,239,.95),inset 0 1px 0 rgba(255,255,255,.3);}
+.orders-toolbar .order-type-buttons .btn.active .ot-ico{animation:bfFloat 2.4s ease-in-out infinite;}
+#warrantyCheck{margin-bottom:14px!important;transition:border-color .25s,box-shadow .25s;}
+#warrantyCheck:focus-within{border-color:rgba(74,156,255,.65);box-shadow:0 0 0 3px rgba(30,111,239,.16),0 14px 34px -14px rgba(30,111,239,.6);}
+.wc-title{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.wc-shield{font-size:26px;line-height:1;animation:bfGlow 3s ease-in-out infinite;}
+.wc-h{font-weight:700;font-size:15px;line-height:1.2;}
+.wc-sub{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.3;}
+#wcResult > div{animation:bfRise .35s var(--ease-glass) both;}
+.order-search-main input{transition:border-color .2s,box-shadow .2s;}
+#ordersList{padding-bottom:84px;}
+#ordersList .empty-state,#aiOrdersList .empty-state{border:1px dashed rgba(255,255,255,.16);border-radius:16px;background:rgba(255,255,255,.025);padding:26px 18px;line-height:1.5;}
+#ordersList .empty-state::before,#aiOrdersList .empty-state::before{content:"🗂️";display:block;font-size:36px;margin-bottom:8px;animation:bfFloat 3s ease-in-out infinite;}
+@media(prefers-reduced-motion:reduce){#ownOrdersWrap > *,.seg-badge,.wc-shield,#tab-orders .section-head-row h2::before,.orders-toolbar .order-type-buttons .btn.active .ot-ico,#ordersList .empty-state::before,#aiOrdersList .empty-state::before,#wcResult > div{animation:none!important;}}
 </style>
 <style id="lcStyle">
 /* ===== Kunden-Chats (Live-Chat von der Website) ===== */
@@ -1220,6 +1262,7 @@ button[data-edit-team]{padding:4px 11px!important;font-size:12px!important;min-h
       <button type="button" class="seg-btn" data-seg="elia">📣 Elia<span class="seg-badge" id="eliaNewBadge" hidden>0</span></button>
     </div>
     <div id="ownOrdersWrap">
+    <div class="ord-label">Aufträge ansehen</div>
     <div class="orders-toolbar">
       <div class="order-type-buttons">
         <button class="btn btn-ghost" id="customerOrderBtn"><span class="ot-ico">👤</span><span class="ot-lbl">Kunden Auftrag</span></button>
@@ -1228,7 +1271,7 @@ button[data-edit-team]{padding:4px 11px!important;font-size:12px!important;min-h
       </div>
     </div>
     <div class="card" id="warrantyCheck" style="margin-bottom:12px;">
-      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🛡️ Garantie prüfen</div>
+      <div class="wc-title"><span class="wc-shield">🛡️</span><div><div class="wc-h">Garantie prüfen</div><div class="wc-sub">IMEI eingeben oder scannen – Ergebnis erscheint sofort</div></div></div>
       <div class="field-with-scan wc-field">
         <div class="clear-wrap"><input type="text" id="wcImei" inputmode="numeric" maxlength="20" placeholder="IMEI eingeben oder scannen" autocomplete="off"><button type="button" class="search-clear" data-clear="wcImei" aria-label="Eingabe löschen">✕</button></div>
         <button type="button" class="scan-btn" id="wcScanBtn" title="IMEI-Barcode scannen">
@@ -1237,6 +1280,7 @@ button[data-edit-team]{padding:4px 11px!important;font-size:12px!important;min-h
       </div>
       <div id="wcResult" style="margin-top:10px;"></div>
     </div>
+    <div class="ord-label">Suche</div>
     <div class="order-search order-search-main"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     <div id="reviewBar"></div>
     <div id="ordersList"></div>
