@@ -1206,6 +1206,16 @@ button[data-edit-team]{padding:4px 11px!important;font-size:12px!important;min-h
       </div>
       <div class="order-search"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     </div>
+    <div class="card" id="warrantyCheck" style="margin-bottom:12px;">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🛡️ Garantie prüfen</div>
+      <div class="field-with-scan">
+        <input type="text" id="wcImei" inputmode="numeric" maxlength="20" placeholder="IMEI eingeben oder scannen" autocomplete="off">
+        <button type="button" class="scan-btn" id="wcScanBtn" title="IMEI-Barcode scannen">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
+        </button>
+      </div>
+      <div id="wcResult" style="margin-top:10px;"></div>
+    </div>
     <div id="reviewBar"></div>
     <div id="ordersList"></div>
     </div>
@@ -3488,6 +3498,59 @@ document.getElementById("filePreviewClose").addEventListener("click", function()
   window.__fpToken = (window.__fpToken || 0) + 1;
   document.getElementById("filePreviewPages").innerHTML = "";
 });
+</script>
+<script>
+(function(){
+  var inp=document.getElementById("wcImei"),out=document.getElementById("wcResult");
+  if(!inp||!out)return;
+  function wcEnd(o){
+    var m=String(o.garantie||"6 Monate").match(/(\d+)\s*(monat|jahr)/i);
+    if(!m)return null;
+    var d=new Date(o.createdAt||Date.now());
+    d.setMonth(d.getMonth()+Number(m[1])*(/jahr/i.test(m[2])?12:1));
+    return d;
+  }
+  function fmt(d){return d.toLocaleDateString("de-CH");}
+  function left(d){
+    var days=Math.ceil((d.getTime()-Date.now())/864e5);
+    if(days<=0)return"";
+    if(days<31)return"noch "+days+(days===1?" Tag":" Tage");
+    var mo=Math.round(days/30.4);
+    return"noch ca. "+mo+(mo===1?" Monat":" Monate");
+  }
+  function render(){
+    var q=inp.value.replace(/\D/g,"");
+    if(q.length<6){out.innerHTML=q.length?'<div style="color:var(--muted);font-size:12.5px;">Bitte mindestens 6 Ziffern der IMEI eingeben.</div>':"";return;}
+    var hits=load(ORDERS_KEY,[]).filter(function(o){
+      if(!o||o.typ!=="kunde"||!o.imei)return false;
+      var im=String(o.imei).replace(/\D/g,"");
+      return im===q||im.endsWith(q);
+    }).sort(function(a,b){return(b.createdAt||0)-(a.createdAt||0);});
+    if(!hits.length){out.innerHTML='<div style="padding:10px 12px;border-radius:12px;background:rgba(150,150,150,.12);font-size:13.5px;">Keine Reparatur zu dieser IMEI gefunden. Es besteht keine Garantie von BlueFix.</div>';return;}
+    out.innerHTML=hits.map(function(o){
+      var end=wcEnd(o),ok=end&&end.getTime()>Date.now();
+      var col=!end?"#f5a623":ok?"#2fbf71":"#e34848";
+      var txt=!end?"Garantiedauer nicht lesbar: «"+esc(o.garantie||"")+"»":ok?"✅ Garantie gültig bis "+fmt(end)+" ("+left(end)+")":"❌ Garantie abgelaufen am "+fmt(end);
+      return'<div style="border:1px solid '+col+';border-radius:12px;padding:10px 12px;margin-top:8px;">'
+        +'<div style="font-weight:700;color:'+col+';font-size:14px;">'+txt+'</div>'
+        +'<div style="font-size:13px;margin-top:4px;line-height:1.5;"><b>'+esc((o.vorname||"")+" "+(o.nachname||""))+'</b> · '+esc(o.modell||"")+'<br>Reparatur: '+esc(o.auftrag||"–")+'<br>Repariert am '+fmt(new Date(o.createdAt||Date.now()))+(o.nr?" · "+esc(o.nr):"")+'</div>'
+        +'<button type="button" class="btn btn-ghost btn-sm" data-wc-open="'+esc(o.id)+'" style="margin-top:8px;">Auftrag öffnen</button></div>';
+    }).join("");
+  }
+  inp.addEventListener("input",render);
+  document.getElementById("wcScanBtn").addEventListener("click",function(){openImeiScanner("wcImei");});
+  out.addEventListener("click",function(e){
+    var b=e.target.closest("[data-wc-open]");if(!b)return;
+    var id=b.dataset.wcOpen,o=load(ORDERS_KEY,[]).find(function(x){return x.id===id;});
+    if(!o)return;
+    orderTypeFilter="kunde";
+    try{updateOrderFilterButtons();}catch(_){}
+    var se=document.getElementById("orderSearch");if(se)se.value=String(o.imei||"");
+    expandedOrders.add(id);
+    renderOrders();
+    var l=document.getElementById("ordersList");if(l)l.scrollIntoView({behavior:"smooth",block:"start"});
+  });
+})();
 </script>
 </body>
 </html>
