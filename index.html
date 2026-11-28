@@ -468,6 +468,27 @@ input,select,textarea{font-family:var(--sans);}
 .icon-btn-sm:hover{border-color:#7a1f1f; color:#ff9a9a;}
 .icon-btn-sm svg{width:14px; height:14px; pointer-events:none;}
 
+
+/* ---- Garantie prüfen: größeres Eingabefeld + Löschen-Kreuz ---- */
+#warrantyCheck{padding:18px 16px;}
+#warrantyCheck .wc-field{gap:10px;}
+#warrantyCheck .clear-wrap{position:relative;flex:1;min-width:0;display:flex;}
+#wcImei{width:100%;height:56px;font-size:17px;letter-spacing:.3px;padding:0 48px 0 16px;border-radius:14px;}
+#warrantyCheck .scan-btn{width:56px;height:56px;border-radius:14px;}
+#warrantyCheck .scan-btn svg{width:24px;height:24px;}
+.order-search-main{display:block;width:100%;flex:none;min-width:0;margin-bottom:14px;}
+.order-search-main input{height:52px;font-size:16px;}
+.order-search input[type=search]{padding-right:46px;}
+.search-clear{
+  position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  width:28px;height:28px;border-radius:50%;border:none;padding:0;
+  background:rgba(255,255,255,.14);color:var(--white);
+  font-size:13px;line-height:1;cursor:pointer;
+  display:none;align-items:center;justify-content:center;
+  -webkit-tap-highlight-color:transparent;
+}
+.search-clear:active{background:rgba(255,255,255,.28);}
+input:not(:placeholder-shown) ~ .search-clear{display:flex;}
 .field-with-scan{display:flex; align-items:stretch; gap:8px;}
 .field-with-scan input{flex:1; min-width:0;}
 .scan-btn{
@@ -1204,18 +1225,18 @@ button[data-edit-team]{padding:4px 11px!important;font-size:12px!important;min-h
         <button class="btn btn-ghost" id="teamOrderBtn"><span class="ot-ico">👥</span><span class="ot-lbl">Team Auftrag</span></button>
         <button class="btn btn-ghost" id="trashBtn" type="button"><span class="ot-ico">🗑️</span><span class="ot-lbl">Papierkorb</span><span class="seg-badge" id="trashBadge" hidden>0</span></button>
       </div>
-      <div class="order-search"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     </div>
     <div class="card" id="warrantyCheck" style="margin-bottom:12px;">
       <div style="font-weight:700;font-size:14px;margin-bottom:8px;">🛡️ Garantie prüfen</div>
-      <div class="field-with-scan">
-        <input type="text" id="wcImei" inputmode="numeric" maxlength="20" placeholder="IMEI eingeben oder scannen" autocomplete="off">
+      <div class="field-with-scan wc-field">
+        <div class="clear-wrap"><input type="text" id="wcImei" inputmode="numeric" maxlength="20" placeholder="IMEI eingeben oder scannen" autocomplete="off"><button type="button" class="search-clear" data-clear="wcImei" aria-label="Eingabe löschen">✕</button></div>
         <button type="button" class="scan-btn" id="wcScanBtn" title="IMEI-Barcode scannen">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="16" y1="8" x2="16" y2="16"/></svg>
         </button>
       </div>
       <div id="wcResult" style="margin-top:10px;"></div>
     </div>
+    <div class="order-search order-search-main"><span class="search-icon">⌕</span><input id="orderSearch" type="search" placeholder="Suche: Name, Gerät oder Telefonnummer…" autocomplete="off"></div>
     <div id="reviewBar"></div>
     <div id="ordersList"></div>
     </div>
@@ -3549,6 +3570,26 @@ document.getElementById("filePreviewClose").addEventListener("click", function()
     expandedOrders.add(id);
     renderOrders();
     var l=document.getElementById("ordersList");if(l)l.scrollIntoView({behavior:"smooth",block:"start"});
+  });
+})();
+</script>
+<script>
+(function(){
+  document.querySelectorAll(".order-search").forEach(function(w){
+    var i=w.querySelector("input");
+    if(!i||w.querySelector(".search-clear"))return;
+    var b=document.createElement("button");
+    b.type="button";b.className="search-clear";b.setAttribute("aria-label","Suche löschen");b.textContent="✕";
+    if(!i.id)i.id="srch_"+Math.random().toString(36).slice(2,8);
+    b.dataset.clear=i.id;
+    i.insertAdjacentElement("afterend",b);
+  });
+  document.addEventListener("click",function(e){
+    var b=e.target.closest&&e.target.closest(".search-clear");if(!b)return;
+    var i=document.getElementById(b.dataset.clear);if(!i)return;
+    i.value="";
+    i.dispatchEvent(new Event("input",{bubbles:true}));
+    i.focus();
   });
 })();
 </script>
