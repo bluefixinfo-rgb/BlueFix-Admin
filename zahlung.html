@@ -339,7 +339,7 @@ function render(d){
   }
 }
 
-const token = (new URLSearchParams(location.search).get('t') || '').trim();
+const token = (new URLSearchParams(location.search).get('t') || '').replace(/[^a-fA-F0-9]/g, '').toLowerCase();   // tolerant: Bindestriche/Leerzeichen aus kopierten Links ignorieren
 if (!/^[a-f0-9]{32}$/.test(token)) { view('invalid'); }
 else {
   firebase.initializeApp(firebaseConfig);
