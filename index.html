@@ -2683,7 +2683,12 @@ Wenn Sie zufrieden waren, freuen wir uns \xFCber eine kurze Google-Bewertung. Da
         return true;
       }
     }
-    window.location.href = "sms:+" + normPhone(p) + "?&body=" + encodeURIComponent(text);
+    var smsA = document.createElement("a");
+    smsA.href = "sms:+" + normPhone(p) + "?&body=" + encodeURIComponent(text);
+    smsA.style.display = "none";
+    document.body.appendChild(smsA);
+    smsA.click();
+    setTimeout(function(){ try{ smsA.remove(); }catch(e){} }, 800);
     return true;
   };
 
